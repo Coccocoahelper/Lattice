@@ -13,6 +13,7 @@ cd /d "%~dp0"
 
 set "ROOT=%CD%"
 set "RUN=%ROOT%\run"
+set "PLUGIN_SRC=%ROOT%"
 set "DATA=%RUN%\plugins\Lattice"
 set "WINDSPIGOT_URL=https://github.com/Wind-Development/WindSpigot/releases/latest/download/WindSpigot-2.1.4.jar"
 set "BUILD=0"
@@ -62,6 +63,11 @@ for %%F in ("%RUN%\plugins\h2020-*.jar") do (
     echo Moved stale %%~nxF to plugins\disabled\
   )
 )
+
+echo ROOT=%ROOT%
+echo PLUGIN_SRC=%PLUGIN_SRC%
+dir "%ROOT%\build\libs\Lattice.jar"
+dir "%RUN%\plugins\Lattice.jar"
 
 call :installjar "Lattice.jar" "%ROOT%\build\libs\Lattice.jar"
 if errorlevel 1 ( pause & exit /b 1 )
@@ -116,7 +122,7 @@ if not exist "%RUN%\server.properties" (
   powershell -NoProfile -Command "$p=-join((48..57)+(97..122)|Get-Random -Count 20|%%{[char]$_}); (Get-Content '%ROOT%\server-defaults\server.properties') -replace 'CHANGE_ME',$p | Set-Content -Path '%RUN%\server.properties' -Encoding UTF8"
 )
 if not exist "%RUN%\spigot.yml" copy /y "%ROOT%\server-defaults\spigot.yml" "%RUN%\spigot.yml" >nul
-if not exist "%RUN%\windspigot.yml" copy /y "%ROOT%\server-defaults\windspigot.yml" "%RUN%\windspigot.yml" >nul~
+if not exist "%RUN%\windspigot.yml" copy /y "%ROOT%\server-defaults\windspigot.yml" "%RUN%\windspigot.yml" >nul
 if not exist "%RUN%\knockback.yml" copy /y "%ROOT%\server-defaults\knockback.yml" "%RUN%\knockback.yml" >nul
 rem the End is a world nobody here plays in; the air world in server.properties is the only Minecraft-generator world
 if exist "%RUN%\bukkit.yml" (
@@ -149,15 +155,20 @@ exit /b %ERRORLEVEL%
 set "JAR=%~1"
 set "SRC=%~2"
 if defined PLUGIN_SRC if exist "%PLUGIN_SRC%\%JAR%" set "SRC=%PLUGIN_SRC%\%JAR%"
-if not exist "%SRC%" (
-  if exist "%RUN%\plugins\%JAR%" (
-    echo   %JAR% (installed)
-    exit /b 0
-  )
-  echo Missing %JAR%. Run "start-server.bat build", or build with gradlew jar, or set PLUGIN_SRC.
-  exit /b 1
-)
+
+if exist "%SRC%" goto installjar_copy
+if exist "%RUN%\plugins\%JAR%" goto installjar_installed
+
+echo Missing %JAR%. Run "start-server.bat build", or build with gradlew jar, or set PLUGIN_SRC.
+exit /b 1
+
+:installjar_installed
+echo   %JAR% (installed)
+exit /b 0
+
+:installjar_copy
 copy /y "%SRC%" "%RUN%\plugins\%JAR%" >nul
+if errorlevel 1 exit /b 1
 echo   %JAR%
 exit /b 0
 
