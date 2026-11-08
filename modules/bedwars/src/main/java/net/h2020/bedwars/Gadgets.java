@@ -215,8 +215,8 @@ final class Gadgets {
                     Vector dir = l.toVector().subtract(center.toVector());
                     if (dir.lengthSquared() < 1.0E-4) dir = new Vector(0, 1, 0);
                     dir.normalize();
-                    double h = (fireball ? 1.15 : 1.35) * f;
-                    double v = (fireball ? 0.55 : 0.65) + 0.45 * f * Math.max(0.2, dir.getY());
+                    double h = 1.35 * f;
+                    double v = 0.65 + 0.45 * f * Math.max(0.2, dir.getY());
                     Vector vel = new Vector(dir.getX() * h, Math.min(1.1, v), dir.getZ() * h);
                     p.setVelocity(p.getVelocity().multiply(0.2).add(vel));
                 }

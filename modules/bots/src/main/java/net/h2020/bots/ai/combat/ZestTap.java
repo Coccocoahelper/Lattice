@@ -32,7 +32,7 @@ public final class ZestTap {
     /** Every Nth hit (counting from 1) is the W-tap hit. */
     public static volatile int every = 3;
     /** Immunity after a landed hit, in ticks (10 = the 1.8 half second). */
-    public static volatile int immunityTicks = 10;
+    public static volatile int immunityTicks = 9;
 
     private int index;          // hits landed in this fight
     private int strafeDir = 1;

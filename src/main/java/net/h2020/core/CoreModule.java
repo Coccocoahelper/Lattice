@@ -83,9 +83,6 @@ public final class CoreModule implements Module {
         register(plugin, tab);
         register(plugin, core.lobby);
         register(plugin, core.npcs);
-        net.h2020.core.combat.Knockback knockback = new net.h2020.core.combat.Knockback();
-        knockback.load(plugin.getConfig().getConfigurationSection("core.knockback"));
-        register(plugin, knockback);
 
         register(plugin, new net.h2020.core.command.HelpMenu());
         command(plugin, "play", new PlayCommand(core));

@@ -704,8 +704,8 @@ public final class MapImporter {
             if (b != null) {
                 double la = latOf(a, spawn, rx, rz), lb = latOf(b, spawn, rx, rz);
                 if (la < lb) { List<int[]> t = a; a = b; b = t; }
-                out.put("shop", penPoint(a, spawn));
-                out.put("upgrades", penPoint(b, spawn));
+                out.put("upgrades", penPoint(a, spawn));
+                out.put("shop", penPoint(b, spawn));
                 return out;
             }
         }
@@ -729,8 +729,8 @@ public final class MapImporter {
         }
         if (best == null) best = new double[]{2, -2};
         double d = best[0], f = best[1];
-        out.put("shop", new double[]{Math.floor(spawn[0] + rx * d + fx * f) + 0.5, floor, Math.floor(spawn[2] + rz * d + fz * f) + 0.5, 0});
-        out.put("upgrades", new double[]{Math.floor(spawn[0] - rx * d + fx * f) + 0.5, floor, Math.floor(spawn[2] - rz * d + fz * f) + 0.5, 0});
+        out.put("shop", new double[]{Math.floor(spawn[0] - rx * d + fx * f) + 0.5, floor, Math.floor(spawn[2] - rz * d + fz * f) + 0.5, 0});
+        out.put("upgrades", new double[]{Math.floor(spawn[0] + rx * d + fx * f) + 0.5, floor, Math.floor(spawn[2] + rz * d + fz * f) + 0.5, 0});
         return out;
     }
 

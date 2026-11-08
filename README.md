@@ -15,6 +15,7 @@ Note: this piece of software is primarily coded using an LLM. I will not take an
 - Add a practicing game mode, with:
   - Fireball deflecting
   - Bow aiming
+- Remove the map generator entirely
 
 ## License
 
