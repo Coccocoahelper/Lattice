@@ -125,7 +125,7 @@ settings:
   debug-mode: false
 
   # This sets the delay between player attacks, 20 is the default. Setting this to 0 allows for no hit delay.
-  hit-delay: 17
+  hit-delay: 18
 
   # Enables the usage of an improved hit registration based on lag compensation and small other details. (Credits to NachoSpigot and the original plugin)
   improved-hit-detection: true

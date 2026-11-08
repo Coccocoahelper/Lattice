@@ -185,6 +185,8 @@ if [ ! -f "$RUN/server.properties" ]; then
   sed "s/CHANGE_ME/$pw/" "$ROOT/server-defaults/server.properties" > "$RUN/server.properties"
 fi
 [ -f "$RUN/spigot.yml" ] || cp "$ROOT/server-defaults/spigot.yml" "$RUN/spigot.yml"
+[ -f "$RUN/windspigot.yml" ] || cp "$ROOT/server-defaults/windspigot.yml" "$RUN/windspigot.yml"
+[ -f "$RUN/knockback.yml" ] || cp "$ROOT/server-defaults/knockback.yml" "$RUN/knockback.yml"
 # the End is a world nobody here plays in; the air world in server.properties is the only Minecraft-generator world
 if [ -f "$RUN/bukkit.yml" ] && grep -q "allow-end: true" "$RUN/bukkit.yml"; then
   sed -i 's/allow-end: true/allow-end: false/' "$RUN/bukkit.yml"

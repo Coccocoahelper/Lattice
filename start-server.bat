@@ -116,6 +116,8 @@ if not exist "%RUN%\server.properties" (
   powershell -NoProfile -Command "$p=-join((48..57)+(97..122)|Get-Random -Count 20|%%{[char]$_}); (Get-Content '%ROOT%\server-defaults\server.properties') -replace 'CHANGE_ME',$p | Set-Content -Path '%RUN%\server.properties' -Encoding UTF8"
 )
 if not exist "%RUN%\spigot.yml" copy /y "%ROOT%\server-defaults\spigot.yml" "%RUN%\spigot.yml" >nul
+if not exist "%RUN%\windspigot.yml" copy /y "%ROOT%\server-defaults\windspigot.yml" "%RUN%\windspigot.yml" >nul~
+if not exist "%RUN%\knockback.yml" copy /y "%ROOT%\server-defaults\knockback.yml" "%RUN%\knockback.yml" >nul
 rem the End is a world nobody here plays in; the air world in server.properties is the only Minecraft-generator world
 if exist "%RUN%\bukkit.yml" (
   powershell -NoProfile -Command "$p='%RUN%\bukkit.yml'; (Get-Content $p) -replace 'allow-end: true','allow-end: false' | Set-Content $p"
