@@ -18,6 +18,8 @@ These are the features that stand out, compared to [the original](https://github
 - [Continued Slime World Manager](https://github.com/Swofty-Developments/Continued-Slime-World-Manager) instead of the original Slime World Manager or even Minecraft's world manager, as the arena manager. Compared to the original, it can have multiple games in the same map, and is much much faster.
 - Replays with all the features you'd expect (a bit buggy, though).
 - Improved bot behaviour (including some ML components).
+- Map importing done in-game with Java, instead of being a Python component.
+- In-game, easy-to-use map editor
 
 ## TO-DO list
 
@@ -26,6 +28,13 @@ These are the features that stand out, compared to [the original](https://github
   - Fireball deflecting
   - Bow aiming
 - Remove the map generator entirely
+- Allow to simulate a specific ping range for yourself
+- Allow customizing more menus, the scoreboard, etc
+
+Longer-term goals are:
+
+- Port to another server software (either Minestom, PumpkinMC, or SteelMC)
+- Allow to seamlessly add arenas, from normal Minecraft worlds to fully working maps
 
 ## License
 
