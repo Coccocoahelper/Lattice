@@ -38,4 +38,4 @@ Longer-term goals are:
 
 ## License
 
-This is licensed under the GNU General Public License, version 3.0. For more information, check `[LICENSE](LICENSE)`
+This is licensed under the Expat license. For more information, check [`LICENSE`](LICENSE)
