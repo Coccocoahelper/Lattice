@@ -472,12 +472,12 @@ public final class ClientPhysics {
     /** Entity.moveFlying */
     private void moveFlying(float strafe, float forward, float friction) {
         float f = strafe * strafe + forward * forward;
+
         if (f >= 1.0E-4F) {
-            f = MathHelper.c(f);
             if (f < 1.0F) f = 1.0F;
-            f = friction / f;
-            strafe = strafe * f;
-            forward = forward * f;
+            f = friction / MathHelper.c(f);
+            strafe *= f;
+            forward *= * f;
             float f1 = MathHelper.sin(rotationYaw * (float) Math.PI / 180.0F);
             float f2 = MathHelper.cos(rotationYaw * (float) Math.PI / 180.0F);
             motionX += (double) (strafe * f2 - forward * f1);
