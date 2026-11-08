@@ -61,19 +61,19 @@ knockback:
           horizontal: 0.425
           vertical: 0.425
     hypixel:
-      stop-sprint: false
-      friction-horizontal: 1.0
+      stop-sprint: true
+      friction-horizontal: 2.0
       friction-vertical: 2.0
-      horizontal: 0.46
-      vertical: 0.4
-      vertical-max: 0.47075
+      horizontal: 0.28
+      vertical: 0.41
+      vertical-max: 0.44075
       vertical-min: -1.0
-      extra-horizontal: 0.5
-      extra-vertical: 0.1
-      wtap-extra-horizontal: 0.22
-      wtap-extra-vertical: 0.08
+      extra-horizontal: 0.0
+      extra-vertical: 0.08
+      wtap-extra-horizontal: 0.0
+      wtap-extra-vertical: 0.0
       add-horizontal: 0.0
-      add-vertical: 0.01
+      add-vertical: 0.0
       projectiles:
         rod:
           horizontal: 0.4
