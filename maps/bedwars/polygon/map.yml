@@ -1,0 +1,129 @@
+# Annotated by the built-in importer (net.h2020.maps.MapImporter). Check points in-game.
+name: "Polygon"
+family: BEDWARS
+teams: [8]
+build-limit: 96
+bounds:
+  min: {x: -118, y: 0, z: -118}
+  max: {x: 118, y: 255, z: 118}
+points:
+  team.gray.bed:
+    - {x: 30, y: 72, z: -80}
+    - {x: 30, y: 72, z: -81}
+  team.gray.spawn:
+    - {x: 30.5, y: 72, z: -89.5, yaw: 18.799999237060547}
+  team.gray.generator:
+    - {x: 30.5, y: 72, z: -96.5}
+  team.gray.shop:
+    - {x: 21.5, y: 72, z: -93.5, yaw: 294}
+  team.gray.upgrades:
+    - {x: 39.5, y: 72, z: -93.5, yaw: 66}
+  team.gray.base:
+    - {x: 17, y: 62, z: -103}
+    - {x: 43, y: 92, z: -75}
+  team.blue.bed:
+    - {x: 80, y: 72, z: -30}
+    - {x: 81, y: 72, z: -30}
+  team.blue.spawn:
+    - {x: 90.5, y: 72, z: -29.5, yaw: 71.9000015258789}
+  team.blue.generator:
+    - {x: 97.5, y: 72, z: -29.5}
+  team.blue.shop:
+    - {x: 94.5, y: 72, z: -38.5, yaw: 24}
+  team.blue.upgrades:
+    - {x: 94.5, y: 72, z: -20.5, yaw: 156}
+  team.blue.base:
+    - {x: 75, y: 62, z: -43}
+    - {x: 103, y: 92, z: -17}
+  team.green.bed:
+    - {x: 80, y: 72, z: 30}
+    - {x: 81, y: 72, z: 30}
+  team.green.spawn:
+    - {x: 90.5, y: 72, z: 30.5, yaw: 108.5999984741211}
+  team.green.generator:
+    - {x: 97.5, y: 72, z: 30.5}
+  team.green.shop:
+    - {x: 94.5, y: 72, z: 21.5, yaw: 24}
+  team.green.upgrades:
+    - {x: 94.5, y: 72, z: 39.5, yaw: 156}
+  team.green.base:
+    - {x: 75, y: 62, z: 17}
+    - {x: 103, y: 92, z: 43}
+  team.yellow.bed:
+    - {x: 30, y: 72, z: 80}
+    - {x: 30, y: 72, z: 81}
+  team.yellow.spawn:
+    - {x: 30.5, y: 72, z: 90.5, yaw: 161.39999389648438}
+  team.yellow.generator:
+    - {x: 30.5, y: 72, z: 97.5}
+  team.yellow.shop:
+    - {x: 39.5, y: 72, z: 94.5, yaw: 114}
+  team.yellow.upgrades:
+    - {x: 21.5, y: 72, z: 94.5, yaw: 246}
+  team.yellow.base:
+    - {x: 17, y: 62, z: 75}
+    - {x: 43, y: 92, z: 103}
+  team.aqua.bed:
+    - {x: -30, y: 72, z: 80}
+    - {x: -30, y: 72, z: 81}
+  team.aqua.spawn:
+    - {x: -29.5, y: 72, z: 90.5, yaw: 198.10000610351562}
+  team.aqua.generator:
+    - {x: -29.5, y: 72, z: 97.5}
+  team.aqua.shop:
+    - {x: -20.5, y: 72, z: 94.5, yaw: 114}
+  team.aqua.upgrades:
+    - {x: -38.5, y: 72, z: 94.5, yaw: 246}
+  team.aqua.base:
+    - {x: -43, y: 62, z: 75}
+    - {x: -17, y: 92, z: 103}
+  team.white.bed:
+    - {x: -80, y: 72, z: 30}
+    - {x: -81, y: 72, z: 30}
+  team.white.spawn:
+    - {x: -89.5, y: 72, z: 30.5, yaw: 251.1999969482422}
+  team.white.generator:
+    - {x: -96.5, y: 72, z: 30.5}
+  team.white.shop:
+    - {x: -93.5, y: 72, z: 39.5, yaw: 204}
+  team.white.upgrades:
+    - {x: -93.5, y: 72, z: 21.5, yaw: 336}
+  team.white.base:
+    - {x: -103, y: 62, z: 17}
+    - {x: -75, y: 92, z: 43}
+  team.pink.bed:
+    - {x: -80, y: 72, z: -30}
+    - {x: -81, y: 72, z: -30}
+  team.pink.spawn:
+    - {x: -89.5, y: 72, z: -29.5, yaw: 288.20001220703125}
+  team.pink.generator:
+    - {x: -96.5, y: 72, z: -29.5}
+  team.pink.shop:
+    - {x: -93.5, y: 72, z: -20.5, yaw: 204}
+  team.pink.upgrades:
+    - {x: -93.5, y: 72, z: -38.5, yaw: 336}
+  team.pink.base:
+    - {x: -103, y: 62, z: -43}
+    - {x: -75, y: 92, z: -17}
+  team.red.bed:
+    - {x: -30, y: 72, z: -80}
+    - {x: -30, y: 72, z: -81}
+  team.red.spawn:
+    - {x: -29.5, y: 72, z: -89.5, yaw: 341.79998779296875}
+  team.red.generator:
+    - {x: -29.5, y: 72, z: -96.5}
+  team.red.shop:
+    - {x: -38.5, y: 72, z: -93.5, yaw: 294}
+  team.red.upgrades:
+    - {x: -20.5, y: 72, z: -93.5, yaw: 66}
+  team.red.base:
+    - {x: -43, y: 62, z: -103}
+    - {x: -17, y: 92, z: -75}
+  gen.diamond:
+  gen.emerald:
+  mid:
+    - {x: -2.5, y: 74, z: -2.5}
+  spectator:
+    - {x: 0.5, y: 97, z: 0.5}
+  waiting.lobby:
+    - {x: 0.5, y: 163, z: 0.5}

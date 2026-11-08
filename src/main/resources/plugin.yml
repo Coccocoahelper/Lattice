@@ -1,4 +1,4 @@
-name: Hypixel2020
+name: Lattice
 version: 1.0.0
 main: net.h2020.H2020Plugin
 author: h2020
@@ -11,15 +11,24 @@ commands:
   lobby:
     description: Return to lobby
     aliases: [l, hub]
-  h2020:
+  lattice:
     description: Admin/video tools (bots, games, watchdog)
+    aliases: [h2020, lat]
     permission: h2020.admin
-  bot:
-    description: Bot tools (spawn, cheat profiles, list) - owned by bots module
-    permission: h2020.admin
+  spectate:
+    description: Spectate a player, camera locked on them
+    usage: /spectate [player]
   shout:
     description: Bed Wars shout chat
+  qanswer:
+    description: Answer the server's question (also by typing the number in chat)
+    usage: /qanswer <id> <option>
 permissions:
   h2020.admin:
     description: Admin and video tools
     default: op
+  playagain:
+    description: Queue for the mode you just finished.
+    usage: /playagain
+    aliases: [pa]
+softdepend: [SwoftyWorldManager, lattice-bots, lattice-skywars, lattice-bedwars, lattice-replay]

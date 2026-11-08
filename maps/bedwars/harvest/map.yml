@@ -1,0 +1,161 @@
+# Annotated by the built-in importer (net.h2020.maps.MapImporter). Check points in-game.
+name: "Harvest"
+family: BEDWARS
+teams: [8]
+build-limit: 96
+bounds:
+  min: {x: -127, y: 0, z: -127}
+  max: {x: 127, y: 255, z: 127}
+points:
+  team.blue.bed:
+    - {x: 32, y: 63, z: -86}
+    - {x: 32, y: 63, z: -87}
+  team.blue.spawn:
+    - {x: 32.5, y: 63, z: -93.5, yaw: 19.200000762939453}
+  team.blue.generator:
+    - {x: 32.5, y: 63, z: -105.5}
+  team.blue.shop:
+    - {x: 27.5, y: 63, z: -96.5, yaw: 301}
+  team.blue.upgrades:
+    - {x: 37.5, y: 63, z: -96.5, yaw: 59}
+  team.blue.base:
+    - {x: 18, y: 53, z: -112}
+    - {x: 43, y: 83, z: -81}
+  team.red.bed:
+    - {x: 86, y: 63, z: -32}
+    - {x: 87, y: 63, z: -32}
+  team.red.spawn:
+    - {x: 94.5, y: 63, z: -31.5, yaw: 71.5999984741211}
+  team.red.generator:
+    - {x: 106.5, y: 63, z: -31.5}
+  team.red.shop:
+    - {x: 97.5, y: 63, z: -36.5, yaw: 31}
+  team.red.upgrades:
+    - {x: 97.5, y: 63, z: -26.5, yaw: 149}
+  team.red.base:
+    - {x: 81, y: 53, z: -43}
+    - {x: 112, y: 83, z: -18}
+  team.yellow.bed:
+    - {x: 86, y: 63, z: 32}
+    - {x: 87, y: 63, z: 32}
+  team.yellow.spawn:
+    - {x: 94.5, y: 63, z: 32.5, yaw: 109}
+  team.yellow.generator:
+    - {x: 106.5, y: 63, z: 32.5}
+  team.yellow.shop:
+    - {x: 97.5, y: 63, z: 27.5, yaw: 31}
+  team.yellow.upgrades:
+    - {x: 97.5, y: 63, z: 37.5, yaw: 149}
+  team.yellow.base:
+    - {x: 81, y: 53, z: 18}
+    - {x: 112, y: 83, z: 43}
+  team.aqua.bed:
+    - {x: 32, y: 63, z: 86}
+    - {x: 32, y: 63, z: 87}
+  team.aqua.spawn:
+    - {x: 32.5, y: 63, z: 94.5, yaw: 161}
+  team.aqua.generator:
+    - {x: 32.5, y: 63, z: 106.5}
+  team.aqua.shop:
+    - {x: 37.5, y: 63, z: 97.5, yaw: 121}
+  team.aqua.upgrades:
+    - {x: 27.5, y: 63, z: 97.5, yaw: 239}
+  team.aqua.base:
+    - {x: 18, y: 53, z: 81}
+    - {x: 43, y: 83, z: 112}
+  team.white.bed:
+    - {x: -32, y: 63, z: 86}
+    - {x: -32, y: 63, z: 87}
+  team.white.spawn:
+    - {x: -31.5, y: 63, z: 94.5, yaw: 198.39999389648438}
+  team.white.generator:
+    - {x: -31.5, y: 63, z: 106.5}
+  team.white.shop:
+    - {x: -26.5, y: 63, z: 97.5, yaw: 121}
+  team.white.upgrades:
+    - {x: -36.5, y: 63, z: 97.5, yaw: 239}
+  team.white.base:
+    - {x: -43, y: 53, z: 81}
+    - {x: -18, y: 83, z: 112}
+  team.pink.bed:
+    - {x: -86, y: 63, z: 32}
+    - {x: -87, y: 63, z: 32}
+  team.pink.spawn:
+    - {x: -93.5, y: 63, z: 32.5, yaw: 250.8000030517578}
+  team.pink.generator:
+    - {x: -105.5, y: 63, z: 32.5}
+  team.pink.shop:
+    - {x: -96.5, y: 63, z: 37.5, yaw: 211}
+  team.pink.upgrades:
+    - {x: -96.5, y: 63, z: 27.5, yaw: 329}
+  team.pink.base:
+    - {x: -112, y: 53, z: 18}
+    - {x: -81, y: 83, z: 43}
+  team.gray.bed:
+    - {x: -86, y: 63, z: -32}
+    - {x: -87, y: 63, z: -32}
+  team.gray.spawn:
+    - {x: -93.5, y: 63, z: -31.5, yaw: 288.6000061035156}
+  team.gray.generator:
+    - {x: -105.5, y: 63, z: -31.5}
+  team.gray.shop:
+    - {x: -96.5, y: 63, z: -26.5, yaw: 211}
+  team.gray.upgrades:
+    - {x: -96.5, y: 63, z: -36.5, yaw: 329}
+  team.gray.base:
+    - {x: -112, y: 53, z: -43}
+    - {x: -81, y: 83, z: -18}
+  team.green.bed:
+    - {x: -32, y: 63, z: -86}
+    - {x: -32, y: 63, z: -87}
+  team.green.spawn:
+    - {x: -31.5, y: 63, z: -93.5, yaw: 341.3999938964844}
+  team.green.generator:
+    - {x: -31.5, y: 63, z: -105.5}
+  team.green.shop:
+    - {x: -36.5, y: 63, z: -96.5, yaw: 301}
+  team.green.upgrades:
+    - {x: -26.5, y: 63, z: -96.5, yaw: 59}
+  team.green.base:
+    - {x: -43, y: 53, z: -112}
+    - {x: -18, y: 83, z: -81}
+  gen.diamond:
+    - {x: -83.5, y: 66, z: -70.5}
+    - {x: -70.5, y: 66, z: 84.5}
+    - {x: 71.5, y: 66, z: -83.5}
+    - {x: 84.5, y: 66, z: 71.5}
+    - {x: -86.5, y: 67, z: 73.5}
+    - {x: -72.5, y: 67, z: -86.5}
+    - {x: -68.5, y: 67, z: -78.5}
+    - {x: -78.5, y: 67, z: 69.5}
+    - {x: 79.5, y: 67, z: -68.5}
+    - {x: 69.5, y: 67, z: 79.5}
+    - {x: 73.5, y: 67, z: 87.5}
+    - {x: 87.5, y: 67, z: -72.5}
+    - {x: -74.5, y: 68, z: -69.5}
+    - {x: -69.5, y: 68, z: 75.5}
+    - {x: 70.5, y: 68, z: -74.5}
+    - {x: 75.5, y: 68, z: 70.5}
+  gen.emerald:
+    - {x: -28.5, y: 69, z: -20.5}
+    - {x: -20.5, y: 69, z: 29.5}
+    - {x: 21.5, y: 69, z: -28.5}
+    - {x: 29.5, y: 69, z: 21.5}
+    - {x: -35.5, y: 70, z: -29.5}
+    - {x: -35.5, y: 70, z: 29.5}
+    - {x: -28.5, y: 70, z: -35.5}
+    - {x: -29.5, y: 70, z: 36.5}
+    - {x: 30.5, y: 70, z: -35.5}
+    - {x: 29.5, y: 70, z: 36.5}
+    - {x: 36.5, y: 70, z: -28.5}
+    - {x: 36.5, y: 70, z: 30.5}
+    - {x: -19.5, y: 72, z: -28.5}
+    - {x: -28.5, y: 72, z: 20.5}
+    - {x: 29.5, y: 72, z: -19.5}
+    - {x: 20.5, y: 72, z: 29.5}
+  mid:
+    - {x: 0.5, y: 70, z: 0.5}
+  spectator:
+    - {x: 0.5, y: 88, z: 0.5}
+  waiting.lobby:
+    - {x: 0.5, y: 140, z: 0.5}

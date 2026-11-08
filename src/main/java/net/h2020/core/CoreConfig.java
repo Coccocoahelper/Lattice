@@ -14,6 +14,9 @@ import java.util.List;
 /** Snapshot of the "core:" config section. Re-read on /h2020 reload. */
 public final class CoreConfig {
     public String date = "07/14/20";
+    /** Server identity, from network.yml. Falls back to the Hypixel values above when the file is absent. */
+    public String networkName = "MC.HYPIXEL.NET";
+    public String motd = "&e&lHYPIXEL &7- &fBed Wars, SkyWars and more";
     public Rank defaultRank = Rank.MVP_PLUS;
     public ChatColor defaultPlusColor = ChatColor.RED;
     public int defaultLevel = 87;
@@ -35,6 +38,23 @@ public final class CoreConfig {
     public boolean opLocalPlayers = true;
 
     private JavaPlugin plugin;
+
+    /** network.yml owns the brand: name, tab lines, MOTD and fake counts. Read after config.yml so it wins. */
+    public void applyNetwork(JavaPlugin plugin) {
+        java.io.File f = new java.io.File(plugin.getDataFolder(), "network.yml");
+        if (!f.isFile()) return;
+        org.bukkit.configuration.file.FileConfiguration n =
+                org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(f);
+        if (n.isString("brand.name")) networkName = n.getString("brand.name");
+        if (n.isString("brand.tab-header")) tabHeader = color(n.getString("brand.tab-header"));
+        if (n.isString("brand.tab-footer")) tabFooter = color(n.getString("brand.tab-footer"));
+        if (n.isString("brand.motd")) motd = n.getString("brand.motd");
+        if (n.isSet("brand.fake-player-counts")) fakePlayerCounts = n.getBoolean("brand.fake-player-counts");
+        if (n.isSet("brand.lobby-number")) lobbyNumber = n.getInt("brand.lobby-number");
+        net.h2020.api.game.Families.load(plugin.getDataFolder());
+        net.h2020.api.game.GameRules.load(plugin.getDataFolder());
+        net.h2020.api.game.GameModes.loadMenus(plugin.getDataFolder());
+    }
 
     public void load(JavaPlugin plugin) {
         this.plugin = plugin;

@@ -74,6 +74,16 @@ public final class Worlds implements Listener {
         w.setPVP(pvp);
     }
 
+    /** Bytes a folder tree occupies, used to report what deleting an old world folder actually freed. */
+    public static long sizeOf(File f) {
+        if (f == null || !f.exists()) return 0;
+        if (f.isFile()) return f.length();
+        long total = 0;
+        File[] kids = f.listFiles();
+        if (kids != null) for (File k : kids) total += sizeOf(k);
+        return total;
+    }
+
     /** Save every chunk + level.dat and block until the async chunk writer has flushed to disk. */
     public static void saveFully(World w, Logger log) {
         w.save();

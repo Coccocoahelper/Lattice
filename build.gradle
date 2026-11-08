@@ -15,6 +15,10 @@ repositories {
 dependencies {
     // Full Spigot 1.8.8 server jar: Bukkit API + NMS (v1_8_R3) + bundled Netty/Guava/Gson.
     compileOnly 'org.spigotmc:spigot:1.8.8-R0.1-SNAPSHOT'
+    compileOnly project(':api')
+    // not a compile dependency: the main plugin only talks to the bots through the api
+    // FastBoard 2.2.2: Java 8 bytecode, no dependencies. Bundled below, behind a trial path only.
+    implementation files('libs/fastboard-2.2.2.jar')
 }
 
 // Builds with whatever JDK runs Gradle (17+ for Gradle 9) and targets Java 8, which the server runs on.
@@ -25,5 +29,16 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 jar {
-    archiveFileName = 'Hypixel2020.jar'
+    archiveFileName = 'Lattice.jar'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    // the api ships inside this jar (it is a library, not a plugin of its own)
+    dependsOn ':api:jar'
+    from(zipTree("${rootProject.project(':api').layout.buildDirectory.get().asFile}/libs/h2020-api.jar")) {
+        include 'net/h2020/api/**'
+    }
+    // bundle the FastBoard classes (excluding the optional Adventure variant) so the plugin stays a single jar
+    from(zipTree('libs/fastboard-2.2.2.jar')) {
+        exclude 'META-INF/**'
+        exclude 'fr/mrmicky/fastboard/adventure/**'
+    }
 }

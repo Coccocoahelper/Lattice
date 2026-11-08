@@ -1,0 +1,7 @@
+name: lattice-bedwars
+main: net.h2020.bedwars.BedwarsPlugin
+version: 1.0.0
+author: H2020
+description: Bed Wars game plugin.
+api-version: 1.8
+depend: [Lattice]

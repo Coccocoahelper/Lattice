@@ -8,7 +8,8 @@ import net.h2020.api.game.GameManager;
 import net.h2020.core.command.AdminCommand;
 import net.h2020.core.command.LobbyCommand;
 import net.h2020.core.command.PlayCommand;
-import net.h2020.core.gui.MenuListener;
+import net.h2020.api.gui.MenuListener;
+import net.h2020.core.tab.TabFilter;
 import net.h2020.core.lobby.LobbyBots;
 import net.h2020.core.lobby.LobbyManager;
 import net.h2020.core.lobby.npc.NpcManager;
@@ -29,6 +30,7 @@ import org.bukkit.plugin.java.JavaPlugin;
  * the main/Bed Wars/SkyWars lobbies (items, menus, NPCs, protection, idle bots) and the /play, /lobby, /h2020 commands.
  */
 public final class CoreModule implements Module {
+    private TabFilter tab;
     private Core core;
     private PacketInjector injector;
     private final java.util.List<Listener> listeners = new java.util.ArrayList<>();
@@ -40,11 +42,20 @@ public final class CoreModule implements Module {
 
     @Override
     public void enable(JavaPlugin plugin) {
+        net.h2020.api.game.GameModes.install();
+        // the two data files a server edits: identity and menu presentation
+        for (String res : new String[]{"network.yml", "menus.yml"}) {
+            try { plugin.saveResource(res, false); }
+            catch (IllegalArgumentException alreadyThere) { /* first run only */ }
+        }
         CoreConfig config = new CoreConfig();
         config.load(plugin);
+        config.applyNetwork(plugin);
         applyDate(config.date);
 
         core = new Core(plugin, config);
+        net.h2020.core.arena.PvpArena.install(plugin);
+        if (plugin.getCommand("playagain") != null) plugin.getCommand("playagain").setExecutor(new net.h2020.core.command.PlayAgainCommand());
         core.scoreboards.setDefaultTab(config.tabHeader, config.tabFooter);
         core.lobby = new LobbyManager(core);
         core.games.setLobbyHooks(core.lobby);
@@ -67,6 +78,9 @@ public final class CoreModule implements Module {
         register(plugin, new StatsListener(core.profiles));
         register(plugin, core.games);
         register(plugin, new MenuListener());
+        tab = new TabFilter(plugin);
+        tab.start();
+        register(plugin, tab);
         register(plugin, core.lobby);
         register(plugin, core.npcs);
         net.h2020.core.combat.Knockback knockback = new net.h2020.core.combat.Knockback();
@@ -76,6 +90,10 @@ public final class CoreModule implements Module {
         register(plugin, new net.h2020.core.command.HelpMenu());
         command(plugin, "play", new PlayCommand(core));
         command(plugin, "lobby", new LobbyCommand(core));
+        net.h2020.core.command.SpectateCommand spec = new net.h2020.core.command.SpectateCommand(core);
+        command(plugin, "spectate", spec);
+        org.bukkit.command.PluginCommand sp = plugin.getCommand("spectate");
+        if (sp != null) sp.setTabCompleter(spec);
         AdminCommand admin = new AdminCommand(core);
         PluginCommand h = plugin.getCommand("h2020");
         if (h != null) { h.setExecutor(admin); h.setTabCompleter(admin); }

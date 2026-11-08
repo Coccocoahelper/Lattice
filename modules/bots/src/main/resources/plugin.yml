@@ -1,0 +1,11 @@
+name: lattice-bots
+main: net.h2020.bots.BotsPlugin
+version: 1.0.0
+author: H2020
+description: Virtual-client bots, combat AI, models and the training harness.
+api-version: 1.8
+depend: [Lattice]
+commands:
+  bot:
+    description: Bot control and telemetry.
+    usage: /bot help

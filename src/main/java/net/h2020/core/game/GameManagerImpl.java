@@ -18,7 +18,6 @@ import net.h2020.core.CoreUtil;
 import net.h2020.core.HypixelFormat;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
@@ -84,10 +83,10 @@ public final class GameManagerImpl implements GameManager, Listener {
     public boolean hasProvider(GameFamily f) { return providers.containsKey(f); }
 
     @Override
-    public Game create(GameType type, MapTemplate map) {
-        GameProvider provider = providers.get(type.family);
+    public Game create(net.h2020.api.game.GameMode type, MapTemplate map) {
+        GameProvider provider = providers.get(type.family());
         if (provider == null || map == null) return null;
-        String id = nextId(type.family);
+        String id = nextId(type.family());
         Game g;
         try {
             g = provider.create(type, map, id);
@@ -102,7 +101,7 @@ public final class GameManagerImpl implements GameManager, Listener {
     }
 
     /** New game of this type on a random usable template, or null when none exist. */
-    public Game createRandom(GameType type) {
+    public Game createRandom(net.h2020.api.game.GameMode type) {
         MapService ms = H2020.find(MapService.class);
         if (ms == null) return null;
         List<MapTemplate> maps;
@@ -110,6 +109,15 @@ public final class GameManagerImpl implements GameManager, Listener {
         if (maps == null || maps.isEmpty()) return null;
         List<MapTemplate> shuffled = new ArrayList<>(maps);
         Collections.shuffle(shuffled);
+        // A slime copy has to exist before a world can be handed out, and the pool can be empty for a moment after a
+        // burst of games. Maps whose copy is already built go first so a join does not wait on a rebuild.
+        List<MapTemplate> readyFirst = new ArrayList<>();
+        List<MapTemplate> rest = new ArrayList<>();
+        for (MapTemplate m : shuffled) {
+            if (net.h2020.api.map.SlimeWorlds.ready(m.name())) readyFirst.add(m); else rest.add(m);
+        }
+        readyFirst.addAll(rest);
+        shuffled = readyFirst;
         // avoid the maps currently waiting for this type when possible (Hypixel rotates)
         for (MapTemplate m : shuffled) {
             boolean waiting = false;
@@ -143,11 +151,11 @@ public final class GameManagerImpl implements GameManager, Listener {
 
     static boolean joinable(Game g) {
         GameState s = g.state();
-        return (s == GameState.WAITING || s == GameState.STARTING) && g.players().size() < g.type().maxPlayers();
+        return (s == GameState.WAITING || s == GameState.STARTING) && g.privateCode() == null && g.players().size() < g.playerCap();
     }
 
     /** The fullest joinable game of a type (Hypixel fills the most populated lobby first). */
-    public Game findJoinable(GameType type) {
+    public Game findJoinable(net.h2020.api.game.GameMode type) {
         Game best = null;
         int bestCount = -1;
         for (Game g : games.values()) {
@@ -177,7 +185,7 @@ public final class GameManagerImpl implements GameManager, Listener {
     @Override public Collection<Game> games() { return Collections.unmodifiableCollection(new ArrayList<>(games.values())); }
 
     /** Players in games of this type. */
-    public int playing(GameType type) {
+    public int playing(net.h2020.api.game.GameMode type) {
         int n = 0;
         for (Game g : games.values()) if (g.type() == type) n += g.players().size();
         return n;
@@ -186,7 +194,7 @@ public final class GameManagerImpl implements GameManager, Listener {
     /** Players in games of this family plus its lobby. */
     public int playing(GameFamily family) {
         int n = 0;
-        for (Game g : games.values()) if (g.type().family == family) n += g.players().size();
+        for (Game g : games.values()) if (g.type().family() == family) n += g.players().size();
         if (lobby != null) {
             World w = lobby.lobbyWorld(family);
             World main = lobby.lobbyWorld(null);
@@ -198,7 +206,35 @@ public final class GameManagerImpl implements GameManager, Listener {
     // ---- queue ----
 
     @Override
-    public Game queue(Player player, GameType type) {
+    public Game createPrivate(net.h2020.api.game.GameMode type, MapTemplate map, String code, int maxPlayers) {
+        Game g = create(type, map);
+        if (g == null) return null;
+        g.makePrivate(code == null ? nextId(type.family()) : code.toLowerCase(), maxPlayers);
+        return g;
+    }
+
+    @Override
+    public Game byCode(String code) {
+        if (code == null) return null;
+        for (Game g : games.values()) {
+            if (code.equalsIgnoreCase(g.privateCode())) {
+                GameState s = g.state();
+                if (s == GameState.WAITING || s == GameState.STARTING) return g;
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public Game queue(Player player, net.h2020.api.game.GameMode type) {
+        return queueAttempt(player, type, 0);
+    }
+
+    /**
+     * One queue pass. A human whose game could not be created is retried a second later rather than told to come
+     * back later: the usual cause is a map copy that is still being built, and it is ready almost at once.
+     */
+    private Game queueAttempt(final Player player, final net.h2020.api.game.GameMode type, final int retries) {
         if (player == null || type == null || !player.isOnline()) return null;
         Game current = gameOf(player);
         if (current != null) {
@@ -206,7 +242,7 @@ public final class GameManagerImpl implements GameManager, Listener {
             leaveGame(player, current);
         }
         boolean human = !CoreUtil.isBot(player);
-        if (!providers.containsKey(type.family)) {
+        if (!providers.containsKey(type.family())) {
             if (human) player.sendMessage(ChatColor.RED + "That game is currently unavailable!");
             return null;
         }
@@ -218,11 +254,21 @@ public final class GameManagerImpl implements GameManager, Listener {
             // (that would keep games running forever with nobody watching; background-games covers that case)
             if (g == null && !human) break;
             if (g == null) g = createRandom(type);
-            if (g == null) break;
+            if (g == null) {
+                if (human && retries < 3) {
+                    Bukkit.getScheduler().runTaskLater(plugin, new Runnable() {
+                        @Override public void run() {
+                            if (player.isOnline() && gameOf(player) == null) queueAttempt(player, type, retries + 1);
+                        }
+                    }, 20L);
+                    return null;
+                }
+                break;
+            }
             tried.add(g.id());
             if (human) player.sendMessage(ChatColor.GREEN + "Sending you to " + g.id() + "!");
             if (lobby != null) lobby.leaving(player);
-            resetPlayer(player, GameMode.ADVENTURE);
+            resetPlayer(player, org.bukkit.GameMode.ADVENTURE);
             boolean ok;
             try { ok = g.addPlayer(player); } catch (Throwable t) {
                 plugin.getLogger().log(Level.WARNING, "addPlayer failed in " + g.id(), t);
@@ -234,8 +280,16 @@ public final class GameManagerImpl implements GameManager, Listener {
             }
         }
         if (human) {
-            player.sendMessage(ChatColor.RED + "Could not find a game for " + type.displayName + "! Please try again later.");
-            if (gameOf(player) == null && lobby != null) sendToLobby(player, type.family);
+            boolean haveMap = true;
+            try {
+                net.h2020.api.map.MapService ms = H2020.find(net.h2020.api.map.MapService.class);
+                haveMap = ms != null && !ms.templatesFor(type).isEmpty();
+            } catch (Throwable ignored) { }
+            player.sendMessage(haveMap
+                    ? ChatColor.RED + "Could not find a game for " + type.displayName() + "! Please try again later."
+                    : ChatColor.RED + "No map is installed for " + type.displayName() + ": put the map folders back in"
+                        + " plugins/Lattice/maps/ and the slime files in run/slime_worlds/.");
+            if (gameOf(player) == null && lobby != null) sendToLobby(player, type.family());
         }
         return null;
     }
@@ -265,7 +319,7 @@ public final class GameManagerImpl implements GameManager, Listener {
         try {
             Game g = gameOf(player);
             if (g != null && g.state() != GameState.ENDING) leaveGame(player, g);
-            resetPlayer(player, GameMode.ADVENTURE);
+            resetPlayer(player, org.bukkit.GameMode.ADVENTURE);
             World w = lobby != null ? lobby.lobbyWorld(family) : Bukkit.getWorlds().get(0);
             Location spawn = lobby != null ? lobby.spawn(w) : w.getSpawnLocation().add(0.5, 0, 0.5);
             player.teleport(spawn);
@@ -277,7 +331,7 @@ public final class GameManagerImpl implements GameManager, Listener {
     }
 
     /** Full reset: inventory, armor, effects, health, food, xp, gamemode, flight, fire. */
-    public static void resetPlayer(Player p, GameMode mode) {
+    public static void resetPlayer(Player p, org.bukkit.GameMode mode) {
         try { p.closeInventory(); } catch (Throwable ignored) {}
         p.getInventory().clear();
         p.getInventory().setArmorContents(new ItemStack[4]);
@@ -311,9 +365,13 @@ public final class GameManagerImpl implements GameManager, Listener {
         if (game == null) return;
         games.remove(game.id());
         if (game.world() != null) byWorld.remove(game.world().getName());
-        Bukkit.getScheduler().runTaskLater(plugin, new Runnable() {
-            @Override public void run() { usedIds.remove(game.id()); }
-        }, 20L * 60 * 5);
+        // the plugin can be shutting down while a game finishes: registering a task then throws and takes the
+        // teardown with it, which is exactly when world cleanup matters
+        try {
+            Bukkit.getScheduler().runTaskLater(plugin, new Runnable() {
+                @Override public void run() { usedIds.remove(game.id()); }
+            }, 20L * 60 * 5);
+        } catch (Throwable ignored) { usedIds.remove(game.id()); }
         if (filler != null) filler.forget(game);
         Set<UUID> bots = botMembers.remove(game.id());
         Set<UUID> involved = new HashSet<>();
@@ -332,21 +390,21 @@ public final class GameManagerImpl implements GameManager, Listener {
             if (bot != null || CoreUtil.isBot(p)) {
                 churnBot(p, bot, game.type(), inWorld);
             } else if (inWorld) {
-                sendToLobby(p, game.type().family);
+                sendToLobby(p, game.type().family());
             }
         }
     }
 
     /** Requeue / lobby / disconnect with human-like delays. */
-    private void churnBot(final Player p, final Bot bot, final GameType type, boolean inGameWorld) {
+    private void churnBot(final Player p, final Bot bot, final net.h2020.api.game.GameMode type, boolean inGameWorld) {
         double roll = ThreadLocalRandom.current().nextDouble();
         if (roll < config.requeueChance) {
-            if (inGameWorld || !isInLobby(p)) sendToLobby(p, type.family);
+            if (inGameWorld || !isInLobby(p)) sendToLobby(p, type.family());
             later(40 + ThreadLocalRandom.current().nextInt(200), new Runnable() {
                 @Override public void run() { if (p.isOnline() && gameOf(p) == null) queue(p, type); }
             });
         } else if (roll < config.requeueChance + config.lobbyChance) {
-            if (inGameWorld || !isInLobby(p)) sendToLobby(p, type.family);
+            if (inGameWorld || !isInLobby(p)) sendToLobby(p, type.family());
         } else if (inGameWorld) {
             removeBot(p, bot);
         } else {
@@ -400,12 +458,12 @@ public final class GameManagerImpl implements GameManager, Listener {
                 double r = ThreadLocalRandom.current().nextDouble();
                 if (r < 0.55) {
                     // "/play again"
-                    sendToLobby(victim, game.type().family);
+                    sendToLobby(victim, game.type().family());
                     later(10 + ThreadLocalRandom.current().nextInt(60), new Runnable() {
                         @Override public void run() { if (victim.isOnline() && gameOf(victim) == null) queue(victim, game.type()); }
                     });
                 } else if (r < 0.8) {
-                    sendToLobby(victim, game.type().family);
+                    sendToLobby(victim, game.type().family());
                 } else {
                     removeBot(victim, bot);
                 }

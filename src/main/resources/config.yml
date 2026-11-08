@@ -1,5 +1,11 @@
-# Core owns this file; modules add their own sections (core:, maps:, watchdog:, bots:, bedwars:, skywars:).
+# Core owns this file; modules add their own sections (maps:, core:, watchdog:, bots:, bedwars:, skywars:).
+
 # Other modules keep their defaults in code and only read optional overrides from their own section.
+
+maps:
+  # Tags switched off, e.g. [seasonal] hides every map tagged seasonal and [dreams] the Dreams maps.
+  # A map is off when any of its tags is listed here; tags live in each map.yml as tags: [dreams].
+  disabled-tags: []
 
 core:
   # Date shown on every scoreboard: MM/dd/yy, or "today" for the real date. In-game: /h2020 date 07/14/20 | today | 2020
@@ -67,3 +73,27 @@ core:
     vertical-limit: 0.4
     extra-horizontal: 0.45
     extra-vertical: 0.085
+# Bots module. Everything here is also editable in game with /bot settings (same values, saved back here).
+bots:
+  # Average skill of newly spawned bots, 0 (complete beginner) .. 1 (sweat).
+  # -1 keeps the 2020 public-lobby mix: most players average, a few sweats, a few complete beginners.
+  average-skill: -1
+  # Bots see other players where they were half a round trip ago, ((their ping + the bot's ping) / 2), and react
+  # over that delay - like a client that only has the movement packets that reached it. false = the old behaviour.
+  perceived-latency: true
+  # Fight-layer behaviours (also switches in /bot settings):
+  combat-block-play: true     # stomps, 2-block duel pillars + the strafe around them, middle exits, head hitters
+  fireball-play: true         # punch incoming fireballs back, or step off their line
+  bed-raid: true              # break a bed that is in reach in the middle of a fight
+  # dedicated diagonal bridging: back down the bridge, S-key travel, two blocks per stance.
+  # still experimental; the straight bridge handles diagonals while this is false.
+  diagonal-stance: false
+
+# Bed Wars tuning. Everything here is optional; the defaults are the 2020 values.
+bedwars:
+  # How far from its bed a team's island counts as "in base" for the heal pool, traps and building protection.
+  island-radius: 12
+  # Countdown before a game starts, in seconds.
+  countdown: 20
+  full-countdown: 10
+  respawn-seconds: 5

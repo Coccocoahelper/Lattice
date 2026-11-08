@@ -1,0 +1,7 @@
+name: lattice-skywars
+main: net.h2020.skywars.SkywarsPlugin
+version: 1.0.0
+author: H2020
+description: SkyWars game plugin.
+api-version: 1.8
+depend: [Lattice]

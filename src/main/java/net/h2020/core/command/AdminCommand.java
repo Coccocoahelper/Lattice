@@ -12,6 +12,7 @@ import net.h2020.core.Core;
 import net.h2020.core.CoreConfig;
 import net.h2020.core.CoreUtil;
 import net.h2020.core.HypixelFormat;
+import net.h2020.maps.Worlds;
 import net.h2020.core.lobby.npc.NpcManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -31,13 +32,24 @@ import java.util.regex.Pattern;
 /** /h2020 — admin and video tools. */
 public final class AdminCommand implements TabExecutor {
     private static final Pattern DATE = Pattern.compile("\\d{2}/\\d{2}/\\d{2}");
-    private static final List<String> SUBS = Arrays.asList("games", "create", "start", "fill", "bots", "watch", "reload", "date",
+    private static final List<String> SUBS = Arrays.asList("games", "create", "start", "fill", "bots", "watch", "end", "train", "replay", "reload", "date", "edit", "maptag", "tags", "mapimportdir",
             "rank", "level", "build", "setspawn", "npc", "cheaters", "fillspeed", "background");
     private final Core core;
 
     public AdminCommand(Core core) { this.core = core; }
 
     private static String g(String s) { return ChatColor.GREEN + s; }
+    private static String prettifyName(String raw) {
+        String n = raw.replace('_', ' ').trim();
+        if (n.isEmpty()) return raw;
+        StringBuilder sb = new StringBuilder();
+        for (String w : n.split("\\s+")) {
+            if (sb.length() > 0) sb.append(' ');
+            sb.append(Character.toUpperCase(w.charAt(0))).append(w.length() > 1 ? w.substring(1) : "");
+        }
+        return sb.toString();
+    }
+
     private static String r(String s) { return ChatColor.RED + s; }
 
     @Override
@@ -45,16 +57,40 @@ public final class AdminCommand implements TabExecutor {
         if (a.length == 0 || a[0].equalsIgnoreCase("help")) { help(s); return true; }
         String sub = a[0].toLowerCase();
         switch (sub) {
-            case "games": games(s); return true;
+            case "games": {
+                if (s instanceof Player) gamesMenu((Player) s);
+                else games(s);
+                return true;
+            }
             case "create": {
                 if (a.length < 2) { s.sendMessage(r("/h2020 create <type> [map]")); return true; }
-                GameType t = GameType.byId(a[1]);
+                net.h2020.api.game.GameMode t = net.h2020.api.game.GameModes.byId(a[1]);
                 if (t == null) { s.sendMessage(r("Unknown type " + a[1])); return true; }
                 Game game;
                 if (a.length >= 3) {
                     MapService ms = H2020.find(MapService.class);
                     MapTemplate m = ms == null ? null : ms.byName(a[2]);
                     if (m == null) { s.sendMessage(r("Unknown map " + a[2])); return true; }
+                    // a tag switched off in config.yml keeps the map out of the rotation, and out of /create too
+                    if (m instanceof net.h2020.maps.StoredMapTemplate && ms instanceof net.h2020.maps.MapServiceImpl
+                            && net.h2020.maps.MapServiceImpl.taggedOff((net.h2020.maps.StoredMapTemplate) m,
+                                    ((net.h2020.maps.MapServiceImpl) ms).disabledTags())) {
+                        s.sendMessage(r(a[2] + " is switched off by its tags ("
+                                + String.join(", ", m.tags()) + ") - see maps/disabled-tags"));
+                        return true;
+                    }
+                    // the map has to be built for this mode: putting 4v4v4v4 on an 8-team solos map spreads sixteen
+                    // players over eight islands and everything downstream (defence, rushes, bed distances) is wrong
+                    if (m.supportedTeamCounts() != null && !m.supportedTeamCounts().contains(t.teams())) {
+                        StringBuilder ok = new StringBuilder();
+                        if (ms != null) for (MapTemplate x : ms.templatesFor(t)) {
+                            if (ok.length() > 0) ok.append(", ");
+                            ok.append(x.name());
+                        }
+                        s.sendMessage(r(a[2] + " is not a " + t.id() + " map (teams " + m.supportedTeamCounts()
+                                + ", needs " + t.teams() + "). Valid: " + (ok.length() == 0 ? "none" : ok)));
+                        return true;
+                    }
                     game = core.games.create(t, m);
                 } else game = core.games.createRandom(t);
                 s.sendMessage(game == null ? r("Could not create a " + t.id() + " game (provider/maps missing?)")
@@ -71,9 +107,474 @@ public final class AdminCommand implements TabExecutor {
                 s.sendMessage(g("Filling " + game.id() + " with " + n + " bots; it starts when full."));
                 return true;
             }
+            case "addmode": {
+                // /h2020 addmode <id> <family> <teams> <teamSize> [, icon] -- a mode that exists only on this server
+                if (a.length < 5) { s.sendMessage(r("/h2020 addmode <id> <family> <teams> <teamSize>")); return true; }
+                net.h2020.api.game.GameFamily fam;
+                try { fam = net.h2020.api.game.GameFamily.valueOf(a[2].toUpperCase()); }
+                catch (IllegalArgumentException ex) { s.sendMessage(r("Unknown family " + a[2])); return true; }
+                final String id = a[1].toLowerCase();
+                final int teams = parseInt(a[3], 1), size = parseInt(a[4], 1);
+                net.h2020.api.game.GameModes.register(new net.h2020.api.game.GameMode() {
+                    public String id() { return id; }
+                    public net.h2020.api.game.GameFamily family() { return fam; }
+                    public String displayName() { return id; }
+                    public int teamSize() { return size; }
+                    public int teams() { return teams; }
+                    public org.bukkit.Material icon() { return fam == net.h2020.api.game.GameFamily.BEDWARS
+                            ? org.bukkit.Material.BED : org.bukkit.Material.EYE_OF_ENDER; }
+                    public String menuSubtitle() { return teams + "x" + size; }
+                    public String description() { return "Registered on this server."; }
+                });
+                s.sendMessage(g("Registered mode " + id + " (" + teams + "x" + size + ") in " + fam));
+                return true;
+            }
+            case "private": {
+                // /h2020 private <mode> [map] [code] [max] -- a game nobody queues into; join with /h2020 joincode
+                if (a.length < 2) { s.sendMessage(r("/h2020 private <mode> [map] [code] [max]")); return true; }
+                net.h2020.api.game.GameMode mode = net.h2020.api.game.GameModes.byId(a[1]);
+                if (mode == null) { s.sendMessage(r("Unknown mode " + a[1])); return true; }
+                net.h2020.api.map.MapService ms = H2020.find(net.h2020.api.map.MapService.class);
+                net.h2020.api.map.MapTemplate map = a.length >= 3 ? ms.byName(a[2]) : null;
+                String code = a.length >= 4 ? a[3] : null;
+                int max = a.length >= 5 ? parseInt(a[4], 0) : 0;
+                Game game = core.games.createPrivate(mode, map, code, max);
+                if (game == null) { s.sendMessage(r("Could not create a private game (no map fits).")); return true; }
+                s.sendMessage(g("Private game " + game.id() + " on " + game.mapName() + ", code " + game.privateCode()
+                        + (max > 0 ? ", cap " + max : "") + ". Join with /h2020 joincode " + game.privateCode()));
+                return true;
+            }
+            case "joincode": {
+                if (a.length < 2) { s.sendMessage(r("/h2020 joincode <code>")); return true; }
+                Game game = core.games.byCode(a[1]);
+                if (game == null) { s.sendMessage(r("No open private game with code " + a[1])); return true; }
+                Player who = s instanceof Player ? (Player) s : null;
+                if (who == null) { s.sendMessage(r("A player must run this.")); return true; }
+                game.addPlayer(who);
+                s.sendMessage(g("Joined " + game.id() + " (" + game.mapName() + ")."));
+                return true;
+            }
+            case "edit": {
+                // /lattice edit <map> [leave|selftest] - in-game map editor (ArenaSetup style)
+                net.h2020.api.map.MapService ms = H2020.find(net.h2020.api.map.MapService.class);
+                if (!(ms instanceof net.h2020.maps.MapServiceImpl)) { s.sendMessage(r("No map service")); return true; }
+                net.h2020.maps.MapEditService ed = ((net.h2020.maps.MapServiceImpl) ms).editor();
+                if (ed == null) { s.sendMessage(r("The editor is not running")); return true; }
+                if (a.length < 2) {
+                    s.sendMessage(r("/h2020 edit <map> [leave|selftest]"));
+                    StringBuilder names = new StringBuilder();
+                    for (net.h2020.api.map.MapTemplate t : ms.templates(null)) {
+                        if (names.length() > 0) names.append(", ");
+                        names.append(t.name());
+                    }
+                    s.sendMessage(g("Maps: " + names));
+                    return true;
+                }
+                if (a.length >= 4 && a[2].equalsIgnoreCase("opentest")) {
+                    // headless proof that the open/close path works: send a bot in, then take it out again
+                    Player target = Bukkit.getPlayer(a[3]);
+                    if (target == null) { s.sendMessage(r("No player " + a[3])); return true; }
+                    String err = ed.open(target, a[1]);
+                    if (err != null) { s.sendMessage(r(err)); return true; }
+                    String world = target.getWorld() == null ? "?" : target.getWorld().getName();
+                    String mode = String.valueOf(target.getGameMode());
+                    int kit = 0;
+                    for (org.bukkit.inventory.ItemStack it : target.getInventory().getContents()) if (it != null) kit++;
+                    boolean flying = target.isFlying();
+                    boolean left = ed.leave(target);
+                    s.sendMessage(g("opentest " + a[1] + ": world " + world + ", " + target.getName() + " was in "
+                            + mode + " with " + kit + " setup item(s), flying=" + flying + ", left=" + left));
+                    return true;
+                }
+                if (a.length >= 6 && a[2].equalsIgnoreCase("picktest")) {
+                    // what the wand would write for a click on that block, without touching the map
+                    org.bukkit.World w = Bukkit.getWorlds().get(0);
+                    org.bukkit.block.Block b = w.getBlockAt((int) parseDouble(a[3], 0), (int) parseDouble(a[4], 64),
+                            (int) parseDouble(a[5], 0));
+                    org.bukkit.Location loc = net.h2020.maps.MapEditService.picker(b);
+                    s.sendMessage(g("picktest: block " + b.getX() + "," + b.getY() + "," + b.getZ() + " -> point "
+                            + loc.getX() + "," + loc.getY() + "," + loc.getZ()));
+                    return true;
+                }
+                if (a.length >= 3 && a[2].equalsIgnoreCase("selftest")) {
+                    s.sendMessage(g(ed.selftest(a[1])));
+                    return true;
+                }
+                if (!(s instanceof Player)) { s.sendMessage(r("Only a player can use the map editor - run it in game.")); return true; }
+                Player who = (Player) s;
+                if (a.length >= 3 && a[2].equalsIgnoreCase("leave")) {
+                    who.performCommand("lattice edit leave");
+                    return true;
+                }
+                String err = ed.open(who, a[1]);
+                if (err != null) s.sendMessage(r(err));
+                return true;
+            }
+            case "setpoi": {
+                // /h2020 setpoi <map> <key> [head] -- write one point into that map's map.yml from where you stand
+                if (a.length < 3) { s.sendMessage(r("/h2020 setpoi <map> <key> [head]")); return true; }
+                Player who = s instanceof Player ? (Player) s : null;
+                org.bukkit.Location at = who != null ? who.getLocation() : null;
+                if (at == null) {
+                    if (a.length < 6) { s.sendMessage(r("From console: /h2020 setpoi <map> <key> <x> <y> <z>")); return true; }
+                    org.bukkit.World w = Bukkit.getWorlds().get(0);
+                    at = new org.bukkit.Location(w, parseDouble(a[3], 0), parseDouble(a[4], 64), parseDouble(a[5], 0));
+                }
+                net.h2020.api.map.MapService ms = H2020.find(net.h2020.api.map.MapService.class);
+                java.io.File dir = ms == null ? null : ms.folderOf(a[1]);
+                if (dir == null) { s.sendMessage(r("Unknown map " + a[1])); return true; }
+                boolean head = a.length >= 4 && a[3].equalsIgnoreCase("head");
+                boolean ok = net.h2020.maps.MapEditor.setPoint(dir, a[2], at, head);
+                if (ok) ms.reload();
+                s.sendMessage(ok ? g("Set " + a[2] + " on " + a[1] + " at " + at.getBlockX() + ","
+                        + at.getBlockY() + "," + at.getBlockZ() + " (maps reloaded)")
+                        : r("Could not write map.yml for " + a[1] + " at " + dir.getAbsolutePath()
+                        + " (dir=" + dir.isDirectory() + ", map.yml=" + new java.io.File(dir, "map.yml").isFile() + ")"));
+                return true;
+            }
+            case "testdeposit": {
+                if (a.length < 2) { s.sendMessage(r("/h2020 testdeposit <player> [team|ender]")); return true; }
+                Player tp = Bukkit.getPlayerExact(a[1]);
+                if (tp == null) { s.sendMessage(r("No player " + a[1])); return true; }
+                net.h2020.api.game.BedwarsTools bt = H2020.find(net.h2020.api.game.BedwarsTools.class);
+                if (bt == null) { s.sendMessage(r("The Bed Wars plugin is not installed.")); return true; }
+                bt.testDeposit(s, tp, a.length >= 3 && a[2].equalsIgnoreCase("ender"));
+                return true;
+            }
+            case "fastboard": {
+                if (a.length < 2) { s.sendMessage(r("/h2020 fastboard <player>")); return true; }
+                Player fp = Bukkit.getPlayerExact(a[1]);
+                if (fp == null) { s.sendMessage(r("No player " + a[1])); return true; }
+                net.h2020.core.scoreboard.FastBoardProbe.run(core.plugin, fp);
+                s.sendMessage(g("FastBoard probe started for " + fp.getName()));
+                return true;
+            }
+            case "playagainprobe": {
+                // send the end-of-game prompt to one player and report whether the component went out
+                if (a.length < 2) { s.sendMessage(r("/h2020 playagainprobe <player>")); return true; }
+                Player pp = Bukkit.getPlayerExact(a[1]);
+                if (pp == null) { s.sendMessage(r("No player " + a[1])); return true; }
+                net.h2020.api.core.PlayAgain.sendPrompt(pp, a.length < 3 || !a[2].equalsIgnoreCase("loss"), a.length < 4 || !a[3].equalsIgnoreCase("skywars"));
+                net.h2020.api.core.PlayAgain.giveItem(pp);
+                s.sendMessage(g("Sent the play-again prompt to " + pp.getName()));
+                s.sendMessage(net.h2020.api.core.PlayAgain.legacyPrompt(a.length < 3 || !a[2].equalsIgnoreCase("loss"),
+                        a.length < 4 || !a[3].equalsIgnoreCase("skywars")).replace('\u00a7', '&'));
+                return true;
+            }
+            case "slimeprobe": {
+                if (a.length < 2) { s.sendMessage(r("/h2020 slimeprobe <map>")); return true; }
+                org.bukkit.World w = net.h2020.api.map.SlimeWorlds.spawn(a[1], "probe");
+                if (w == null) { s.sendMessage(r("No slime world ready for " + a[1])); return true; }
+                // count solid blocks in a slab at the map's own build height, which proves the copy carries the map
+                int solid = 0, air = 0;
+                net.h2020.api.map.MapTemplate mt = H2020.find(net.h2020.api.map.MapService.class) == null ? null
+                        : H2020.find(net.h2020.api.map.MapService.class).byName(a[1]);
+                org.bukkit.util.Vector mid = mt == null ? null : mt.point("mid");
+                org.bukkit.Location sp = mid == null ? w.getSpawnLocation()
+                        : new org.bukkit.Location(w, mid.getX(), mid.getY(), mid.getZ());
+                for (int x = -24; x <= 24; x += 3)
+                    for (int z = -24; z <= 24; z += 3)
+                        for (int y = -8; y <= 8; y += 4) {
+                            org.bukkit.block.Block b = w.getBlockAt(sp.getBlockX() + x, Math.max(1, sp.getBlockY() + y), sp.getBlockZ() + z);
+                            if (b.getType() == org.bukkit.Material.AIR) air++; else solid++;
+                        }
+                s.sendMessage(g("world=" + w.getName() + " at=" + sp.getBlockX() + "," + sp.getBlockY() + "," + sp.getBlockZ()
+                        + " solid=" + solid + " air=" + air + " chunks=" + w.getLoadedChunks().length
+                        + " autoSave=" + w.isAutoSave()));
+                net.h2020.api.map.SlimeWorlds.release(w);
+                return true;
+            }
+            case "blockat": {
+                // /h2020 blockat <world> <x> <y> <z> ...: read a few blocks back out, for checking a generator
+                if (a.length < 5) { s.sendMessage(r("/h2020 blockat <world> <x> <y> <z> [y2 y3 ...]")); return true; }
+                org.bukkit.World w = Bukkit.getWorld(a[1]);
+                if (w == null) { s.sendMessage(r("No world " + a[1])); return true; }
+                int x = Integer.parseInt(a[2]), z = Integer.parseInt(a[4]);
+                StringBuilder out = new StringBuilder("world=" + w.getName());
+                for (int i = 3; i < a.length; i++) {
+                    int y = Integer.parseInt(a[i]);
+                    out.append(" y").append(y).append('=').append(w.getBlockAt(x, y, z).getType());
+                }
+                s.sendMessage(g(out.toString()));
+                return true;
+            }
+            case "mapimport": {
+                // /lattice mapimport <world|map> <name> [bedwars|skywars]: derive map.yml from a loaded world. The
+                // world is read on the main thread (a fraction of a second), the derivation runs off it because the
+                // heuristics take a while and freezing the server for a minute is not acceptable.
+                if (a.length < 3) { s.sendMessage(r("/h2020 mapimport <world> <name> [bedwars|skywars]")); return true; }
+                final org.bukkit.World w = Bukkit.getWorld(a[1]);
+                final boolean temporary = w == null;
+                final org.bukkit.World world = w != null ? w : net.h2020.api.map.SlimeWorlds.spawn(a[1], "import");
+                if (world == null) { s.sendMessage(r("No world " + a[1] + " is loaded, and there is no slime copy of it.")); return true; }
+                net.h2020.api.game.GameFamily fam = net.h2020.api.game.GameFamily.BEDWARS;
+                if (a.length > 3) {
+                    try { fam = net.h2020.api.game.GameFamily.valueOf(a[3].toUpperCase()); }
+                    catch (IllegalArgumentException e) { s.sendMessage(r("Unknown family " + a[3])); return true; }
+                }
+                final net.h2020.api.game.GameFamily family = fam;
+                final String mapName = a[2];
+                final CommandSender sender = s;
+                final java.io.File mapsRoot = new java.io.File(core.plugin.getDataFolder(), "maps");
+                try {
+                    Object snapshot = net.h2020.maps.MapImporter.scan(world);
+                    Bukkit.getScheduler().runTaskAsynchronously(core.plugin, new Runnable() {
+                        @Override public void run() {
+                            try {
+                                final net.h2020.maps.MapImporter.Result res =
+                                        net.h2020.maps.MapImporter.derive(snapshot, mapName, family, mapsRoot);
+                                Bukkit.getScheduler().runTask(core.plugin, new Runnable() {
+                                    @Override public void run() {
+                                        net.h2020.maps.MapImporter.buildLobby(world, res, world);
+                                        net.h2020.api.map.MapService ms = H2020.find(net.h2020.api.map.MapService.class);
+                                        if (ms != null) ms.reload();
+                                        sender.sendMessage(g("Imported " + res.name + " (" + family + ") into "
+                                                + res.folder.getName() + " - " + String.join("; ", res.lines)));
+                                        if (temporary) net.h2020.api.map.SlimeWorlds.release(world);
+                                    }
+                                });
+                            } catch (Throwable t) {
+                                core.plugin.getLogger().log(java.util.logging.Level.WARNING, "[mapimport] failed", t);
+                                Bukkit.getScheduler().runTask(core.plugin, new Runnable() {
+                                    @Override public void run() {
+                                        sender.sendMessage(r("Import failed: " + t.getMessage()));
+                                        if (temporary) net.h2020.api.map.SlimeWorlds.release(world);
+                                    }
+                                });
+                            }
+                        }
+                    });
+                    s.sendMessage(g("Reading " + world.getName() + " and deriving " + mapName + "..."));
+                } catch (Throwable t) {
+                    s.sendMessage(r("Import failed: " + t.getMessage()));
+                    if (temporary) net.h2020.api.map.SlimeWorlds.release(world);
+                }
+                return true;
+            }
+            case "mapimportdir": {
+                // /lattice mapimportdir <folder> [family] [tags]: import every world folder inside <folder>, one map per
+                // second, so a bulk import never trips the tick watchdog. Used for a map pack.
+                if (a.length < 2) { s.sendMessage(r("/h2020 mapimportdir <folder> [bedwars|skywars] [tag,tag]")); return true; }
+                final java.io.File root = new java.io.File(a[1].startsWith("/") ? a[1] : new java.io.File(".").getAbsolutePath() + "/" + a[1]);
+                if (!root.isDirectory()) { s.sendMessage(r("No folder " + root)); return true; }
+                final java.util.List<java.io.File> worlds = new java.util.ArrayList<java.io.File>();
+                java.io.File[] kids = root.listFiles();
+                if (kids != null) for (java.io.File f : kids) if (f.isDirectory() && new java.io.File(f, "level.dat").isFile()) worlds.add(f);
+                if (worlds.isEmpty()) { s.sendMessage(r("No world folders (level.dat) in " + root)); return true; }
+                java.util.Collections.sort(worlds);
+                final net.h2020.api.game.GameFamily fam = a.length > 2
+                        ? net.h2020.api.game.GameFamily.valueOf(a[2].toUpperCase()) : net.h2020.api.game.GameFamily.BEDWARS;
+                final java.util.List<String> tags = new java.util.ArrayList<String>();
+                if (a.length > 3) for (String t : a[3].split(",")) if (!t.trim().isEmpty()) tags.add(t.trim().toLowerCase(java.util.Locale.ROOT));
+                final java.io.File mapsRoot = new java.io.File(core.plugin.getDataFolder(), "maps");
+                final CommandSender sender = s;
+                final int[] at = {0};
+                s.sendMessage(g("Importing " + worlds.size() + " world(s) from " + root.getName() + " as " + fam + "..."));
+                new org.bukkit.scheduler.BukkitRunnable() {
+                    @Override public void run() {
+                        if (at[0] >= worlds.size()) {
+                            net.h2020.api.map.MapService ms = H2020.find(net.h2020.api.map.MapService.class);
+                            if (ms != null) ms.reload();
+                            sender.sendMessage(g("Bulk import done: " + worlds.size() + " map(s). Run /lattice convert all to build slime copies."));
+                            cancel();
+                            return;
+                        }
+                        java.io.File src = worlds.get(at[0]++);
+                        String safe = src.getName().replaceAll("[^A-Za-z0-9_-]", "_");
+                        String worldName = "import/" + safe;
+                        try {
+                            java.io.File dst = new java.io.File(Worlds.container(), worldName);
+                            if (dst.exists()) Worlds.delete(dst);
+                            Worlds.copyWorld(src, dst);
+                            org.bukkit.World w = Worlds.loadVoid(worldName, org.bukkit.block.Biome.PLAINS, 0.5, 96, 0.5);
+                            if (w == null) throw new IllegalStateException("Bukkit refused to load it");
+                            Object snapshot = net.h2020.maps.MapImporter.scan(w);
+                            net.h2020.maps.MapImporter.Result res =
+                                    net.h2020.maps.MapImporter.derive(snapshot, prettifyName(src.getName()), fam, mapsRoot, tags);
+                            Bukkit.unloadWorld(w, false);
+                            // The map keeps its blocks in the template folder until /lattice convert builds the
+                            // slime copy and prunes it, exactly as an older install's map/ world used to work.
+                            java.io.File keptWorld = new java.io.File(res.folder, "world");
+                            Worlds.delete(keptWorld);
+                            Worlds.copyWorld(dst, keptWorld);
+                            Worlds.delete(dst);
+                            core.plugin.getLogger().info("[mapimportdir] " + res.name + " -> " + res.folder.getName()
+                                    + " (" + res.lines + ")");
+                            if (at[0] % 10 == 0 || at[0] == worlds.size())
+                                sender.sendMessage(g("Imported " + at[0] + "/" + worlds.size() + ": " + res.name));
+                        } catch (Throwable t) {
+                            core.plugin.getLogger().log(java.util.logging.Level.WARNING, "[mapimportdir] failed on " + src.getName(), t);
+                            sender.sendMessage(r("Failed " + src.getName() + ": " + t.getMessage()));
+                        }
+                    }
+                }.runTaskTimer(core.plugin, 20L, 20L);
+                return true;
+            }
+            case "maptag": {
+                // /lattice maptag <map> <tag,tag|->: rewrite the tags line of a map.yml and reload
+                if (a.length < 3) { s.sendMessage(r("/h2020 maptag <map> <tag,tag|->")); return true; }
+                net.h2020.api.map.MapService ms = H2020.find(net.h2020.api.map.MapService.class);
+                net.h2020.api.map.MapTemplate t = ms == null ? null : ms.byName(a[1]);
+                if (t == null) { s.sendMessage(r("No map " + a[1])); return true; }
+                java.util.List<String> tags = new java.util.ArrayList<String>();
+                if (!a[2].equals("-")) for (String x : a[2].split(",")) if (!x.trim().isEmpty()) tags.add(x.trim().toLowerCase(java.util.Locale.ROOT));
+                try {
+                    net.h2020.maps.MapFiles.writeTags(((net.h2020.maps.StoredMapTemplate) t).folder(), tags);
+                } catch (Exception e) {
+                    s.sendMessage(r("Could not write tags: " + e.getMessage()));
+                    return true;
+                }
+                if (ms != null) ms.reload();
+                s.sendMessage(g("Tags for " + t.name() + ": " + (tags.isEmpty() ? "none" : String.join(", ", tags))));
+                return true;
+            }
+            case "tags": {
+                net.h2020.api.map.MapService ms = H2020.find(net.h2020.api.map.MapService.class);
+                if (!(ms instanceof net.h2020.maps.MapServiceImpl)) { s.sendMessage(r("No map service")); return true; }
+                java.util.Map<String, int[]> sum = ((net.h2020.maps.MapServiceImpl) ms).tagSummary();
+                if (sum.isEmpty()) { s.sendMessage(g("No tags on any map.")); return true; }
+                for (java.util.Map.Entry<String, int[]> e : sum.entrySet())
+                    s.sendMessage(r(e.getKey()) + g(" - " + e.getValue()[0] + " map(s), "
+                            + (e.getValue()[1] == 1 ? "DISABLED" : "enabled")));
+                return true;
+            }
+            case "convert": {
+                net.h2020.api.map.MapService ms = H2020.find(net.h2020.api.map.MapService.class);
+                if (ms == null) { s.sendMessage(r("No map service.")); return true; }
+                String what = a.length >= 2 ? a[1] : "all";
+                int n = ms.convertToSlime(what);
+                if (n == -1) s.sendMessage(r("SwoftyWorldManager is not installed, worlds stay as folders."));
+                else if (n == -2) s.sendMessage(r("No map called " + what));
+                else s.sendMessage(g("Converted " + n + " map(s) to slime: " + String.join(", ", ms.slimeMaps())));
+                return true;
+            }
+            case "arena": {
+                String asub = a.length > 1 ? a[1].toLowerCase() : "join";
+                if (asub.equals("bot")) {
+                    if (a.length < 3) { s.sendMessage(r("/h2020 arena bot <name>")); return true; }
+                    Player b = Bukkit.getPlayerExact(a[2]);
+                    if (b == null) { s.sendMessage(r("No player " + a[2])); return true; }
+                    if (net.h2020.core.arena.PvpArena.spawn() == null) { s.sendMessage(r("Arena world failed to load.")); return true; }
+                    b.teleport(net.h2020.core.arena.PvpArena.spawn());
+                    b.setHealth(20.0);
+                    b.setFoodLevel(20);
+                    net.h2020.api.core.DemoFlags.sparMode = true;
+                    net.h2020.api.core.DemoFlags.zestEnabled = true;
+                    s.sendMessage(g("Sent " + b.getName() + " to the arena."));
+                    return true;
+                }
+                if (asub.equals("fill")) {
+                    int n = a.length > 2 ? parseInt(a[2], 3) : 3;
+                    int moved = net.h2020.core.arena.PvpArena.populate(n);
+                    s.sendMessage(g("Moved " + moved + " bots into the arena."));
+                    return true;
+                }
+                if (asub.equals("probe")) {
+                    if (a.length < 3) { s.sendMessage(r("/h2020 arena probe <name>")); return true; }
+                    Player pl = Bukkit.getPlayerExact(a[2]);
+                    if (pl == null) { s.sendMessage(r("No player " + a[2])); return true; }
+                    pl.addPotionEffect(new org.bukkit.potion.PotionEffect(
+                            org.bukkit.potion.PotionEffectType.DAMAGE_RESISTANCE, 200, 20, true, false), true);
+                    int amp = -1; int count = 0;
+                    for (org.bukkit.potion.PotionEffect e2 : pl.getActivePotionEffects()) { count++; if (e2.getType().getName().equals("DAMAGE_RESISTANCE")) amp = e2.getAmplifier(); }
+                    s.sendMessage(g("probe " + pl.getName() + ": effects=" + count + " resistanceAmp=" + amp
+                            + " types=" + pl.getActivePotionEffects().stream().map(e2 -> e2.getType().getName()).collect(java.util.stream.Collectors.toList())));
+                    return true;
+                }
+                if (asub.equals("status")) {
+                    org.bukkit.World w = Bukkit.getWorld(net.h2020.core.arena.PvpArena.WORLD);
+                    if (w == null) { s.sendMessage(r("Arena world is not loaded.")); return true; }
+                    java.util.List<Player> in = new java.util.ArrayList<Player>(w.getPlayers());
+                    s.sendMessage(g("  arena players: " + in.size() + " (buff tick ran " + net.h2020.core.arena.PvpArena.buffRuns + "x)"));
+                    for (Player pl : in) {
+                        int amp = -1, sat = -1;
+                        for (org.bukkit.potion.PotionEffect e : pl.getActivePotionEffects()) {
+                            if (e.getType().getName().equals("DAMAGE_RESISTANCE")) amp = e.getAmplifier();
+                            if (e.getType().getName().equals("SATURATION")) sat = e.getAmplifier();
+                        }
+                        int canSee = 0, total = 0;
+                        for (Player o : in) { if (o == pl) continue; total++; if (pl.canSee(o)) canSee++; }
+                        s.sendMessage(g("    " + pl.getName() + " hp=" + Math.round(pl.getHealth()) + " gm=" + pl.getGameMode()
+                                + " inv=" + pl.hasPotionEffect(org.bukkit.potion.PotionEffectType.INVISIBILITY)
+                                + " resist=" + amp + " sat=" + sat + " sees=" + canSee + "/" + total
+                                + " at " + Math.round(pl.getLocation().getX()) + "," + Math.round(pl.getLocation().getY())
+                                + "," + Math.round(pl.getLocation().getZ())));
+                    }
+                    return true;
+                }
+                if (asub.equals("die")) {
+                    // prove the no-death rule: kill a player outright and check they come back on the pad
+                    if (a.length < 3) { s.sendMessage(r("/h2020 arena die <name>")); return true; }
+                    Player victim = Bukkit.getPlayerExact(a[2]);
+                    if (victim == null) { s.sendMessage(r("No player " + a[2])); return true; }
+                    boolean inArena = net.h2020.core.arena.PvpArena.isArena(victim.getWorld());
+                    victim.setHealth(0.0);
+                    s.sendMessage(g("Killed " + victim.getName() + " in arena=" + inArena + "; they should be back on the pad"));
+                    return true;
+                }
+                if (asub.equals("reset")) {
+                    org.bukkit.World w = org.bukkit.Bukkit.getWorld(net.h2020.core.arena.PvpArena.WORLD);
+                    if (w != null) for (Player pl : w.getPlayers()) pl.teleport(net.h2020.core.arena.PvpArena.spawn());
+                    s.sendMessage(g("Arena reset."));
+                    return true;
+                }
+                if (!(s instanceof Player)) { s.sendMessage(r("A player must run this, or use /h2020 arena bot <name>.")); return true; }
+                net.h2020.core.arena.PvpArena.join((Player) s);
+                s.sendMessage(g("Arena: " + net.h2020.core.arena.PvpArena.WORLD + " at 0,65,0"));
+                return true;
+            }
+            case "spar": {
+                // demo: no retreats, everyone topped up, so a combo can be filmed
+                boolean on = a.length < 2 || !a[1].equalsIgnoreCase("off");
+                net.h2020.api.core.DemoFlags.sparMode = on;
+                net.h2020.api.core.DemoFlags.resistanceOn = on;
+                if (on) {
+                    net.h2020.api.core.DemoFlags.resistanceAmp = Math.max(2, net.h2020.api.core.DemoFlags.resistanceAmp);
+                    Game sg = s instanceof Player ? core.games.gameOf((Player) s) : null;
+                    if (sg == null && !core.games.games().isEmpty()) sg = core.games.games().iterator().next();
+                    if (sg != null) {
+                        org.bukkit.Location mid = sg.world().getSpawnLocation();
+                        int i = 0;
+                        for (Player bp2 : sg.players()) {
+                            if (!net.h2020.core.CoreUtil.isBot(bp2)) continue;
+                            double ang = (i % 2 == 0 ? 0 : Math.PI) + i * 0.4;
+                            org.bukkit.Location at = mid.clone().add(Math.cos(ang) * 3, 0, Math.sin(ang) * 3);
+                            int land = at.getWorld().getHighestBlockYAt(at);
+                            at.setY(Math.max(at.getY(), land + 1));
+                            bp2.teleport(at);
+                            i++;
+                        }
+                    }
+                }
+                s.sendMessage(g("spar " + (on ? "on (no retreats, resistance " + net.h2020.api.core.DemoFlags.resistanceAmp + ")" : "off")));
+                return true;
+            }
+            case "gens": {
+                net.h2020.api.game.BedwarsTools bt = H2020.find(net.h2020.api.game.BedwarsTools.class);
+                if (bt == null) { s.sendMessage(r("The Bed Wars plugin is not installed.")); return true; }
+                bt.generators(s, s instanceof Player ? (Player) s : null);
+                return true;
+            }
+            case "teamchest": {
+                net.h2020.api.game.BedwarsTools bt = H2020.find(net.h2020.api.game.BedwarsTools.class);
+                if (bt == null) { s.sendMessage(r("The Bed Wars plugin is not installed.")); return true; }
+                bt.teamChest(s, s instanceof Player ? (Player) s : null);
+                return true;
+            }
+            case "modes": {
+                // what the lobby menus are generated from: family, order, id and size
+                for (net.h2020.api.game.GameFamily f : net.h2020.api.game.GameFamily.values()) {
+                    StringBuilder line = new StringBuilder();
+                    for (net.h2020.api.game.GameMode m : net.h2020.api.game.GameModes.of(f)) {
+                        line.append("  ").append(m.id()).append(" (").append(m.teams()).append("x").append(m.teamSize()).append(")");
+                    }
+                    s.sendMessage(g(f + ":" + (line.length() == 0 ? "  none" : line.toString())));
+                }
+                return true;
+            }
             case "fill": {
                 if (a.length < 2) { s.sendMessage(r("/h2020 fill <type> [count]")); return true; }
-                GameType t = GameType.byId(a[1]);
+                net.h2020.api.game.GameMode t = net.h2020.api.game.GameModes.byId(a[1]);
                 if (t == null) { s.sendMessage(r("Unknown type " + a[1])); return true; }
                 Game game = core.games.findJoinable(t);
                 if (game == null) game = core.games.createRandom(t);
@@ -87,7 +588,7 @@ public final class AdminCommand implements TabExecutor {
                 // put any online player (human or bot) into a game of that type, e.g. for recording or testing
                 if (a.length < 3) { s.sendMessage(r("/h2020 join <player> <type>")); return true; }
                 Player target = Bukkit.getPlayerExact(a[1]);
-                GameType t = GameType.byId(a[2]);
+                net.h2020.api.game.GameMode t = net.h2020.api.game.GameModes.byId(a[2]);
                 if (target == null || t == null) { s.sendMessage(r("Unknown player or type.")); return true; }
                 Game game = core.games.queue(target, t);
                 s.sendMessage(game == null ? r("Could not queue " + target.getName() + ".")
@@ -122,9 +623,51 @@ public final class AdminCommand implements TabExecutor {
                 p.sendMessage(g("You are now spectating " + game.id() + " (" + game.mapName() + "). Use /lobby to leave."));
                 return true;
             }
+            case "end": {
+                if (a.length < 2) { s.sendMessage(r("/h2020 end <gameId>")); return true; }
+                Game g = core.games.byId(a[1]);
+                if (g == null) { s.sendMessage(r("No game " + a[1])); return true; }
+                g.shutdown();
+                s.sendMessage(g("Ended " + a[1]));
+                return true;
+            }
+            case "replay": {
+                net.h2020.api.core.AdminHooks.Hook rh = net.h2020.api.core.AdminHooks.get("replay");
+                if (rh == null) { s.sendMessage(r("The bots plugin is not installed.")); return true; }
+                rh.run(s, a);
+                return true;
+            }
+            case "train": {
+                net.h2020.api.core.AdminHooks.Hook th = net.h2020.api.core.AdminHooks.get("train");
+                if (th == null) { s.sendMessage(r("The bots plugin is not installed.")); return true; }
+                th.run(s, a);
+                return true;
+            }
+            case "placecheck": {
+                if (a.length < 4) { s.sendMessage(r("/h2020 placecheck <x> <y> <z>")); return true; }
+                net.h2020.api.game.BedwarsTools bt = H2020.find(net.h2020.api.game.BedwarsTools.class);
+                if (bt == null) { s.sendMessage(r("The Bed Wars plugin is not installed.")); return true; }
+                org.bukkit.World w = s instanceof Player ? ((Player) s).getWorld() : Bukkit.getWorlds().get(0);
+                bt.placeCheck(s, w.getBlockAt(parseInt(a[1], 0), parseInt(a[2], 64), parseInt(a[3], 0)));
+                return true;
+            }
+            case "tower": {
+                // build a pop-up tower in place, for testing the blueprint without a player hand
+                if (a.length < 4) { s.sendMessage(r("/h2020 tower <x> <y> <z>")); return true; }
+                org.bukkit.World w = s instanceof Player ? ((Player) s).getWorld() : Bukkit.getWorlds().get(0);
+                org.bukkit.Location at = new org.bukkit.Location(w, parseInt(a[1], 0), parseInt(a[2], 64), parseInt(a[3], 0));
+                net.h2020.api.game.BedwarsTools bt = H2020.find(net.h2020.api.game.BedwarsTools.class);
+                if (bt == null) { s.sendMessage(r("The Bed Wars plugin is not installed.")); return true; }
+                bt.tower(s, at);
+                s.sendMessage(g("Pop-up tower under construction at " + at.getBlockX() + "," + at.getBlockY() + "," + at.getBlockZ()));
+                return true;
+            }
             case "reload": {
                 core.plugin.reloadConfig();
                 core.config.load(core.plugin);
+                core.config.applyNetwork(core.plugin);
+                net.h2020.api.game.BedwarsTools btr = H2020.find(net.h2020.api.game.BedwarsTools.class);
+                if (btr != null) btr.reload();
                 net.h2020.core.CoreModule.applyDate(core.config.date);
                 if (core.npcs != null) core.npcs.rebuild();
                 for (Player p : Bukkit.getOnlinePlayers()) if (!CoreUtil.isBot(p)) core.scoreboards.setTabHeaderFooter(p, core.config.tabHeader, core.config.tabFooter);
@@ -215,6 +758,34 @@ public final class AdminCommand implements TabExecutor {
         }
     }
 
+    /** The games list as a clickable menu: click a game to spectate it. */
+    private void gamesMenu(Player p) {
+        java.util.List<Game> list = new java.util.ArrayList<Game>(core.games.games());
+        net.h2020.api.gui.Menu m = new net.h2020.api.gui.Menu(ChatColor.DARK_GRAY + "Current games", 6);
+        int slot = 0;
+        for (final Game g : list) {
+            if (slot >= 45) break;
+            int players = g.players() == null ? 0 : g.players().size();
+            org.bukkit.inventory.ItemStack icon = new net.h2020.api.gui.ItemBuilder(org.bukkit.Material.MAP)
+                    .name(ChatColor.GREEN + g.id())
+                    .lore(ChatColor.GRAY + "Map: " + ChatColor.WHITE + g.mapName(),
+                            ChatColor.GRAY + "Mode: " + ChatColor.WHITE + g.type().id(),
+                            ChatColor.GRAY + "State: " + ChatColor.WHITE + g.state().name(),
+                            ChatColor.GRAY + "Players: " + ChatColor.WHITE + players + "/" + g.type().maxPlayers(),
+                            "", ChatColor.YELLOW + "Click to spectate")
+                    .build();
+            m.set(slot++, icon, new net.h2020.api.gui.Menu.Click() {
+                @Override public void click(Player who, org.bukkit.event.inventory.ClickType type) {
+                    who.closeInventory();
+                    new net.h2020.core.command.SpectateCommand(core).spectate(who, g);
+                }
+            });
+        }
+        if (slot == 0) m.set(22, new net.h2020.api.gui.ItemBuilder(org.bukkit.Material.BARRIER)
+                .name(ChatColor.RED + "No games running").build());
+        m.open(p);
+    }
+
     private void games(CommandSender s) {
         if (core.games.games().isEmpty()) { s.sendMessage(ChatColor.GRAY + "No running games."); return; }
         s.sendMessage(ChatColor.GOLD + "Running games:");
@@ -231,6 +802,7 @@ public final class AdminCommand implements TabExecutor {
 
     private static void help(CommandSender s) {
         s.sendMessage(ChatColor.GOLD + "Hypixel2020 admin:");
+        s.sendMessage(ChatColor.GRAY + " games");
         s.sendMessage(ChatColor.YELLOW + "/h2020 games" + ChatColor.GRAY + " - list running games");
         s.sendMessage(ChatColor.YELLOW + "/h2020 create <type> [map]" + ChatColor.GRAY + " - create a game");
         s.sendMessage(ChatColor.YELLOW + "/h2020 start <gameId>" + ChatColor.GRAY + " - fill with bots so it starts");
@@ -238,10 +810,21 @@ public final class AdminCommand implements TabExecutor {
         s.sendMessage(ChatColor.YELLOW + "/h2020 join <player> <type>" + ChatColor.GRAY + " - queue a player or bot into a game");
         s.sendMessage(ChatColor.YELLOW + "/h2020 bots <n> [lobby]" + ChatColor.GRAY + " - idle bots in a lobby");
         s.sendMessage(ChatColor.YELLOW + "/h2020 watch <gameId>" + ChatColor.GRAY + " - spectate a game");
+        s.sendMessage(ChatColor.YELLOW + "/h2020 end <gameId>" + ChatColor.GRAY + " - end a game now");
+        s.sendMessage(ChatColor.YELLOW + "/h2020 create bedwars_duel [map]" + ChatColor.GRAY + " - 1v1 on a solo map (RED vs AQUA)");
+        s.sendMessage(ChatColor.GRAY + " training (self-play arena)");
+        s.sendMessage(ChatColor.YELLOW + "/h2020 train start [total] [train] [eval]" + ChatColor.GRAY + " - run generations");
+        s.sendMessage(ChatColor.YELLOW + "/h2020 train stop | report | promote | discard" + ChatColor.GRAY + " - control the run");
+        s.sendMessage(ChatColor.GRAY + " replays");
+        s.sendMessage(ChatColor.YELLOW + "/h2020 replay list" + ChatColor.GRAY + " - recorded games");
+        s.sendMessage(ChatColor.YELLOW + "/h2020 replay start <gameId> [speed]" + ChatColor.GRAY + " - watch one (also in the game menu)");
+        s.sendMessage(ChatColor.YELLOW + "/h2020 replay pause | resume | seek <s> | stop" + ChatColor.GRAY + " - playback");
+        s.sendMessage(ChatColor.GRAY + " lobby and world");
         s.sendMessage(ChatColor.YELLOW + "/h2020 date [MM/dd/yy|today|2020]" + ChatColor.GRAY + " - scoreboard date");
         s.sendMessage(ChatColor.YELLOW + "/h2020 rank <player> <rank> [color] | level <player> <n>");
         s.sendMessage(ChatColor.YELLOW + "/h2020 cheaters <%> | fillspeed <x> | background <n>");
         s.sendMessage(ChatColor.YELLOW + "/h2020 build | setspawn | npc <id> | reload");
+        s.sendMessage(ChatColor.GRAY + " bots have their own help: " + ChatColor.YELLOW + "/bot help");
     }
 
     private static Integer parseInt(String s, int def) {
@@ -266,12 +849,31 @@ public final class AdminCommand implements TabExecutor {
             for (String x : SUBS) if (x.startsWith(a[0].toLowerCase())) out.add(x);
         } else if (a.length == 2) {
             String sub = a[0].toLowerCase();
+            if (sub.equals("setpoi")) {
+                if (a.length == 2) {
+                    net.h2020.api.map.MapService ms = H2020.find(net.h2020.api.map.MapService.class);
+                    if (ms != null) for (net.h2020.api.map.MapTemplate t : ms.templates(net.h2020.api.game.GameFamily.values()[0])) out.add(t.name());
+                    if (ms != null) for (net.h2020.api.game.GameFamily f : net.h2020.api.game.GameFamily.values())
+                        for (net.h2020.api.map.MapTemplate t : ms.templates(f)) if (!out.contains(t.name())) out.add(t.name());
+                } else if (a.length == 3) {
+                    java.util.Collections.addAll(out, net.h2020.maps.MapEditor.keys());
+                } else out.add("head");
+                return out;
+            }
             if (sub.equals("create") || sub.equals("fill")) {
-                for (GameType t : GameType.values()) if (t.id().startsWith(a[1].toLowerCase())) out.add(t.id());
+                for (net.h2020.api.game.GameMode m : net.h2020.api.game.GameModes.all()) {
+                    if (m.id().startsWith(a[1].toLowerCase())) out.add(m.id());
+                }
             } else if (sub.equals("start") || sub.equals("watch")) {
                 for (Game game : core.games.games()) if (game.id().toLowerCase().startsWith(a[1].toLowerCase())) out.add(game.id());
             } else if (sub.equals("npc")) {
                 for (String id : NpcManager.ids()) if (id.startsWith(a[1].toLowerCase())) out.add(id);
+            } else if (sub.equals("replay")) {
+                for (String c : new String[]{"list", "start", "pause", "resume", "seek", "stop", "verify"})
+                    if (c.startsWith(a[1].toLowerCase())) out.add(c);
+            } else if (sub.equals("train")) {
+                for (String c : new String[]{"start", "stop", "report", "promote", "discard", "hindsight", "human"})
+                    if (c.startsWith(a[1].toLowerCase())) out.add(c);
             } else if (sub.equals("rank") || sub.equals("level")) {
                 for (Player p : Bukkit.getOnlinePlayers()) if (p.getName().toLowerCase().startsWith(a[1].toLowerCase())) out.add(p.getName());
             }

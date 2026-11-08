@@ -12,3 +12,7 @@ logs/
 __pycache__/
 *.pyc
 session.lock
+bot-behaviour.patch
+# downloaded at start-up by start-server.sh
+libs/swm/*.jar
+run/slime_worlds/

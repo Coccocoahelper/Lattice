@@ -1,0 +1,137 @@
+# Annotated by the built-in importer (net.h2020.maps.MapImporter). Check points in-game.
+name: "Playground"
+family: BEDWARS
+teams: [8]
+build-limit: 96
+bounds:
+  min: {x: -116, y: 0, z: -116}
+  max: {x: 116, y: 255, z: 116}
+points:
+  team.blue.bed:
+    - {x: 38, y: 62, z: -80}
+    - {x: 38, y: 62, z: -81}
+  team.blue.spawn:
+    - {x: 38.5, y: 62, z: -87.5, yaw: 23.700000762939453}
+  team.blue.generator:
+    - {x: 38.5, y: 62, z: -96.5}
+  team.blue.shop:
+    - {x: 33.5, y: 62, z: -90, yaw: 296.6000061035156}
+  team.blue.upgrades:
+    - {x: 33.5, y: 62, z: -93, yaw: 317.70001220703125}
+  team.blue.base:
+    - {x: 29, y: 52, z: -101}
+    - {x: 51, y: 82, z: -76}
+  team.green.bed:
+    - {x: 80, y: 62, z: -38}
+    - {x: 81, y: 62, z: -38}
+  team.green.spawn:
+    - {x: 88.5, y: 62, z: -37.5, yaw: 67}
+  team.green.generator:
+    - {x: 97.5, y: 62, z: -37.5}
+  team.green.shop:
+    - {x: 91, y: 62, z: -32.5, yaw: 153.39999389648438}
+  team.green.upgrades:
+    - {x: 94, y: 62, z: -32.5, yaw: 132.3000030517578}
+  team.green.base:
+    - {x: 76, y: 52, z: -51}
+    - {x: 101, y: 82, z: -29}
+  team.yellow.bed:
+    - {x: 80, y: 62, z: 38}
+    - {x: 81, y: 62, z: 38}
+  team.yellow.spawn:
+    - {x: 88.5, y: 62, z: 38.5, yaw: 113.5}
+  team.yellow.generator:
+    - {x: 97.5, y: 62, z: 38.5}
+  team.yellow.shop:
+    - {x: 91, y: 62, z: 33.5, yaw: 26.600000381469727}
+  team.yellow.upgrades:
+    - {x: 94, y: 62, z: 33.5, yaw: 47.70000076293945}
+  team.yellow.base:
+    - {x: 76, y: 52, z: 29}
+    - {x: 101, y: 82, z: 51}
+  team.aqua.bed:
+    - {x: 38, y: 62, z: 80}
+    - {x: 38, y: 62, z: 81}
+  team.aqua.spawn:
+    - {x: 38.5, y: 62, z: 88.5, yaw: 156.5}
+  team.aqua.generator:
+    - {x: 38.5, y: 62, z: 97.5}
+  team.aqua.shop:
+    - {x: 33.5, y: 62, z: 91, yaw: 243.39999389648438}
+  team.aqua.upgrades:
+    - {x: 33.5, y: 62, z: 94, yaw: 222.3000030517578}
+  team.aqua.base:
+    - {x: 29, y: 52, z: 76}
+    - {x: 51, y: 82, z: 101}
+  team.white.bed:
+    - {x: -38, y: 62, z: 80}
+    - {x: -38, y: 62, z: 81}
+  team.white.spawn:
+    - {x: -37.5, y: 62, z: 88.5, yaw: 203}
+  team.white.generator:
+    - {x: -37.5, y: 62, z: 97.5}
+  team.white.shop:
+    - {x: -32.5, y: 62, z: 91, yaw: 116.5999984741211}
+  team.white.upgrades:
+    - {x: -32.5, y: 62, z: 94, yaw: 137.6999969482422}
+  team.white.base:
+    - {x: -51, y: 52, z: 76}
+    - {x: -29, y: 82, z: 101}
+  team.pink.bed:
+    - {x: -80, y: 62, z: 38}
+    - {x: -81, y: 62, z: 38}
+  team.pink.spawn:
+    - {x: -87.5, y: 62, z: 38.5, yaw: 246.3000030517578}
+  team.pink.generator:
+    - {x: -96.5, y: 62, z: 38.5}
+  team.pink.shop:
+    - {x: -90, y: 62, z: 33.5, yaw: 333.3999938964844}
+  team.pink.upgrades:
+    - {x: -93, y: 62, z: 33.5, yaw: 312.29998779296875}
+  team.pink.base:
+    - {x: -101, y: 52, z: 29}
+    - {x: -76, y: 82, z: 51}
+  team.gray.bed:
+    - {x: -80, y: 62, z: -38}
+    - {x: -81, y: 62, z: -38}
+  team.gray.spawn:
+    - {x: -87.5, y: 62, z: -37.5, yaw: 293.20001220703125}
+  team.gray.generator:
+    - {x: -96.5, y: 62, z: -37.5}
+  team.gray.shop:
+    - {x: -90, y: 62, z: -32.5, yaw: 206.60000610351562}
+  team.gray.upgrades:
+    - {x: -93, y: 62, z: -32.5, yaw: 227.6999969482422}
+  team.gray.base:
+    - {x: -101, y: 52, z: -51}
+    - {x: -76, y: 82, z: -29}
+  team.red.bed:
+    - {x: -38, y: 62, z: -80}
+    - {x: -38, y: 62, z: -81}
+  team.red.spawn:
+    - {x: -37.5, y: 62, z: -87.5, yaw: 336.79998779296875}
+  team.red.generator:
+    - {x: -37.5, y: 62, z: -96.5}
+  team.red.shop:
+    - {x: -32.5, y: 62, z: -90, yaw: 63.400001525878906}
+  team.red.upgrades:
+    - {x: -32.5, y: 62, z: -93, yaw: 42.29999923706055}
+  team.red.base:
+    - {x: -51, y: 52, z: -101}
+    - {x: -29, y: 82, z: -76}
+  gen.diamond:
+    - {x: -61.5, y: 62, z: 0.5}
+    - {x: 0.5, y: 62, z: -61.5}
+    - {x: 0.5, y: 62, z: 62.5}
+    - {x: 62.5, y: 62, z: 0.5}
+  gen.emerald:
+    - {x: -25.5, y: 71, z: -25.5}
+    - {x: -25.5, y: 71, z: 26.5}
+    - {x: 26.5, y: 71, z: -25.5}
+    - {x: 26.5, y: 71, z: 26.5}
+  mid:
+    - {x: -3.5, y: 71, z: -2.5}
+  spectator:
+    - {x: 0.5, y: 87, z: 0.5}
+  waiting.lobby:
+    - {x: 0.5, y: 170, z: 0.5}

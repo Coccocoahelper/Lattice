@@ -71,6 +71,7 @@ public final class BotQueueFiller implements Runnable {
             for (Game g : manager.games()) {
                 GameState s = g.state();
                 if (s != GameState.WAITING && s != GameState.STARTING) continue;
+                if (g.privateCode() != null) continue;
                 int size = g.players().size() + pending(g), max = g.type().maxPlayers();
                 if (size >= max) continue;
                 FillState st = states.get(g.id());
@@ -80,6 +81,7 @@ public final class BotQueueFiller implements Runnable {
                     states.put(g.id(), st);
                 }
                 if (now < st.nextAtMs) continue;
+                if (net.h2020.api.core.ReplayState.isHost(g.id())) continue;
                 spawnInto(bs, g);
                 st.nextAtMs = now + nextGapMs(st, size + 1, max);
             }

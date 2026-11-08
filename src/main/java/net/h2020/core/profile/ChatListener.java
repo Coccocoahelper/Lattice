@@ -35,7 +35,7 @@ public final class ChatListener implements Listener {
         ProfileData d = core.profiles.data(p);
         World w = p.getWorld();
         Game g = core.games.gameByWorld(w);
-        GameFamily family = g != null ? g.type().family : familyLobby(w);
+        GameFamily family = g != null ? g.type().family() : familyLobby(w);
         String level = "";
         if (family == GameFamily.BEDWARS) level = HypixelFormat.bedwarsStar(d.bwStar) + " ";
         else if (family == GameFamily.SKYWARS) level = HypixelFormat.skywarsLevelColor(d.swLevel) + "[" + d.swLevel + "⋆] ";

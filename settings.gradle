@@ -1,1 +1,11 @@
-rootProject.name = 'hypixel2020'
+rootProject.name = 'Hypixel2020'
+include 'api'
+project(':api').projectDir = file('modules/api')
+include 'bots'
+project(':bots').projectDir = file('modules/bots')
+include 'skywars'
+project(':skywars').projectDir = file('modules/skywars')
+include 'bedwars'
+project(':bedwars').projectDir = file('modules/bedwars')
+include 'replay'
+project(':replay').projectDir = file('modules/replay')

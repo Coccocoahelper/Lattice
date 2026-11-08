@@ -21,7 +21,7 @@ public final class StatsListener implements Listener {
         Player k = e.killer();
         if (k == null || k.equals(e.victim()) || e.game() == null) return;
         ProfileData d = profiles.data(k);
-        if (e.game().type().family == GameFamily.BEDWARS) {
+        if (e.game().type().family() == GameFamily.BEDWARS) {
             d.bwKills++;
             if (e.finalKill()) { d.bwFinalKills++; d.bwCoins += 20; d.addBedwarsExp(10); }
             else { d.bwCoins += 10; d.addBedwarsExp(5); }
@@ -49,7 +49,7 @@ public final class StatsListener implements Listener {
         if (teams.size() != 1) return;
         for (Player p : alive) {
             ProfileData d = profiles.data(p);
-            if (g.type().family == GameFamily.BEDWARS) {
+            if (g.type().family() == GameFamily.BEDWARS) {
                 d.bwWins++;
                 d.bwCoins += 100;
                 d.addBedwarsExp(100);

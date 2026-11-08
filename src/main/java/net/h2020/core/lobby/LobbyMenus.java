@@ -4,10 +4,12 @@ import net.h2020.api.game.GameFamily;
 import net.h2020.api.game.GameType;
 import net.h2020.core.Core;
 import net.h2020.core.HypixelFormat;
-import net.h2020.core.gui.ItemBuilder;
-import net.h2020.core.gui.Menu;
+import net.h2020.api.gui.ItemBuilder;
+import net.h2020.api.gui.Menu;
 import net.h2020.core.profile.ProfileData;
 import org.bukkit.ChatColor;
+
+import java.util.List;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
@@ -71,6 +73,22 @@ public final class LobbyMenus {
         m.set(33, deco(new ItemBuilder(Material.DIRT), "The Pit", "Survival PvP", "Jump in the Pit and fight! Earn gold, upgrades and prestige.", 2700, 14));
         m.set(34, deco(new ItemBuilder(Material.DARK_OAK_DOOR_ITEM), "Housing", "Creative", "Build your own house, invite your friends and visit others!", 1900, 15));
 
+        // replays, when the bots module is loaded: the same browser as /h2020 replay list, as a menu
+        net.h2020.api.game.ReplayService replays = net.h2020.api.H2020.find(net.h2020.api.game.ReplayService.class);
+        if (replays != null) {
+            m.set(16, new ItemBuilder(Material.BOOK_AND_QUILL)
+                    .name(ChatColor.GREEN + "Replays")
+                    .lore(ChatColor.DARK_GRAY + "Watch", "",
+                            ChatColor.GRAY + "Replay recorded games: every bot",
+                            ChatColor.GRAY + "match on the server is recorded.",
+                            "", CONNECT)
+                    .hideAll().build(), new Menu.Click() {
+                @Override public void click(Player pl, ClickType type) {
+                    pl.closeInventory();
+                    replays.openBrowser(pl);
+                }
+            });
+        }
         m.set(49, new ItemBuilder(Material.BOOKSHELF).name(ChatColor.GREEN + "Main Lobby")
                 .lore(ChatColor.GRAY + "Return to the main lobby.", "", CONNECT).build(), new Menu.Click() {
             @Override public void click(Player pl, ClickType type) { pl.closeInventory(); core.lobby.connectFamily(pl, null); }
@@ -95,41 +113,40 @@ public final class LobbyMenus {
     // ---------------- Play Bed Wars / Play SkyWars ----------------
 
     public void openModeSelect(Player p, GameFamily family) {
-        if (family == GameFamily.BEDWARS) {
-            Menu m = new Menu("Play Bed Wars", 4);
-            mode(m, 10, GameType.BEDWARS_SOLO, new ItemBuilder(Material.BED), "Bed Wars (Solo)", "Solo",
-                    "Play Bed Wars by yourself. 8 players, 8 teams, 1 winner.");
-            mode(m, 12, GameType.BEDWARS_DOUBLES, new ItemBuilder(Material.BED, 2, 0), "Bed Wars (Doubles)", "Doubles",
-                    "Team up with a friend or a random player. 16 players, 8 teams of 2.");
-            mode(m, 14, GameType.BEDWARS_3V3V3V3, new ItemBuilder(Material.BED, 3, 0), "Bed Wars (3v3v3v3)", "3v3v3v3",
-                    "Four teams of three fight for the last bed standing.");
-            mode(m, 16, GameType.BEDWARS_4V4V4V4, new ItemBuilder(Material.BED, 4, 0), "Bed Wars (4v4v4v4)", "4v4v4v4",
-                    "Four teams of four. Bigger maps, bigger fights.");
-            close(m, 31);
-            m.open(p);
-        } else {
-            Menu m = new Menu("Play SkyWars", 4);
-            mode(m, 10, GameType.SKYWARS_SOLO_NORMAL, new ItemBuilder(Material.EYE_OF_ENDER), "SkyWars (Solo Normal)", "Solo Normal",
-                    "Normal mode: standard loot, 12 players, every player for themselves.");
-            mode(m, 12, GameType.SKYWARS_SOLO_INSANE, new ItemBuilder(Material.EYE_OF_ENDER).glow(), "SkyWars (Solo Insane)", "Solo Insane",
-                    "Insane mode: overpowered loot and enchantments, 12 players.");
-            mode(m, 14, GameType.SKYWARS_TEAMS_NORMAL, new ItemBuilder(Material.EYE_OF_ENDER, 2, 0), "SkyWars (Teams Normal)", "Teams Normal",
-                    "Team up with a partner on your island. 8 teams of 2, standard loot.");
-            mode(m, 16, GameType.SKYWARS_TEAMS_INSANE, new ItemBuilder(Material.EYE_OF_ENDER, 2, 0).glow(), "SkyWars (Teams Insane)", "Teams Insane",
-                    "Teams of 2 with overpowered loot. 8 teams, 1 winner.");
-            close(m, 31);
-            m.open(p);
+        String title = family == GameFamily.BEDWARS ? "Play Bed Wars" : "Play SkyWars";
+        Menu m = new Menu(title, 4);
+        // every registered mode of this family, laid out left to right by its menu order: a new mode appears here
+        // without editing this method
+        int[] slots = {10, 12, 14, 16, 22};
+        List<net.h2020.api.game.GameMode> modes = net.h2020.api.game.GameModes.of(family);
+        for (int i = 0; i < modes.size() && i < slots.length; i++) {
+            net.h2020.api.game.GameMode mode = modes.get(i);
+            net.h2020.api.game.ModeDisplay d = net.h2020.api.game.GameModes.display(mode);
+            mode(m, slots[i], mode, new ItemBuilder(d.icon, 1, d.data), d.name, d.subtitle, d.description);
         }
-        click(p);
+        close(m, 31);
+        m.open(p);
     }
 
-    private void mode(Menu m, int slot, final GameType type, ItemBuilder b, String name, String sub, String desc) {
+    private void mode(Menu m, int slot, final net.h2020.api.game.GameMode type, ItemBuilder b, String name, String sub, String desc) {
+        mode(m, slot, type, b, name, sub, desc, new String[0]);
+    }
+
+    private void mode(Menu m, int slot, final net.h2020.api.game.GameMode type, ItemBuilder b, String name, String sub, String desc,
+                      String... extra) {
+        if (extra.length > 0) {
+            String[] all = new String[extra.length + 1];
+            all[0] = desc;
+            System.arraycopy(extra, 0, all, 1, extra.length);
+            desc = String.join(" ", all);
+        }
         b.name(ChatColor.GREEN + name).lore(ChatColor.DARK_GRAY + sub, "").wrap(ChatColor.GRAY.toString(), desc);
         b.lore("", ChatColor.YELLOW + "Click to play!", ChatColor.GRAY + HypixelFormat.commas(core.counts.count(type)) + " currently playing!");
         m.set(slot, b.hideAll().build(), new Menu.Click() {
             @Override public void click(Player p, ClickType ct) {
                 p.closeInventory();
-                core.games.queue(p, type);
+                if (!(type instanceof GameType)) { p.sendMessage(ChatColor.RED + "That mode has no game provider yet."); return; }
+                core.games.queue(p, (GameType) type);
             }
         });
     }
@@ -225,6 +242,23 @@ public final class LobbyMenus {
                 .lore(ChatColor.GRAY + "Manage your friends, party and guild.").build(), unavailable("Social"));
         m.set(33, new ItemBuilder(Material.POTION, 1, 8227).name(ChatColor.GREEN + "Network Boosters")
                 .lore(ChatColor.GRAY + "Activate Network Boosters to give", ChatColor.GRAY + "everyone in a game triple coins!").build(), unavailable("Network Boosters"));
+        net.h2020.api.bot.BotSettingsService botSettings =
+                net.h2020.api.H2020.find(net.h2020.api.bot.BotSettingsService.class);
+        if (botSettings != null) {
+            m.set(22, new ItemBuilder(Material.MONSTER_EGG, 1, 50)
+                    .name(ChatColor.GREEN + "Bot Settings")
+                    .lore(ChatColor.DARK_GRAY + "Configuration", "",
+                            ChatColor.GRAY + "Skill level, perceived latency,",
+                            ChatColor.GRAY + "combat block play, fireballs, bed raids",
+                            ChatColor.GRAY + "and whether the AI may learn from bots.",
+                            "", CONNECT)
+                    .hideAll().build(), new Menu.Click() {
+                @Override public void click(Player pl, ClickType type) {
+                    pl.closeInventory();
+                    botSettings.open(pl);
+                }
+            });
+        }
         m.set(34, new ItemBuilder(Material.REDSTONE_COMPARATOR).name(ChatColor.GREEN + "Settings & Visibility")
                 .lore(ChatColor.GRAY + "Customise your Hypixel experience.").build(), unavailable("Settings"));
         close(m, 49);

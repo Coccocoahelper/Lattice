@@ -37,24 +37,10 @@ public final class DefaultMaps {
     private static final List<Def> ALL;
 
     static {
+        // No procedural maps: the rotation is the 20 maps that shipped with the project, and nothing else. The
+        // generator classes stay because /lattice regen and the map painter still use them on demand; this list is
+        // what used to fill every family/team-count group with a generated map on start.
         List<Def> l = new ArrayList<Def>();
-        // Bed Wars 8 teams (Solo / Doubles)
-        l.add(new Def("Beacon Point", GameFamily.BEDWARS, 8, "coastal"));
-        l.add(new Def("Deepwater", GameFamily.BEDWARS, 8, "aquarium"));
-        l.add(new Def("Verdance", GameFamily.BEDWARS, 8, "jungle"));
-        l.add(new Def("Cinderforge", GameFamily.BEDWARS, 8, "nether"));
-        // Bed Wars 4 teams (3v3v3v3 / 4v4v4v4)
-        l.add(new Def("Saltmarsh", GameFamily.BEDWARS, 4, "coastal"));
-        l.add(new Def("Glasshaven", GameFamily.BEDWARS, 4, "aquarium"));
-        l.add(new Def("Overgrowth", GameFamily.BEDWARS, 4, "jungle"));
-        l.add(new Def("Brimstone", GameFamily.BEDWARS, 4, "nether"));
-        // SkyWars solo (12 islands)
-        l.add(new Def("Mistvale", GameFamily.SKYWARS, 12, "meadow"));
-        l.add(new Def("Sandspire", GameFamily.SKYWARS, 12, "desert"));
-        l.add(new Def("Frostpeak", GameFamily.SKYWARS, 12, "snow"));
-        // SkyWars teams (8 islands, cages for 2)
-        l.add(new Def("Cobbleshire", GameFamily.SKYWARS, 8, "shire"));
-        l.add(new Def("Driftwood", GameFamily.SKYWARS, 8, "coastal"));
         ALL = Collections.unmodifiableList(l);
     }
 

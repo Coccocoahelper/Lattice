@@ -1,0 +1,23 @@
+# Server identity. This is the file that makes the base look like a particular network: change it and the same
+# games, maps and bots present as a different server. Everything here is optional; the Hypixel values are defaults.
+
+brand:
+  name: "MC.HYPIXEL.NET"
+  tab-header: "&bYou are playing on &e&lMC.HYPIXEL.NET"
+  tab-footer: "&bRanks, Boosters & MORE! &c&lSTORE.HYPIXEL.NET"
+  motd: "&e&lHYPIXEL &7- &fBed Wars, SkyWars and more"
+  fake-player-counts: false
+  lobby-number: 3
+
+# Per-family presentation: the lobby sidebar header, the menu title, the NPC label and the icon.
+families:
+  BEDWARS:
+    display: "BED WARS"
+    menu-title: "Play Bed Wars"
+    sidebar-title: "BED WARS"
+    icon: BED
+  SKYWARS:
+    display: "SKYWARS"
+    menu-title: "Play SkyWars"
+    sidebar-title: "SKYWARS"
+    icon: EYE_OF_ENDER

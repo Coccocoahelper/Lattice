@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.TreeMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -43,11 +44,14 @@ public final class MapServiceImpl implements MapService {
     final JavaPlugin plugin;
     private final Logger log;
     final File mapsDir;
+    Slime slime;
     private final Map<String, StoredMapTemplate> templates = new LinkedHashMap<String, StoredMapTemplate>();
     /** instance world name (lower case) -> template */
     final Map<String, StoredMapTemplate> instances = new ConcurrentHashMap<String, StoredMapTemplate>();
     private World mainLobby, bedwarsLobby, skywarsLobby;
     private volatile boolean ready;
+    /** in-game map editor, created by MapsModule once the service is up */
+    net.h2020.maps.MapEditService editor;
 
     public MapServiceImpl(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -61,8 +65,29 @@ public final class MapServiceImpl implements MapService {
         if (!mapsDir.isDirectory() && !mapsDir.mkdirs()) log.warning("[maps] could not create " + mapsDir);
         writeFormatHelp();
         cleanupStale();
+        // slime worlds: optional, and only for maps already converted, so a server without the world manager is unchanged
+        Slime slime = Slime.install(log);
+        this.slime = slime;
         loadAll();
         generateMissing();
+        pruneWorldFolders();
+        if (!lobbiesFromSlime()) finishBoot(t0);
+        if (slime != null) {
+            int n = 0;
+            for (StoredMapTemplate t : templates.values()) {
+                if (!slime.has(t.name)) continue;
+                slime.prepare(t.name);
+                n++;
+            }
+            log.info("[slime] " + n + " map(s) have a slime copy; games and replays on them get their own world");
+        }
+    }
+
+    /**
+     * Second half of the boot. It runs straight away when the lobbies are generated, or a few ticks later when they are
+     * clones, because a slime world can only be registered on a later tick. Nothing may use a lobby before this runs.
+     */
+    private void finishBoot(long t0) {
         loadLobbies();
         writeLobbyNpcs();
         ready = true;
@@ -72,6 +97,81 @@ public final class MapServiceImpl implements MapService {
             sb.append(t.name).append(' ').append(t.teamCounts);
         }
         log.info("[maps] ready in " + (System.currentTimeMillis() - t0) + "ms: " + templates.size() + " templates (" + sb + ")");
+        // anybody who connected during the deferred boot landed in the fallback world: put them where they belong
+        final net.h2020.api.game.GameManager gm = net.h2020.api.H2020.find(net.h2020.api.game.GameManager.class);
+        if (gm != null) Bukkit.getScheduler().runTaskLater(plugin, new Runnable() {
+            @Override public void run() {
+                for (org.bukkit.entity.Player p : Bukkit.getOnlinePlayers()) {
+                    if (gm.gameOf(p) != null) continue;
+                    if (p.getWorld().getName().startsWith(Worlds.INSTANCE_DIR + "/")) continue;
+                    if (p.getWorld().equals(mainLobby) || p.getWorld().equals(bedwarsLobby) || p.getWorld().equals(skywarsLobby)) continue;
+                    try { gm.sendToLobby(p, null); } catch (Throwable ignored) { }
+                }
+            }
+        }, 1L);
+    }
+
+    /**
+     * Ask the world manager for the three lobby clones and finish the boot once they are registered. Returns false when
+     * there is no slime copy of a lobby, in which case the caller generates them the old way this boot.
+     */
+    private boolean lobbiesFromSlime() {
+        if (slime == null) return false;
+        ConfigurationSection cfg = config();
+        final String[] names = {cfg.getString("main-lobby-world", "h2020_lobby"),
+                cfg.getString("bedwars-lobby-world", "h2020_lobby_bedwars"),
+                cfg.getString("skywars-lobby-world", "h2020_lobby_skywars")};
+        // an explicitly configured world is somebody's own map: leave it on the folder path
+        if (!names[0].equals("h2020_lobby") || !names[1].equals("h2020_lobby_bedwars")
+                || !names[2].equals("h2020_lobby_skywars")) return false;
+        final String[] ids = {"lobby_main", "lobby_bedwars", "lobby_skywars"};
+        for (String id : ids) if (!slime.has(id)) return false;
+        for (int i = 0; i < ids.length; i++) {
+            slime.spawnNamed(ids[i], names[i]);
+            log.info("[slime] lobby " + names[i] + " will load from slime");
+        }
+        final long t0 = System.currentTimeMillis();
+        final int[] tries = {0};
+        final org.bukkit.scheduler.BukkitTask[] holder = new org.bukkit.scheduler.BukkitTask[1];
+        holder[0] = Bukkit.getScheduler().runTaskTimer(plugin, new Runnable() {
+            @Override public void run() {
+                boolean all = true;
+                for (String n : names) if (Bukkit.getWorld(n) == null) all = false;
+                if (all) {
+                    holder[0].cancel();
+                    finishBoot(t0);
+                } else if (++tries[0] > 100) {          // ~20 s: build them instead of waiting forever
+                    holder[0].cancel();
+                    log.warning("[slime] lobbies did not materialise, generating them instead");
+                    finishBoot(t0);
+                }
+            }
+        }, 2L, 4L);
+        return true;
+    }
+
+    /** A map's blocks live in its slime file once converted, so the world folder is dead weight. */
+    private void pruneWorldFolders() {
+        if (slime == null) return;
+        long freed = 0;
+        int n = 0;
+        for (StoredMapTemplate t : templates.values()) {
+            File w = t.worldFolder();
+            if (!w.isDirectory()) continue;
+            if (!slime.has(t.name)) continue;
+            long size = Worlds.sizeOf(w);
+            if (Worlds.delete(w)) { freed += size; n++; }
+        }
+        if (n > 0)
+            log.info("[maps] removed " + n + " map world folder(s), " + (freed / (1024 * 1024)) + " MB freed; blocks live in slime");
+        // copies left behind by the folder path
+        File inst = new File(Worlds.container(), Worlds.INSTANCE_DIR);
+        File[] old = inst.listFiles();
+        if (old != null) for (File f : old) {
+            if (!f.isDirectory()) continue;
+            if (Bukkit.getWorld(Worlds.INSTANCE_DIR + "/" + f.getName()) != null) continue;
+            Worlds.delete(f);
+        }
     }
 
     public void shutdown() {
@@ -86,6 +186,8 @@ public final class MapServiceImpl implements MapService {
     }
 
     public boolean isReady() { return ready; }
+
+    public MapEditService editor() { return editor; }
 
     private ConfigurationSection config() {
         ConfigurationSection s = plugin.getConfig().getConfigurationSection("maps");
@@ -107,6 +209,101 @@ public final class MapServiceImpl implements MapService {
     }
 
     // ============================================================================================ templates
+    @Override
+    public void reload() {
+        templates.clear();
+        loadAll();
+    }
+
+    @Override
+    public int convertToSlime(String mapName) {
+        if (slime == null) return -1;
+        int done = 0;
+        java.util.List<StoredMapTemplate> todo = new java.util.ArrayList<StoredMapTemplate>();
+        if (mapName == null || mapName.equalsIgnoreCase("all")) todo.addAll(templates.values());
+        else {
+            StoredMapTemplate t = templates.get(mapName.toLowerCase(java.util.Locale.ROOT));
+            if (t == null) return -2;
+            todo.add(t);
+        }
+        if (mapName == null || mapName.equalsIgnoreCase("all")) {
+            // the lobbies are still Minecraft-format folders on disk; they go into the same store so every world this
+            // server owns is in one format
+            World[] lobbies = {mainLobby, bedwarsLobby, skywarsLobby};
+            String[] ids = {"lobby_main", "lobby_bedwars", "lobby_skywars"};
+            for (int i = 0; i < lobbies.length; i++) {
+                if (lobbies[i] == null) continue;
+                if (slime.has(ids[i])) { done++; continue; }
+                if (convertWorld(lobbies[i].getWorldFolder(), ids[i], lobbies[i].getName())) done++;
+            }
+        }
+        for (StoredMapTemplate t : todo) {
+            String id = Slime.id(t.name);
+            if (slime.has(t.name)) { slime.prepare(t.name); done++; continue; }
+            // the importer refuses a folder that is inside a loaded world, so stage a copy outside the server world list
+            File stage = new File(plugin.getDataFolder(), "swm_import/" + t.name);
+            Worlds.delete(stage);
+            try {
+                Worlds.copyWorld(t.worldFolder(), stage);
+            } catch (IOException e) {
+                log.warning("[slime] could not stage " + t.name + ": " + e.getMessage());
+                continue;
+            }
+            if (slime.importFolder(stage, id)) {
+                slime.prepare(t.name);
+                Worlds.delete(t.worldFolder());   // the blocks are in the slime file now
+                done++;
+            }
+            Worlds.delete(stage);
+        }
+        return done;
+    }
+
+    /** Stage a copy of a world folder and import it, because the importer refuses a folder that is loaded. */
+    private boolean convertWorld(File worldFolder, String slimeId, String label) {
+        File stage = new File(plugin.getDataFolder(), "swm_import/" + slimeId);
+        Worlds.delete(stage);
+        try {
+            Worlds.copyWorld(worldFolder, stage);
+        } catch (IOException e) {
+            log.warning("[slime] could not stage " + label + ": " + e.getMessage());
+            return false;
+        }
+        boolean ok = slime.importFolder(stage, slimeId);
+        Worlds.delete(stage);
+        if (ok) log.info("[slime] " + label + " stored as " + slimeId);
+        return ok;
+    }
+
+    @Override
+    public java.util.List<String> slimeMaps() {
+        java.util.List<String> out = new java.util.ArrayList<String>();
+        if (slime == null) return out;
+        for (StoredMapTemplate t : templates.values()) if (slime.has(t.name)) out.add(t.name);
+        return out;
+    }
+
+    /** Folder a map lives in, or null if there is no such map. */
+    public java.io.File folderOf(String name) {
+        StoredMapTemplate t = templates.get(name == null ? "" : name.toLowerCase(Locale.ROOT));
+        if (t == null) return null;
+        java.io.File f = t.folder();
+        java.io.File[] candidates = {f, f.getAbsoluteFile(), new java.io.File(familyDir(t.family), f.getName()),
+                new java.io.File(mapsDir, f.getName())};
+        for (java.io.File c : candidates) {
+            if (new java.io.File(c, MapFiles.MAP_YML).isFile()) return c;
+            if (c.getParentFile() != null && new java.io.File(c.getParentFile(), MapFiles.MAP_YML).isFile()) {
+                return c.getParentFile();
+            }
+        }
+        return null;
+    }
+
+    /** Bed Wars and SkyWars maps live in their own folder so nobody has to read map.yml to tell them apart. */
+    public java.io.File familyDir(GameFamily f) {
+        return new java.io.File(mapsDir, f.name().toLowerCase(java.util.Locale.ROOT));
+    }
+
     private void loadAll() {
         templates.clear();
         File[] dirs = mapsDir.listFiles();
@@ -115,26 +312,82 @@ public final class MapServiceImpl implements MapService {
         boolean regenerate = config().getBoolean("regenerate", false);
         for (File dir : dirs) {
             if (!dir.isDirectory()) continue;
+            if (dir.getName().equalsIgnoreCase("bedwars") || dir.getName().equalsIgnoreCase("skywars")) {
+                File[] inner = dir.listFiles();
+                if (inner == null) continue;
+                java.util.Arrays.sort(inner);
+                for (File m : inner) if (m.isDirectory()) loadOne(m, regenerate);
+                continue;
+            }
+            if (new File(dir, MapFiles.MAP_YML).isFile()) {
+                // an old flat map: read it, put it where it belongs, and carry on from the new path
+                File moved = migrate(dir);
+                if (moved != null) { loadOne(moved, regenerate); continue; }
+            }
+            if (new File(dir, "level.dat").isFile() || new File(dir, "world").isDirectory())
+                log.warning("[maps] " + dir.getName() + " has no map.yml - skipped (see maps/FORMAT.txt)");
+        }
+    }
+
+    /** Read one map folder, regenerating it if it is an outdated generated map. */
+    private void loadOne(File dir, boolean regenerate) {
             if (!new File(dir, MapFiles.MAP_YML).isFile()) {
                 if (new File(dir, "level.dat").isFile() || new File(dir, "world").isDirectory())
                     log.warning("[maps] " + dir.getName() + " has no map.yml - skipped (see maps/FORMAT.txt)");
-                continue;
+                return;
             }
             try {
                 StoredMapTemplate t = MapFiles.read(this, dir);
                 if (t.generated && (t.generatorVersion < DefaultMaps.VERSION || regenerate) && DefaultMaps.byName(t.name) != null) {
                     log.info("[maps] regenerating outdated generated map " + t.name);
                     Worlds.delete(dir);
-                    continue;
+                    return;
                 }
-                if (!new File(t.worldFolder(), "level.dat").isFile()) {
-                    log.warning("[maps] " + dir.getName() + ": missing world/level.dat - skipped");
-                    continue;
+                if (!new File(t.worldFolder(), "level.dat").isFile() && (slime == null || !slime.has(t.name))) {
+                    log.warning("[maps] " + dir.getName() + ": no block data - neither world/level.dat nor "
+                            + "slime_worlds/" + Slime.id(t.name) + ".swofty. Copy the shipped slime_worlds/ folder next to"
+                            + " the jars, or run /lattice convert " + t.name);
+                    return;
                 }
                 register(t);
             } catch (Throwable e) {
                 log.warning("[maps] could not load map " + dir.getName() + ": " + e.getMessage());
             }
+    }
+
+    /**
+     * Move a map that still sits at maps/&lt;name&gt; into maps/bedwars/&lt;name&gt; or maps/skywars/&lt;name&gt;, using the
+     * family in its map.yml. Returns the new folder, or null when it could not be read or moved.
+     */
+    private File migrate(File dir) {
+        try {
+            StoredMapTemplate t = MapFiles.read(this, dir);
+            File dest = new File(familyDir(t.family), dir.getName());
+            if (dest.isDirectory()) {
+                // the map is already filed away: the flat folder is the copy an older install left behind
+                StoredMapTemplate there = MapFiles.read(this, dest);
+                if (there.name.equalsIgnoreCase(t.name) && there.family == t.family) {
+                    Worlds.delete(dir);
+                    log.info("[maps] removed duplicate flat copy of " + t.name);
+                } else {
+                    log.warning("[maps] " + dir.getName() + " already exists in " + dest.getParentFile().getName()
+                            + "/ with a different map.yml - leaving the flat copy alone");
+                }
+                return null;
+            }
+            if (!dest.getParentFile().isDirectory() && !dest.getParentFile().mkdirs()) return null;
+            try {
+                java.nio.file.Files.move(dir.toPath(), dest.toPath());
+            } catch (Exception moveFailed) {
+                // a different filesystem or a locked world folder: copy then remove
+                Worlds.copyWorld(dir, dest);
+                Worlds.delete(dir);
+            }
+            log.info("[maps] moved " + dir.getName() + " into maps/" + dest.getParentFile().getName() + "/");
+            return dest;
+        } catch (Throwable e) {
+            log.warning("[maps] could not move " + dir.getName() + ": " + e.getMessage());
+            return null;
         }
     }
 
@@ -176,7 +429,7 @@ public final class MapServiceImpl implements MapService {
         long t0 = System.currentTimeMillis();
         log.info("[maps] generating " + d.family + " map '" + d.name + "' (" + d.teams + " teams, " + d.theme + ")...");
         GeneratedMap gm = d.generate();
-        File target = new File(mapsDir, d.folder());
+        File target = new File(familyDir(d.family), d.folder());
         Worlds.delete(target);
         if (!target.mkdirs() && !target.isDirectory()) throw new IOException("cannot create " + target);
         String scratch = Worlds.GEN_PREFIX + d.folder();
@@ -201,7 +454,7 @@ public final class MapServiceImpl implements MapService {
             w.setSpawnLocation((int) Math.floor(gm.spawn[0]), (int) Math.floor(gm.spawn[1]), (int) Math.floor(gm.spawn[2]));
             Worlds.saveFully(w, log);
         } finally {
-            if (!Bukkit.unloadWorld(w, false)) log.warning("[maps] could not unload scratch world " + worldName);
+            if (!WorldUnloader.unload(w)) log.warning("[maps] could not unload scratch world " + worldName);
         }
     }
 
@@ -222,7 +475,12 @@ public final class MapServiceImpl implements MapService {
                 log.warning("[maps] configured lobby world '" + override + "' not found, using generated " + name);
             }
             World loaded = Bukkit.getWorld(name);
-            if (loaded != null) return loaded;
+            if (loaded != null) {
+                Worlds.applyRules(loaded, false);
+                loaded.setSpawnLocation(0, LobbyGenerator.PY + 1, 0);
+                for (int cx = -2; cx <= 1; cx++) for (int cz = -2; cz <= 1; cz++) loaded.loadChunk(cx, cz, true);
+                return loaded;
+            }
             File dir = new File(Worlds.container(), name);
             File marker = new File(dir, "h2020-lobby.yml");
             boolean fresh = !marker.isFile() || YamlConfiguration.loadConfiguration(marker).getInt("version", 0) < LOBBY_VERSION;
@@ -298,10 +556,21 @@ public final class MapServiceImpl implements MapService {
 
     private void writeFormatHelp() {
         File f = new File(mapsDir, "FORMAT.txt");
-        if (f.isFile()) return;
-        String text = "Hypixel2020 maps\r\n"
-                + "================\r\n"
-                + "Each map is a folder here: <folder>/world (a normal Minecraft 1.8 world folder) + <folder>/map.yml.\r\n"
+        if (f.isFile()) {
+            try {
+                String old = new String(java.nio.file.Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8);
+                if (old.contains("maps/bedwars/")) return;   // current text already
+            } catch (IOException ignored) {
+                return;
+            }
+        }
+        String text = "Lattice maps\r\n"
+                + "============\r\n"
+                + "Bed Wars and SkyWars maps are kept apart:\r\n\r\n"
+                + "  maps/bedwars/<folder>/world + map.yml\r\n"
+                + "  maps/skywars/<folder>/world + map.yml\r\n\r\n"
+                + "A map left at maps/<folder> is moved into the right folder on boot using the family in its map.yml.\r\n"
+                + "Each map is <folder>/world (a normal Minecraft 1.8 world folder) plus <folder>/map.yml.\r\n"
                 + "Generated maps are rebuilt when deleted. To import a community map, copy its world folder into\r\n"
                 + "<folder>/world and write map.yml like the generated ones:\r\n\r\n"
                 + "name: My Map\r\nfamily: BEDWARS            # or SKYWARS\r\nteams: [8]                 # bedwars 8 or 4, skywars 12 (solo) or 8 (teams)\r\n"
@@ -333,12 +602,55 @@ public final class MapServiceImpl implements MapService {
     }
 
     @Override
-    public List<MapTemplate> templatesFor(GameType type) {
+    public List<MapTemplate> templatesFor(net.h2020.api.game.GameMode type) {
         List<MapTemplate> l = new ArrayList<MapTemplate>();
         if (type == null) return l;
+        List<String> off = disabledTags();
         for (StoredMapTemplate t : templates.values())
-            if (t.family == type.family && t.teamCounts.contains(type.teams)) l.add(t);
+            if (t.family == type.family() && t.teamCounts.contains(type.teams()) && !taggedOff(t, off)) l.add(t);
         return Collections.unmodifiableList(l);
+    }
+
+    /** Tags switched off in config.yml (maps/disabled-tags), lower case. */
+    public List<String> disabledTags() {
+        List<String> out = new ArrayList<String>();
+        ConfigurationSection c = config();
+        if (c.isList("disabled-tags")) {
+            for (Object o : c.getList("disabled-tags")) addTag(out, String.valueOf(o));
+        } else if (c.contains("disabled-tags")) {
+            for (String t : c.getString("disabled-tags", "").split(",")) addTag(out, t);
+        }
+        return out;
+    }
+
+    private static void addTag(List<String> out, String raw) {
+        String t = raw.trim().toLowerCase(Locale.ROOT);
+        if (!t.isEmpty() && !out.contains(t)) out.add(t);
+    }
+
+    /** A map is off when any of its tags is switched off; an untagged map can never be switched off. */
+    public static boolean taggedOff(StoredMapTemplate t, List<String> off) {
+        if (off.isEmpty()) return false;
+        for (String tag : t.tags) if (off.contains(tag)) return true;
+        return false;
+    }
+
+    /** Every tag in use, with how many maps carry it and whether config has it switched off. */
+    public java.util.Map<String, int[]> tagSummary() {
+        java.util.Map<String, int[]> m = new java.util.TreeMap<String, int[]>();
+        for (StoredMapTemplate t : templates.values())
+            for (String tag : t.tags) {
+                int[] n = m.get(tag);
+                if (n == null) m.put(tag, n = new int[2]);
+                n[0]++;
+            }
+        List<String> off = disabledTags();
+        for (String tag : off) {
+            int[] n = m.get(tag);
+            if (n == null) m.put(tag, n = new int[2]);
+            n[1] = 1;
+        }
+        return m;
     }
 
     @Override

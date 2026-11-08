@@ -81,7 +81,46 @@ public final class MapFiles {
         int version = y.getInt("generator/version", 0);
         String theme = y.getString("generator/theme", "");
         return new StoredMapTemplate(service, dir, name, family, teams, buildLimit, bmin, bmax, points, yaws, biome,
-                generated, version, theme);
+                generated, version, theme, readTags(y));
+    }
+
+    /** tags: [dreams, seasonal] or tags: "dreams, seasonal"; always lower case. */
+    public static List<String> readTags(YamlConfiguration y) {
+        List<String> out = new ArrayList<String>();
+        if (y.isList("tags")) {
+            for (Object o : y.getList("tags")) addTag(out, String.valueOf(o));
+        } else if (y.contains("tags")) {
+            for (String t : y.getString("tags", "").split(",")) addTag(out, t);
+        }
+        return out;
+    }
+
+    private static void addTag(List<String> out, String raw) {
+        String t = raw.trim().toLowerCase(java.util.Locale.ROOT);
+        if (!t.isEmpty() && !out.contains(t)) out.add(t);
+    }
+
+    /** Rewrite only the tags line of a map.yml, keeping every other line (and comment) exactly as it is. */
+    public static void writeTags(File dir, List<String> tags) throws IOException {
+        File f = new File(dir, MAP_YML);
+        List<String> lines = new ArrayList<String>();
+        if (f.isFile()) lines.addAll(java.nio.file.Files.readAllLines(f.toPath(), java.nio.charset.StandardCharsets.UTF_8));
+        StringBuilder tagLine = new StringBuilder("tags: [");
+        for (int i = 0; i < tags.size(); i++) { if (i > 0) tagLine.append(", "); tagLine.append(tags.get(i)); }
+        tagLine.append(']');
+        boolean replaced = false;
+        for (int i = 0; i < lines.size(); i++) {
+            if (lines.get(i).startsWith("tags:")) { lines.set(i, tagLine.toString()); replaced = true; break; }
+        }
+        if (!replaced) {
+            int at = lines.size();
+            for (int i = 0; i < lines.size(); i++) {
+                String l = lines.get(i);
+                if (l.startsWith("family:") || l.startsWith("teams:") || l.startsWith("build-limit:")) at = i + 1;
+            }
+            lines.add(at, tagLine.toString());
+        }
+        java.nio.file.Files.write(f.toPath(), lines, java.nio.charset.StandardCharsets.UTF_8);
     }
 
     private static void readPoints(ConfigurationSection sec, String prefix, Map<String, List<Vector>> points,

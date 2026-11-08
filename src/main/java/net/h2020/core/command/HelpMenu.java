@@ -33,6 +33,7 @@ public final class HelpMenu implements Listener {
             {"/h2020 start ", "Fill a waiting game with bots so it starts now"},
             {"/h2020 join ", "Put a player or bot into a game: /h2020 join <player> <mode>"},
             {"/h2020 watch ", "Spectate a game: /h2020 watch <gameId>"},
+            {"/spectate ", "Spectate a player (camera follows them): /spectate <player>"},
             {"/h2020 fillspeed 1", "How fast bots fill lobbies (1 = Hypixel-like 20-60 s)"},
             {"/h2020 cheaters 0", "Percent of queue bots that cheat (Watchdog bans them)"},
             {"/h2020 date today", "Scoreboard date: today's real date (or 2020, or MM/dd/yy)"},

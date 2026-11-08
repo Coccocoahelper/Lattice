@@ -24,11 +24,14 @@ public final class MapsModule implements Module {
         Bukkit.getPluginManager().registerEvents(worldListener, plugin);
         service = new MapServiceImpl(plugin);
         service.start();
+        service.editor = new MapEditService(plugin, service);
+        service.editor.register();
         H2020.register(MapService.class, service);
     }
 
     @Override
     public void disable() {
+        if (service != null && service.editor != null) service.editor.unregister();
         if (service != null) service.shutdown();
         if (worldListener != null) HandlerList.unregisterAll(worldListener);
         service = null;

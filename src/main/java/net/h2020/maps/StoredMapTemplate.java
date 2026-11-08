@@ -40,10 +40,12 @@ public final class StoredMapTemplate implements MapTemplate {
     final boolean generated;
     final int generatorVersion;
     final String theme;
+    final java.util.List<String> tags;
 
     StoredMapTemplate(MapServiceImpl service, File folder, String name, GameFamily family, List<Integer> teamCounts,
                       int buildLimitY, Vector boundsMin, Vector boundsMax, Map<String, List<Vector>> points,
-                      Map<String, List<Float>> yaws, Biome biome, boolean generated, int generatorVersion, String theme) {
+                      Map<String, List<Float>> yaws, Biome biome, boolean generated, int generatorVersion, String theme,
+                      java.util.List<String> tags) {
         this.service = service;
         this.folder = folder;
         this.name = name;
@@ -61,7 +63,12 @@ public final class StoredMapTemplate implements MapTemplate {
         this.generated = generated;
         this.generatorVersion = generatorVersion;
         this.theme = theme;
+        java.util.List<String> tl = new ArrayList<String>();
+        for (String t : tags) if (!t.isEmpty() && !tl.contains(t)) tl.add(t);
+        this.tags = Collections.unmodifiableList(tl);
     }
+
+    @Override public java.util.List<String> tags() { return tags; }
 
     @Override public String name() { return name; }
     @Override public GameFamily family() { return family; }
@@ -117,9 +124,22 @@ public final class StoredMapTemplate implements MapTemplate {
     @Override
     public World createInstance(String instanceWorldName) {
         if (!Bukkit.isPrimaryThread()) throw new IllegalStateException("createInstance must run on the main thread");
+        // A map stores its blocks either in a slime file or, for a map that was never converted, in world/. The slime
+        // copy is tried first: it is isolated by construction and costs a clone instead of a folder copy.
+        World slime = net.h2020.api.map.SlimeWorlds.spawn(name, "game");
+        if (slime != null) {
+            Vector at = point(MapKeys.WAITING_LOBBY);
+            if (at == null) at = point(MapKeys.MID);
+            if (at == null) at = new Vector(0.5, 100, 0.5);
+            slime.setSpawnLocation(at.getBlockX(), at.getBlockY(), at.getBlockZ());
+            preload(slime);
+            service.instances.put(slime.getName().toLowerCase(), this);
+            return slime;
+        }
         File src = worldFolder();
         if (!new File(src, "level.dat").isFile())
-            throw new IllegalStateException("Map " + name + " has no world (missing " + src + "/level.dat)");
+            throw new IllegalStateException("Map " + name + " has no world: no slime copy and no "
+                    + src + "/level.dat (run /lattice convert " + name + ")");
         String worldName = Worlds.INSTANCE_DIR + "/" + instanceWorldName;
         World existing = Bukkit.getWorld(worldName);
         if (existing != null) {
@@ -179,9 +199,16 @@ public final class StoredMapTemplate implements MapTemplate {
 
     private void destroyLater(final World world, final int attempt) {
         final String wname = world.getName();
+        if (wname.startsWith(Worlds.INSTANCE_DIR + "/swm_")) {
+            // built by the world manager: nothing on disk to delete, it only has to be unloaded
+            evacuate(world);
+            service.instances.remove(wname.toLowerCase());
+            net.h2020.api.map.SlimeWorlds.release(world);
+            return;
+        }
         final File folder = world.getWorldFolder();
         evacuate(world);
-        boolean ok = Bukkit.unloadWorld(world, false);
+        boolean ok = WorldUnloader.unload(world);
         if (!ok) {
             if (attempt >= 10) {
                 service.plugin.getLogger().warning("[maps] could not unload instance " + wname + " after 10 attempts");
@@ -204,7 +231,7 @@ public final class StoredMapTemplate implements MapTemplate {
     void destroyNow(World world) {
         File folder = world.getWorldFolder();
         evacuate(world);
-        if (Bukkit.unloadWorld(world, false)) {
+        if (WorldUnloader.unload(world)) {
             service.instances.remove(world.getName().toLowerCase());
             Worlds.delete(folder);
         }

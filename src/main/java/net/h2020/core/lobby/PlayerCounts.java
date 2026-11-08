@@ -41,11 +41,20 @@ public final class PlayerCounts {
         return (int) (fakeBase(type) * drift(type.ordinal())) + real;
     }
 
+    /** Count for any registered mode, built-in or added at runtime. */
+    public int count(net.h2020.api.game.GameMode mode) {
+        if (mode instanceof GameType) return count((GameType) mode);
+        int real = games.playing(mode.family());
+        return config.fakePlayerCounts ? (int) (40 * drift(mode.id().hashCode())) + real : real;
+    }
+
     public int count(GameFamily family) {
         int real = games.playing(family);
         if (!config.fakePlayerCounts) return real;
         int sum = 0;
-        for (GameType t : GameType.values()) if (t.family == family) sum += fakeBase(t);
+        for (net.h2020.api.game.GameMode m : net.h2020.api.game.GameModes.of(family)) {
+            sum += m instanceof GameType ? fakeBase((GameType) m) : 40;
+        }
         // lobbies hold ~8% on top of the in-game players
         return (int) (sum * 1.08 * drift(family.ordinal() + 11)) + real;
     }

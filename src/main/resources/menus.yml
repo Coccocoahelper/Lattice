@@ -1,0 +1,68 @@
+# Lobby menu presentation, per mode id. Everything is optional: the mode's own icon, order and text are the defaults,
+# and whatever is set here wins. This is how a network changes what players see without a code change.
+
+bedwars_duel:
+  icon: BED
+  data: 0
+  order: 1
+  name: "Bed Wars (Duel)"
+  subtitle: "Duel"
+  description: "Two players, opposite islands, RED against AQUA."
+
+bedwars_eight_one:
+  icon: BED
+  data: 0
+  order: 2
+  name: "Bed Wars (Solo)"
+  subtitle: "Solo"
+  description: "8 players, 8 teams, 1 winner."
+
+bedwars_eight_two:
+  icon: BED
+  data: 2
+  order: 3
+  name: "Bed Wars (Doubles)"
+  subtitle: "Doubles"
+
+bedwars_four_three:
+  icon: BED
+  data: 3
+  order: 4
+  name: "Bed Wars (3v3v3v3)"
+  subtitle: "3v3v3v3"
+
+bedwars_four_four:
+  icon: BED
+  data: 4
+  order: 5
+  name: "Bed Wars (4v4v4v4)"
+  subtitle: "4v4v4v4"
+
+solo_normal:
+  icon: EYE_OF_ENDER
+  data: 0
+  order: 1
+  name: "SkyWars (Solo)"
+  subtitle: "Normal"
+  description: "Normal mode: standard loot, 12 players."
+
+solo_insane:
+  icon: EYE_OF_ENDER
+  data: 1
+  order: 2
+  name: "SkyWars (Solo)"
+  subtitle: "Insane"
+
+teams_normal:
+  icon: EYE_OF_ENDER
+  data: 0
+  order: 3
+  name: "SkyWars (Teams)"
+  subtitle: "Normal"
+
+teams_insane:
+  icon: EYE_OF_ENDER
+  data: 1
+  order: 4
+  name: "SkyWars (Teams)"
+  subtitle: "Insane"

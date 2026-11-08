@@ -39,7 +39,7 @@ public final class LobbyCommand implements CommandExecutor {
             else if (a.startsWith("s")) target = GameFamily.SKYWARS;
             else target = null;
         } else if (g != null) {
-            target = g.type().family;
+            target = g.type().family();
         } else {
             target = null; // game lobby -> main lobby, main lobby -> main lobby spawn
         }

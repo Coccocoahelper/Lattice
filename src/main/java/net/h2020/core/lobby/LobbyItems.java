@@ -1,7 +1,7 @@
 package net.h2020.core.lobby;
 
 import net.h2020.api.game.GameFamily;
-import net.h2020.core.gui.ItemBuilder;
+import net.h2020.api.gui.ItemBuilder;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;

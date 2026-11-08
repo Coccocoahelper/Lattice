@@ -1,0 +1,7 @@
+name: lattice-replay
+main: net.h2020.replay.ReplayPlugin
+version: 1.0.0
+author: H2020
+description: Replay recording and playback, and the self-play training harness.
+api-version: 1.8
+depend: [Lattice, lattice-bots]

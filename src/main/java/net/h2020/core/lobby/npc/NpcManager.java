@@ -7,6 +7,8 @@ import com.google.gson.JsonParser;
 import net.h2020.api.H2020;
 import net.h2020.api.bot.BotProfile;
 import net.h2020.api.bot.BotService;
+import net.h2020.api.npc.Hologram;
+import net.h2020.api.npc.PacketNpc;
 import net.h2020.api.game.GameFamily;
 import net.h2020.api.game.GameType;
 import net.h2020.api.packet.PacketHub;

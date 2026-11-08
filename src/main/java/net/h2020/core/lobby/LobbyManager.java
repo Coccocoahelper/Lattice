@@ -257,7 +257,8 @@ public final class LobbyManager implements LobbyHooks, Listener {
         Set<UUID> cur = hidden.get(viewer.getUniqueId());
         if (cur == null) { cur = new HashSet<>(); hidden.put(viewer.getUniqueId(), cur); }
         Set<UUID> want = new HashSet<>();
-        if (!CoreUtil.isBot(viewer) && inLobby(viewer) && core.profiles.data(viewer).playersHidden) {
+        if (!CoreUtil.isBot(viewer) && inLobby(viewer) && !net.h2020.core.arena.PvpArena.isArena(viewer.getWorld())
+                && core.profiles.data(viewer).playersHidden) {
             for (Player o : viewer.getWorld().getPlayers()) if (o != viewer) want.add(o.getUniqueId());
         }
         for (UUID id : new ArrayList<>(cur)) {

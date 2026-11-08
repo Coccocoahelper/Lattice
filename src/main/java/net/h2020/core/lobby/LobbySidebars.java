@@ -19,9 +19,14 @@ public final class LobbySidebars {
 
     public void update(Player p, GameFamily family) {
         ProfileData d = core.profiles.data(p);
-        if (family == GameFamily.BEDWARS) core.scoreboards.setSidebar(p, ChatColor.YELLOW + "" + ChatColor.BOLD + "BED WARS", bedwars(d));
-        else if (family == GameFamily.SKYWARS) core.scoreboards.setSidebar(p, ChatColor.YELLOW + "" + ChatColor.BOLD + "SKYWARS", skywars(d));
-        else core.scoreboards.setSidebar(p, ChatColor.YELLOW + "" + ChatColor.BOLD + "HYPIXEL", main(d));
+        if (family == null) {
+            core.scoreboards.setSidebar(p, ChatColor.YELLOW + "" + ChatColor.BOLD + "HYPIXEL", main(d));
+            return;
+        }
+        // title comes from the family profile, so network.yml can rename a lobby without touching this class
+        String title = net.h2020.api.game.Families.of(family).colouredSidebarTitle();
+        if (family == GameFamily.BEDWARS) core.scoreboards.setSidebar(p, title, bedwars(d));
+        else core.scoreboards.setSidebar(p, title, skywars(d));
     }
 
     private List<String> main(ProfileData d) {
