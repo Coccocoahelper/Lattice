@@ -223,6 +223,46 @@ public final class MapImporter {
         return r;
     }
 
+    /** Per-bed report of the island's dyed blocks, for working out why a team got the colour it did. */
+    public static String diagnose(Object scan) {
+        Scan s = (Scan) scan;
+        List<int[]> heads = new ArrayList<>(), feet = new ArrayList<>();
+        for (int[] b : s.beds) { if ((b[3] & 8) != 0) heads.add(b); else feet.add(b); }
+        if (heads.isEmpty()) heads = feet;
+        StringBuilder sb = new StringBuilder();
+        for (int[] h : heads) {
+            int best = -1, bestD = Integer.MAX_VALUE;
+            for (int i = 0; i < feet.size(); i++) {
+                int[] f = feet.get(i);
+                int d = Math.abs(f[0] - h[0]) + Math.abs(f[1] - h[1]) + Math.abs(f[2] - h[2]);
+                if (d < bestD) { bestD = d; best = i; }
+            }
+            if (best < 0) continue;
+            int[] f = feet.get(best);
+            sb.append("bed ").append(f[0]).append(',').append(f[1]).append(',').append(f[2]).append(": ");
+            for (int r : new int[]{8, 12, 16, 22}) {
+                int[] tally = new int[16];
+                for (int x = f[0] - r; x <= f[0] + r; x++)
+                    for (int z = f[2] - r; z <= f[2] + r; z++) {
+                        if (Math.hypot(x - f[0], z - f[2]) > r) continue;
+                        for (int y = f[1] - 6; y <= f[1] + 8; y++) {
+                            int id = s.id(x, y, z);
+                            if (id == 35 || id == 159 || id == 95 || id == 160 || id == 171) tally[s.data(x, y, z) & 15]++;
+                        }
+                    }
+                List<int[]> top = new ArrayList<>();
+                for (int i = 0; i < 16; i++) if (tally[i] > 0) top.add(new int[]{i, tally[i]});
+                top.sort((a, b) -> b[1] - a[1]);
+                sb.append("r").append(r).append("{");
+                for (int i = 0; i < Math.min(3, top.size()); i++)
+                    sb.append(teamOfDye(top.get(i)[0])).append('/').append(top.get(i)[0]).append('=').append(top.get(i)[1]).append(' ');
+                sb.append("} ");
+            }
+            sb.append('\n');
+        }
+        return sb.toString();
+    }
+
     private static String safeFolder(String name) { return name.toLowerCase().replaceAll("[^a-z0-9]+", "_"); }
 
     // ======================================================================================= bedwars
@@ -265,9 +305,17 @@ public final class MapImporter {
         Result r = new Result(name, GameFamily.BEDWARS, pairs.size());
         int maxY = 0;
         Set<String> taken = new HashSet<>();
+        // Count dyed blocks around every bed first: a colour that shows up at most beds is map decoration (Zarzul is
+        // painted yellow), while a team colour appears on one island only.
+        List<int[]> tallies = new ArrayList<>();
+        for (int[] p : pairs) tallies.add(dyeTally(s, p[0], p[1], p[2], 18));
+        int[] shared = new int[16];
+        for (int[] t : tallies) for (int i = 0; i < 16; i++) if (t[i] >= 12) shared[i]++;
+        boolean[] decoration = new boolean[16];
+        for (int i = 0; i < 16; i++) decoration[i] = shared[i] >= Math.max(3, pairs.size() - 1);
         for (int i = 0; i < pairs.size(); i++) {
             int[] p = pairs.get(i);
-            String color = teamColorOf(s, new int[]{p[0], p[1], p[2]});
+            String color = teamColorOf(s, tallies.get(i), decoration);
             if (color != null && taken.contains(color)) color = null;
             if (color == null) {
                 // next colour nobody has yet, and never spin looking for one that does not exist
@@ -320,7 +368,7 @@ public final class MapImporter {
             }
             r.points.put("team." + color + ".generator", list(pt(gen[0], gen[1], gen[2])));
 
-            Map<String, double[]> npc = npcSpots(s, foot, head, new double[]{spawnX, sy, spawnZ}, cx, cz, island);
+            Map<String, double[]> npc = npcSpots(s, foot, head, new double[]{spawnX, sy, spawnZ}, cx, cz, island, gen);
             for (Map.Entry<String, double[]> e : npc.entrySet())
                 r.points.put("team." + color + "." + e.getKey(), list(pt(e.getValue()[0], e.getValue()[1], e.getValue()[2], (float) e.getValue()[3])));
 
@@ -458,8 +506,11 @@ public final class MapImporter {
 
     /** Dye index -> Lattice team colour, for the blocks maps use to mark their own islands. */
     private static String teamOfDye(int dye) {
-        if (dye == 10) return "green";        // lime is what several maps paint green teams with
-        if (dye == 12) return "aqua";         // and light blue what they paint aqua with
+        // Wool block data, not DyeColor ordinals: 5 lime, 9 cyan, 3 light blue, 10 purple, 2 magenta.
+        if (dye == 5) return "green";
+        if (dye == 9 || dye == 3) return "aqua";
+        if (dye == 2 || dye == 10) return "pink";
+        if (dye == 8) return "gray";
         switch (dye) {
             case 14: return "red";
             case 11: return "blue";
@@ -519,9 +570,30 @@ public final class MapImporter {
         return new ArrayList<>(sorted.subList(0, keep));
     }
 
-    private static String teamColorOf(Scan s, int[] foot) {
-        lastColorCount = colourCount(s, foot);
-        return lastColour;
+    /** Dyed-block histogram in the ring around a bed. */
+    private static int[] dyeTally(Scan s, int bx, int by, int bz, int r) {
+        int[] tally = new int[16];
+        for (int x = bx - r; x <= bx + r; x++)
+            for (int z = bz - r; z <= bz + r; z++) {
+                if (Math.hypot(x - bx, z - bz) > r) continue;
+                for (int y = by - 8; y <= by + 12; y++) {
+                    int id = s.id(x, y, z);
+                    if (id != 35 && id != 159 && id != 95 && id != 160 && id != 171) continue;
+                    tally[s.data(x, y, z) & 15]++;
+                }
+            }
+        return tally;
+    }
+
+    /** Strongest colour on this island that is not used by most other islands (that would be scenery). */
+    private static String teamColorOf(Scan s, int[] tally, boolean[] decoration) {
+        int best = -1, bestCount = 0;
+        for (int i = 0; i < 16; i++) {
+            if (teamOfDye(i) == null || decoration[i]) continue;
+            if (tally[i] > bestCount) { bestCount = tally[i]; best = i; }
+        }
+        lastColorCount = bestCount;
+        return best < 0 || bestCount < 12 ? null : teamOfDye(best);
     }
 
     private static int colourCount(Scan s, int[] foot) {
@@ -620,13 +692,31 @@ public final class MapImporter {
 
     // ======================================================================================= spots
 
+    /** A cell a villager can stand in: floor within two blocks of the reference level, two blocks of headroom, on the island. */
+    private static double[] npcCell(Scan s, double x, double z, int refY, Set<Long> island) {
+        int bx = (int) Math.floor(x), bz = (int) Math.floor(z);
+        if (!island.contains(key(bx, bz))) return null;
+        for (int dy = 0; dy <= 2; dy++) {
+            for (int sign = 1; sign >= -1; sign -= 2) {
+                int y = refY + dy * sign;
+                if (!s.passable(bx, y, bz) || !s.passable(bx, y + 1, bz)) continue;
+                if (s.passable(bx, y - 1, bz)) continue;      // needs a floor right under the feet
+                if (s.id(bx, y - 2, bz) == AIR) continue;
+                return new double[]{bx + 0.5, y, bz + 0.5};
+            }
+        }
+        return null;
+    }
+
     private static double[] forgeSpot(Scan s, int[] foot, int[] head, double[] spawn, double cx, double cz, Set<Long> island) {
         double[] axis = islandFrame(foot, head, cx, cz);
         double fx = axis[0], fz = axis[1], rx = -fz, rz = fx;
         int sx = (int) Math.floor(spawn[0]), sz = (int) Math.floor(spawn[2]), floor = (int) spawn[1];
         Set<Long> cells = new HashSet<>();
-        for (int x = sx - 14; x <= sx + 14; x++)
-            for (int z = sz - 14; z <= sz + 14; z++) {
+        // The forge is at the island's outer end, which on a large island is ~20 blocks from the spawn; a 14-block
+        // window was stopping short and putting the generator (and the shopkeepers hung off it) inboard.
+        for (int x = sx - 26; x <= sx + 26; x++)
+            for (int z = sz - 26; z <= sz + 26; z++) {
                 if (!island.contains(key(x, z))) continue;
                 double fwd = (x + 0.5 - spawn[0]) * fx + (z + 0.5 - spawn[2]) * fz;
                 double lat = (x + 0.5 - spawn[0]) * rx + (z + 0.5 - spawn[2]) * rz;
@@ -652,8 +742,13 @@ public final class MapImporter {
             if (pit.size() >= 3 && pit.size() <= 16) pits.add(pit);
         }
         if (pits.isEmpty()) return null;
+        // The forge is at the island's outer end, so the pit furthest forward wins; size only breaks ties.
         Set<Long> pit = pits.get(0);
-        for (Set<Long> p : pits) if (p.size() > pit.size()) pit = p;
+        double pitFwd = meanForward(pit, spawn, fx, fz);
+        for (Set<Long> p : pits) {
+            double f = meanForward(p, spawn, fx, fz);
+            if (f > pitFwd + 0.5 || (Math.abs(f - pitFwd) <= 0.5 && p.size() > pit.size())) { pit = p; pitFwd = f; }
+        }
         double mx = 0, mz = 0;
         for (long k : pit) { mx += (int) (k >> 32); mz += (int) k; }
         mx /= pit.size(); mz /= pit.size();
@@ -667,11 +762,40 @@ public final class MapImporter {
         return new double[]{((int) (best >> 32)) + 0.5, floor, ((int) best) + 0.5};
     }
 
-    private static Map<String, double[]> npcSpots(Scan s, int[] foot, int[] head, double[] spawn, double cx, double cz, Set<Long> island) {
+    private static double meanForward(Set<Long> cells, double[] spawn, double fx, double fz) {
+        double sum = 0;
+        for (long k : cells) {
+            int x = (int) (k >> 32), z = (int) k;
+            sum += (x + 0.5 - spawn[0]) * fx + (z + 0.5 - spawn[2]) * fz;
+        }
+        return cells.isEmpty() ? 0 : sum / cells.size();
+    }
+
+    private static Map<String, double[]> npcSpots(Scan s, int[] foot, int[] head, double[] spawn, double cx, double cz,
+                                                  Set<Long> island, double[] forge) {
         Map<String, double[]> out = new LinkedHashMap<>();
         double[] axis = islandFrame(foot, head, cx, cz);
         double fx = axis[0], fz = axis[1], rx = -fz, rz = fx;
         int floor = (int) spawn[1];
+
+        // The shopkeepers stand either side of the island's centre line at the forge end, not next to the spawn:
+        // walk out from the forge along the lateral axis until both feet are on a standable cell of this island.
+        if (forge != null) {
+            int gy = (int) Math.round(forge[1]);
+            double[] a = null, b = null;
+            for (int d = 3; d <= 10 && (a == null || b == null); d++) {
+                for (int inward = 0; inward <= 3 && (a == null || b == null); inward++) {
+                    if (a == null) a = npcCell(s, forge[0] + rx * d - fx * inward, forge[2] + rz * d - fz * inward, gy, island);
+                    if (b == null) b = npcCell(s, forge[0] - rx * d - fx * inward, forge[2] - rz * d - fz * inward, gy, island);
+                }
+            }
+            if (a != null && b != null) {
+                // the shop takes the far side, upgrades the near one, matching the swap made in the pen fallback
+                out.put("shop", new double[]{b[0], b[1], b[2], yawTowards(b[0], b[2], cx, cz)});
+                out.put("upgrades", new double[]{a[0], a[1], a[2], yawTowards(a[0], a[2], cx, cz)});
+                return out;
+            }
+        }
         // marked pens: a barrier capping a 2-high cell
         List<List<int[]>> pens = new ArrayList<>();
         Set<Long> penCells = new HashSet<>();

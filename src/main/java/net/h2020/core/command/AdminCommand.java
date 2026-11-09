@@ -154,6 +154,19 @@ public final class AdminCommand implements TabExecutor {
                 s.sendMessage(g("Joined " + game.id() + " (" + game.mapName() + ")."));
                 return true;
             }
+            case "islandcolors": {
+                if (a.length < 2) { s.sendMessage(r("/h2020 islandcolors <map>")); return true; }
+                org.bukkit.World w = net.h2020.api.map.SlimeWorlds.spawn(a[1], "probe");
+                if (w == null) { s.sendMessage(r("No slime copy of " + a[1] + " - run /h2020 convert " + a[1])); return true; }
+                try {
+                    Object snap = net.h2020.maps.MapImporter.scan(w);
+                    for (String line : net.h2020.maps.MapImporter.diagnose(snap).split("\n"))
+                        if (!line.trim().isEmpty()) s.sendMessage(g(line));
+                } finally {
+                    net.h2020.api.map.SlimeWorlds.release(w);
+                }
+                return true;
+            }
             case "edit": {
                 // /lattice edit <map> [leave|selftest] - in-game map editor (ArenaSetup style)
                 net.h2020.api.map.MapService ms = H2020.find(net.h2020.api.map.MapService.class);
