@@ -3,121 +3,120 @@ name: "Frosted"
 family: BEDWARS
 teams: [8]
 build-limit: 96
-tags: [seasonal, christmas]
 bounds:
   min: {x: -92, y: 0, z: -92}
   max: {x: 92, y: 255, z: 92}
 points:
-  team.aqua.bed:
+  team.gray.bed:
     - {x: 24, y: 71, z: -58}
     - {x: 24, y: 71, z: -57}
-  team.aqua.spawn:
+  team.gray.spawn:
     - {x: 24.5, y: 71, z: -63.5, yaw: 21.100000381469727}
-  team.aqua.generator:
+  team.gray.generator:
     - {x: 24.5, y: 71, z: -70.5}
-  team.aqua.shop:
-    - {x: 20.5, y: 71, z: -67.5, yaw: 315}
-  team.aqua.upgrades:
-    - {x: 28.5, y: 71, z: -67.5, yaw: 45}
-  team.aqua.base:
+  team.gray.shop:
+    - {x: 21.5, y: 72, z: -68.5, yaw: 17.399999618530273}
+  team.gray.upgrades:
+    - {x: 27.5, y: 72, z: -68.5, yaw: 21.899999618530273}
+  team.gray.base:
     - {x: 15, y: 61, z: -77}
     - {x: 33, y: 91, z: -52}
-  team.blue.bed:
+  team.red.bed:
     - {x: 58, y: 71, z: -24}
     - {x: 57, y: 71, z: -24}
-  team.blue.spawn:
+  team.red.spawn:
     - {x: 64.5, y: 71, z: -23.5, yaw: 70}
-  team.blue.generator:
+  team.red.generator:
     - {x: 71.5, y: 71, z: -23.5}
-  team.blue.shop:
-    - {x: 68.5, y: 71, z: -27.5, yaw: 45}
-  team.blue.upgrades:
-    - {x: 68.5, y: 71, z: -19.5, yaw: 135}
-  team.blue.base:
+  team.red.shop:
+    - {x: 69.5, y: 72, z: -26.5, yaw: 69.0999984741211}
+  team.red.upgrades:
+    - {x: 69.5, y: 72, z: -20.5, yaw: 73.5999984741211}
+  team.red.base:
     - {x: 52, y: 61, z: -33}
     - {x: 77, y: 91, z: -15}
-  team.green.bed:
+  team.blue.bed:
     - {x: 58, y: 71, z: 24}
     - {x: 57, y: 71, z: 24}
-  team.green.spawn:
+  team.blue.spawn:
     - {x: 64.5, y: 71, z: 24.5, yaw: 110.80000305175781}
-  team.green.generator:
+  team.blue.generator:
     - {x: 71.5, y: 71, z: 24.5}
-  team.green.shop:
-    - {x: 68.5, y: 71, z: 20.5, yaw: 45}
-  team.green.upgrades:
-    - {x: 68.5, y: 71, z: 28.5, yaw: 135}
-  team.green.base:
+  team.blue.shop:
+    - {x: 69.5, y: 72, z: 21.5, yaw: 107.19999694824219}
+  team.blue.upgrades:
+    - {x: 69.5, y: 72, z: 27.5, yaw: 111.5999984741211}
+  team.blue.base:
     - {x: 52, y: 61, z: 15}
     - {x: 77, y: 91, z: 33}
-  team.yellow.bed:
+  team.green.bed:
     - {x: 24, y: 71, z: 58}
     - {x: 24, y: 71, z: 57}
-  team.yellow.spawn:
+  team.green.spawn:
     - {x: 24.5, y: 71, z: 64.5, yaw: 159.1999969482422}
-  team.yellow.generator:
+  team.green.generator:
     - {x: 24.5, y: 71, z: 71.5}
-  team.yellow.shop:
-    - {x: 28.5, y: 71, z: 68.5, yaw: 135}
-  team.yellow.upgrades:
-    - {x: 20.5, y: 71, z: 68.5, yaw: 225}
-  team.yellow.base:
+  team.green.shop:
+    - {x: 27.5, y: 72, z: 69.5, yaw: 158.39999389648438}
+  team.green.upgrades:
+    - {x: 21.5, y: 72, z: 69.5, yaw: 162.8000030517578}
+  team.green.base:
     - {x: 15, y: 61, z: 52}
     - {x: 33, y: 91, z: 77}
-  team.white.bed:
+  team.yellow.bed:
     - {x: -24, y: 71, z: 58}
     - {x: -24, y: 71, z: 57}
-  team.white.spawn:
+  team.yellow.spawn:
     - {x: -23.5, y: 71, z: 64.5, yaw: 200}
-  team.white.generator:
+  team.yellow.generator:
     - {x: -23.5, y: 71, z: 71.5}
-  team.white.shop:
-    - {x: -19.5, y: 71, z: 68.5, yaw: 135}
-  team.white.upgrades:
-    - {x: -27.5, y: 71, z: 68.5, yaw: 225}
-  team.white.base:
+  team.yellow.shop:
+    - {x: -20.5, y: 72, z: 69.5, yaw: 196.39999389648438}
+  team.yellow.upgrades:
+    - {x: -26.5, y: 72, z: 69.5, yaw: 200.89999389648438}
+  team.yellow.base:
     - {x: -33, y: 61, z: 52}
     - {x: -15, y: 91, z: 77}
-  team.pink.bed:
+  team.aqua.bed:
     - {x: -58, y: 71, z: 24}
     - {x: -57, y: 71, z: 24}
-  team.pink.spawn:
+  team.aqua.spawn:
     - {x: -63.5, y: 71, z: 24.5, yaw: 248.89999389648438}
-  team.pink.generator:
+  team.aqua.generator:
     - {x: -70.5, y: 71, z: 24.5}
-  team.pink.shop:
-    - {x: -67.5, y: 71, z: 28.5, yaw: 225}
-  team.pink.upgrades:
-    - {x: -67.5, y: 71, z: 20.5, yaw: 315}
-  team.pink.base:
+  team.aqua.shop:
+    - {x: -68.5, y: 72, z: 27.5, yaw: 248.10000610351562}
+  team.aqua.upgrades:
+    - {x: -68.5, y: 72, z: 21.5, yaw: 252.60000610351562}
+  team.aqua.base:
     - {x: -77, y: 61, z: 15}
     - {x: -52, y: 91, z: 33}
-  team.gray.bed:
+  team.white.bed:
     - {x: -58, y: 71, z: -24}
     - {x: -57, y: 71, z: -24}
-  team.gray.spawn:
+  team.white.spawn:
     - {x: -63.5, y: 71, z: -23.5, yaw: 290.29998779296875}
-  team.gray.generator:
+  team.white.generator:
     - {x: -70.5, y: 71, z: -23.5}
-  team.gray.shop:
-    - {x: -67.5, y: 71, z: -19.5, yaw: 225}
-  team.gray.upgrades:
-    - {x: -67.5, y: 71, z: -27.5, yaw: 315}
-  team.gray.base:
+  team.white.shop:
+    - {x: -68.5, y: 72, z: -20.5, yaw: 286.70001220703125}
+  team.white.upgrades:
+    - {x: -68.5, y: 72, z: -26.5, yaw: 291.1000061035156}
+  team.white.base:
     - {x: -77, y: 61, z: -33}
     - {x: -52, y: 91, z: -15}
-  team.red.bed:
+  team.pink.bed:
     - {x: -24, y: 71, z: -58}
     - {x: -24, y: 71, z: -57}
-  team.red.spawn:
+  team.pink.spawn:
     - {x: -23.5, y: 71, z: -63.5, yaw: 339.70001220703125}
-  team.red.generator:
+  team.pink.generator:
     - {x: -23.5, y: 71, z: -70.5}
-  team.red.shop:
-    - {x: -27.5, y: 71, z: -67.5, yaw: 315}
-  team.red.upgrades:
-    - {x: -19.5, y: 71, z: -67.5, yaw: 45}
-  team.red.base:
+  team.pink.shop:
+    - {x: -26.5, y: 72, z: -68.5, yaw: 338.8999938964844}
+  team.pink.upgrades:
+    - {x: -20.5, y: 72, z: -68.5, yaw: 343.29998779296875}
+  team.pink.base:
     - {x: -33, y: 61, z: -77}
     - {x: -15, y: 91, z: -52}
   gen.diamond:

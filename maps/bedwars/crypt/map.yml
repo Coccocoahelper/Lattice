@@ -15,9 +15,9 @@ points:
   team.red.generator:
     - {x: 46.5, y: 69, z: -73.5}
   team.red.shop:
-    - {x: 43.5, y: 69, z: -74.5}
+    - {x: 45.5, y: 69, z: -76.5, yaw: 30.700000762939453}
   team.red.upgrades:
-    - {x: 43.5, y: 69, z: -70.5}
+    - {x: 47.5, y: 71, z: -69.5, yaw: 34.400001525878906}
   team.red.base:
     - {x: 31, y: 60, z: -91}
     - {x: 57, y: 90, z: -65}
@@ -29,9 +29,9 @@ points:
   team.blue.generator:
     - {x: 74.5, y: 69, z: -45.5}
   team.blue.shop:
-    - {x: 81.5, y: 69, z: -48.5, yaw: 45}
+    - {x: 70.5, y: 71, z: -46.5, yaw: 56.599998474121094}
   team.blue.upgrades:
-    - {x: 82.5, y: 69, z: -47.5, yaw: 52.099998474121094}
+    - {x: 77.5, y: 69, z: -44.5, yaw: 60.099998474121094}
   team.blue.base:
     - {x: 65, y: 60, z: -57}
     - {x: 91, y: 90, z: -31}
@@ -43,9 +43,9 @@ points:
   team.green.generator:
     - {x: 74.5, y: 69, z: 46.5}
   team.green.shop:
-    - {x: 82.5, y: 69, z: 48.5, yaw: 127.9000015258789}
+    - {x: 77.5, y: 69, z: 45.5, yaw: 120.4000015258789}
   team.green.upgrades:
-    - {x: 81.5, y: 69, z: 49.5, yaw: 135}
+    - {x: 70.5, y: 71, z: 47.5, yaw: 124}
   team.green.base:
     - {x: 65, y: 60, z: 31}
     - {x: 91, y: 90, z: 57}
@@ -57,9 +57,9 @@ points:
   team.yellow.generator:
     - {x: 46.5, y: 69, z: 74.5}
   team.yellow.shop:
-    - {x: 43.5, y: 69, z: 71.5}
+    - {x: 47.5, y: 71, z: 70.5, yaw: 146}
   team.yellow.upgrades:
-    - {x: 43.5, y: 69, z: 75.5}
+    - {x: 45.5, y: 69, z: 77.5, yaw: 149.60000610351562}
   team.yellow.base:
     - {x: 31, y: 60, z: 65}
     - {x: 57, y: 90, z: 91}
@@ -71,9 +71,9 @@ points:
   team.aqua.generator:
     - {x: -45.5, y: 69, z: 74.5}
   team.aqua.shop:
-    - {x: -42.5, y: 69, z: 75.5}
+    - {x: -44.5, y: 69, z: 77.5, yaw: 209.89999389648438}
   team.aqua.upgrades:
-    - {x: -42.5, y: 69, z: 71.5}
+    - {x: -46.5, y: 71, z: 70.5, yaw: 213.39999389648438}
   team.aqua.base:
     - {x: -57, y: 60, z: 65}
     - {x: -31, y: 90, z: 91}
@@ -85,9 +85,9 @@ points:
   team.white.generator:
     - {x: -73.5, y: 69, z: 46.5}
   team.white.shop:
-    - {x: -80.5, y: 69, z: 49.5, yaw: 225}
+    - {x: -69.5, y: 71, z: 47.5, yaw: 235.60000610351562}
   team.white.upgrades:
-    - {x: -81.5, y: 69, z: 50.5, yaw: 225}
+    - {x: -76.5, y: 69, z: 45.5, yaw: 239.3000030517578}
   team.white.base:
     - {x: -91, y: 60, z: 31}
     - {x: -65, y: 90, z: 57}
@@ -99,9 +99,9 @@ points:
   team.pink.generator:
     - {x: -73.5, y: 69, z: -45.5}
   team.pink.shop:
-    - {x: -74.5, y: 69, z: -42.5}
+    - {x: -76.5, y: 69, z: -44.5, yaw: 300.20001220703125}
   team.pink.upgrades:
-    - {x: -70.5, y: 69, z: -42.5}
+    - {x: -69.5, y: 71, z: -46.5, yaw: 303.79998779296875}
   team.pink.base:
     - {x: -91, y: 60, z: -57}
     - {x: -65, y: 90, z: -31}
@@ -113,9 +113,9 @@ points:
   team.gray.generator:
     - {x: -45.5, y: 69, z: -73.5}
   team.gray.shop:
-    - {x: -48.5, y: 69, z: -80.5, yaw: 315}
+    - {x: -46.5, y: 71, z: -69.5, yaw: 326.20001220703125}
   team.gray.upgrades:
-    - {x: -48.5, y: 69, z: -82.5, yaw: 321.29998779296875}
+    - {x: -44.5, y: 69, z: -76.5, yaw: 329.79998779296875}
   team.gray.base:
     - {x: -57, y: 60, z: -91}
     - {x: -31, y: 90, z: -65}

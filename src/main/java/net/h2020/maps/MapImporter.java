@@ -771,11 +771,37 @@ public final class MapImporter {
         return cells.isEmpty() ? 0 : sum / cells.size();
     }
 
+    /**
+     * Assigns a team's two NPC points: the shopkeeper always stands on the LEFT of outward (spawn toward the
+     * forge/generator) and the upgrades villager on the RIGHT. Outward is {@code (fx, fz)}, so left is
+     * {@code (fz, -fx)}. Every branch funnels through here so the three cannot drift apart.
+     */
+    private static Map<String, double[]> npcSides(double[] spawn, double fx, double fz, double[] p, double[] q) {
+        double lx = fz, lz = -fx;
+        double lp = (p[0] - spawn[0]) * lx + (p[2] - spawn[2]) * lz;
+        double lq = (q[0] - spawn[0]) * lx + (q[2] - spawn[2]) * lz;
+        Map<String, double[]> sides = new LinkedHashMap<>();
+        sides.put("shop", lp >= lq ? p : q);
+        sides.put("upgrades", lp >= lq ? q : p);
+        return sides;
+    }
+
     private static Map<String, double[]> npcSpots(Scan s, int[] foot, int[] head, double[] spawn, double cx, double cz,
                                                   Set<Long> island, double[] forge) {
         Map<String, double[]> out = new LinkedHashMap<>();
+        // Outward is spawn -> forge: the direction a player walks out of their base. The bed axis is only a
+        // fallback for a missing or degenerate forge, so left/right here match what /h2020 npcprobe measures.
         double[] axis = islandFrame(foot, head, cx, cz);
-        double fx = axis[0], fz = axis[1], rx = -fz, rz = fx;
+        double dx = 0, dz = 0, forgeDist = 0;
+        if (forge != null) {
+            dx = forge[0] - spawn[0];
+            dz = forge[2] - spawn[2];
+            forgeDist = Math.hypot(dx, dz);
+        }
+        boolean useForge = forge != null && forgeDist >= 1.0;
+        double fx = useForge ? dx / forgeDist : axis[0];
+        double fz = useForge ? dz / forgeDist : axis[1];
+        double rx = -fz, rz = fx;
         int floor = (int) spawn[1];
 
         // The shopkeepers stand either side of the island's centre line at the forge end, not next to the spawn:
@@ -790,9 +816,11 @@ public final class MapImporter {
                 }
             }
             if (a != null && b != null) {
-                // the shop takes the far side, upgrades the near one, matching the swap made in the pen fallback
-                out.put("shop", new double[]{b[0], b[1], b[2], yawTowards(b[0], b[2], cx, cz)});
-                out.put("upgrades", new double[]{a[0], a[1], a[2], yawTowards(a[0], a[2], cx, cz)});
+                double[] pa = new double[]{a[0], a[1], a[2], yawTowards(a[0], a[2], cx, cz)};
+                double[] pb = new double[]{b[0], b[1], b[2], yawTowards(b[0], b[2], cx, cz)};
+                Map<String, double[]> sides = npcSides(spawn, fx, fz, pa, pb);
+                out.put("shop", sides.get("shop"));
+                out.put("upgrades", sides.get("upgrades"));
                 return out;
             }
         }
@@ -826,10 +854,9 @@ public final class MapImporter {
             List<int[]> a = pens.get(0);
             List<int[]> b = pens.size() > 1 ? pens.get(1) : null;
             if (b != null) {
-                double la = latOf(a, spawn, rx, rz), lb = latOf(b, spawn, rx, rz);
-                if (la < lb) { List<int[]> t = a; a = b; b = t; }
-                out.put("upgrades", penPoint(a, spawn));
-                out.put("shop", penPoint(b, spawn));
+                Map<String, double[]> sides = npcSides(spawn, fx, fz, penPoint(a, spawn), penPoint(b, spawn));
+                out.put("shop", sides.get("shop"));
+                out.put("upgrades", sides.get("upgrades"));
                 return out;
             }
         }
@@ -853,8 +880,11 @@ public final class MapImporter {
         }
         if (best == null) best = new double[]{2, -2};
         double d = best[0], f = best[1];
-        out.put("shop", new double[]{Math.floor(spawn[0] - rx * d + fx * f) + 0.5, floor, Math.floor(spawn[2] - rz * d + fz * f) + 0.5, 0});
-        out.put("upgrades", new double[]{Math.floor(spawn[0] + rx * d + fx * f) + 0.5, floor, Math.floor(spawn[2] + rz * d + fz * f) + 0.5, 0});
+        double[] plus = new double[]{Math.floor(spawn[0] + rx * d + fx * f) + 0.5, floor, Math.floor(spawn[2] + rz * d + fz * f) + 0.5, 0};
+        double[] minus = new double[]{Math.floor(spawn[0] - rx * d + fx * f) + 0.5, floor, Math.floor(spawn[2] - rz * d + fz * f) + 0.5, 0};
+        Map<String, double[]> sides = npcSides(spawn, fx, fz, plus, minus);
+        out.put("shop", sides.get("shop"));
+        out.put("upgrades", sides.get("upgrades"));
         return out;
     }
 

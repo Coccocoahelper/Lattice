@@ -33,7 +33,7 @@ import java.util.regex.Pattern;
 public final class AdminCommand implements TabExecutor {
     private static final Pattern DATE = Pattern.compile("\\d{2}/\\d{2}/\\d{2}");
     private static final List<String> SUBS = Arrays.asList("games", "create", "start", "fill", "bots", "watch", "end", "train", "replay", "reload", "date", "edit", "maptag", "tags", "mapimportdir",
-            "rank", "level", "build", "setspawn", "npc", "cheaters", "fillspeed", "background");
+            "rank", "level", "build", "setspawn", "npc", "cheaters", "fillspeed", "background", "npcprobe");
     private final Core core;
 
     public AdminCommand(Core core) { this.core = core; }
@@ -165,6 +165,38 @@ public final class AdminCommand implements TabExecutor {
                 } finally {
                     net.h2020.api.map.SlimeWorlds.release(w);
                 }
+                return true;
+            }
+            case "npcprobe": {
+                // /h2020 npcprobe <map> -- check shop (left) and upgrades (right) from map.yml only, no world needed
+                if (a.length < 2) { s.sendMessage(r("/h2020 npcprobe <map>")); return true; }
+                MapService ms = H2020.find(MapService.class);
+                MapTemplate m = ms == null ? null : ms.byName(a[1]);
+                if (m == null) { s.sendMessage(r("Unknown map " + a[1])); return true; }
+                int ok = 0, teams = 0;
+                List<String> wrong = new ArrayList<>();
+                for (net.h2020.api.game.TeamColor c : net.h2020.api.game.TeamColor.values()) {
+                    String color = c.name().toLowerCase(java.util.Locale.ROOT);
+                    org.bukkit.util.Vector spawn = m.point(net.h2020.api.map.MapKeys.teamSpawn(c));
+                    org.bukkit.util.Vector gen = m.point(net.h2020.api.map.MapKeys.teamGenerator(c));
+                    org.bukkit.util.Vector shop = m.point(net.h2020.api.map.MapKeys.teamShop(c));
+                    org.bukkit.util.Vector upgrades = m.point(net.h2020.api.map.MapKeys.teamUpgrades(c));
+                    if (spawn == null || gen == null || shop == null || upgrades == null) continue;
+                    double fx = gen.getX() - spawn.getX(), fz = gen.getZ() - spawn.getZ();
+                    double len = Math.hypot(fx, fz);
+                    if (len < 1e-6) len = 1; // degenerate outward: both offsets are 0 and the team reports WRONG
+                    fx /= len; fz /= len;
+                    double lx = fz, lz = -fx;
+                    double shopLat = (shop.getX() - spawn.getX()) * lx + (shop.getZ() - spawn.getZ()) * lz;
+                    double upLat = (upgrades.getX() - spawn.getX()) * lx + (upgrades.getZ() - spawn.getZ()) * lz;
+                    boolean good = shopLat > 0 && upLat < 0;
+                    teams++;
+                    if (good) ok++; else wrong.add(color);
+                    s.sendMessage(g(String.format(java.util.Locale.ROOT, "%s shop %.2f upgrades %.2f %s",
+                            color, shopLat, upLat, good ? "ok" : "WRONG")));
+                }
+                s.sendMessage(g("npcprobe " + a[1] + ": " + ok + "/" + teams + " teams ok"
+                        + (wrong.isEmpty() ? "" : " - failing: " + String.join(", ", wrong))));
                 return true;
             }
             case "edit": {
