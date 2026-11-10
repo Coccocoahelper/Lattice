@@ -14,6 +14,12 @@ import net.h2020.core.CoreUtil;
 import net.h2020.core.HypixelFormat;
 import net.h2020.maps.Worlds;
 import net.h2020.core.lobby.npc.NpcManager;
+import net.h2020.core.packet.PingSimulator;
+import net.minecraft.server.v1_8_R3.PacketPlayInChat;
+import net.minecraft.server.v1_8_R3.PacketPlayInKeepAlive;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.embedded.EmbeddedChannel;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
@@ -33,7 +39,7 @@ import java.util.regex.Pattern;
 public final class AdminCommand implements TabExecutor {
     private static final Pattern DATE = Pattern.compile("\\d{2}/\\d{2}/\\d{2}");
     private static final List<String> SUBS = Arrays.asList("games", "create", "start", "fill", "bots", "watch", "end", "train", "replay", "reload", "date", "edit", "maptag", "tags", "mapimportdir",
-            "rank", "level", "build", "setspawn", "npc", "cheaters", "fillspeed", "background", "npcprobe");
+            "rank", "level", "build", "setspawn", "npc", "cheaters", "fillspeed", "background", "npcprobe", "ping", "pingselftest", "settingsprobe");
     private final Core core;
 
     public AdminCommand(Core core) { this.core = core; }
@@ -197,6 +203,74 @@ public final class AdminCommand implements TabExecutor {
                 }
                 s.sendMessage(g("npcprobe " + a[1] + ": " + ok + "/" + teams + " teams ok"
                         + (wrong.isEmpty() ? "" : " - failing: " + String.join(", ", wrong))));
+                return true;
+            }
+            case "ping": {
+                // /h2020 ping <player> [ms] -- inspect or set the simulated latency of a real client
+                if (a.length < 2) { s.sendMessage(r("/h2020 ping <player> [ms] | /h2020 ping off")); return true; }
+                if (a[1].equalsIgnoreCase("off")) {
+                    if (!(s instanceof Player)) { s.sendMessage(r("A player must run /h2020 ping off.")); return true; }
+                    Player p = (Player) s;
+                    core.ping.set(p, 0);
+                    s.sendMessage(g("Simulated ping disabled for " + p.getName() + " (handler "
+                            + (core.ping.installed(p) ? "installed" : "removed") + ")."));
+                    return true;
+                }
+                Player t = Bukkit.getPlayerExact(a[1]);
+                if (t == null) { s.sendMessage(r("Unknown player " + a[1])); return true; }
+                if (a.length >= 3) {
+                    int ms = parseInt(a[2], -1);
+                    if (ms < 0) { s.sendMessage(r("/h2020 ping <player> <0-1000>")); return true; }
+                    core.ping.set(t, ms);
+                }
+                s.sendMessage(g("ping " + t.getName() + ": " + core.ping.delay(t.getUniqueId()) + " ms, handler "
+                        + (core.ping.installed(t) ? "installed" : "not installed")));
+                return true;
+            }
+            case "pingselftest": {
+                // /h2020 pingselftest -- headless proof of the half-delay maths, no client needed
+                try {
+                    final long[] seen = new long[1];
+                    EmbeddedChannel ch = new EmbeddedChannel();
+                    ch.pipeline().addLast("packet_handler", new ChannelInboundHandlerAdapter() {
+                        @Override public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+                            seen[0] = System.currentTimeMillis();
+                            ctx.fireChannelRead(msg);
+                        }
+                    });
+                    ch.pipeline().addBefore("packet_handler", PingSimulator.HANDLER, new PingSimulator.Handler(200));
+
+                    long keepalive = measurePing(ch, new PacketPlayInKeepAlive(), seen);
+                    long delayed = measurePing(ch, new PacketPlayInChat("pingselftest"), seen);
+                    boolean ok = keepalive >= 0 && keepalive < 20 && delayed >= 80 && delayed <= 160;
+                    String line = "pingselftest: keepalive " + keepalive + "ms, delayed " + delayed + "ms, "
+                            + (ok ? "ok" : "FAILED (want keepalive <20ms, delayed 80-160ms)");
+                    s.sendMessage(ok ? g(line) : r(line));
+                } catch (Throwable t) {
+                    s.sendMessage(r("pingselftest failed: " + t));
+                }
+                return true;
+            }
+            case "settingsprobe": {
+                // /h2020 settingsprobe <player> -- open the settings menu and report what Bukkit actually built
+                if (a.length < 2) { s.sendMessage(r("/h2020 settingsprobe <player>")); return true; }
+                Player target = Bukkit.getPlayerExact(a[1]);
+                if (target == null) { s.sendMessage(r("No player " + a[1])); return true; }
+                try {
+                    new net.h2020.core.lobby.SettingsMenu(core).open(target);
+                    org.bukkit.inventory.Inventory top = target.getOpenInventory().getTopInventory();
+                    int items = 0;
+                    for (int i = 0; i < top.getSize(); i++) if (top.getItem(i) != null) items++;
+                    org.bukkit.inventory.ItemStack icon = top.getItem(4);
+                    String slot4 = icon == null || icon.getItemMeta() == null ? "null"
+                            : String.valueOf(icon.getItemMeta().getDisplayName());
+                    s.sendMessage(g("settingsprobe " + target.getName() + ": title \"" + top.getTitle()
+                            + "\", size " + top.getSize() + ", " + items + " items, slot4 \"" + slot4 + "\""));
+                } catch (Throwable t) {
+                    s.sendMessage(r("settingsprobe failed: " + t));
+                } finally {
+                    target.closeInventory();
+                }
                 return true;
             }
             case "edit": {
@@ -872,6 +946,22 @@ public final class AdminCommand implements TabExecutor {
         s.sendMessage(ChatColor.GRAY + " bots have their own help: " + ChatColor.YELLOW + "/bot help");
     }
 
+    /** Write one packet into an embedded pipeline and wait (running its loop) until the recorder sees it. */
+    private static long measurePing(EmbeddedChannel ch, Object packet, long[] seen) {
+        seen[0] = 0;
+        long start = System.currentTimeMillis();
+        ch.writeInbound(packet);
+        long deadline = start + 1000;
+        while (seen[0] == 0 && System.currentTimeMillis() < deadline) {
+            try { ch.runPendingTasks(); } catch (Throwable ignored) {}
+            if (seen[0] == 0) {
+                try { Thread.sleep(1L); }
+                catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+            }
+        }
+        return seen[0] == 0 ? -1 : seen[0] - start;
+    }
+
     private static Integer parseInt(String s, int def) {
         try { return Integer.parseInt(s); } catch (NumberFormatException e) { return def; }
     }
@@ -921,9 +1011,14 @@ public final class AdminCommand implements TabExecutor {
                     if (c.startsWith(a[1].toLowerCase())) out.add(c);
             } else if (sub.equals("rank") || sub.equals("level")) {
                 for (Player p : Bukkit.getOnlinePlayers()) if (p.getName().toLowerCase().startsWith(a[1].toLowerCase())) out.add(p.getName());
+            } else if (sub.equals("ping")) {
+                if ("off".startsWith(a[1].toLowerCase())) out.add("off");
+                for (Player p : Bukkit.getOnlinePlayers()) if (p.getName().toLowerCase().startsWith(a[1].toLowerCase())) out.add(p.getName());
             }
         } else if (a.length == 3 && a[0].equalsIgnoreCase("rank")) {
             for (Rank rk : Rank.values()) if (rk.name().toLowerCase().startsWith(a[2].toLowerCase())) out.add(rk.name());
+        } else if (a.length == 3 && a[0].equalsIgnoreCase("ping")) {
+            for (String ms : new String[]{"0", "50", "100", "150", "200", "300", "500"}) if (ms.startsWith(a[2])) out.add(ms);
         }
         return out;
     }

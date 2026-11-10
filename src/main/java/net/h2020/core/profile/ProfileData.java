@@ -31,6 +31,8 @@ public final class ProfileData {
     public volatile int swLevel, swExpProgressPct, swCoins, swSouls, swTokens, swKills, swWins;
 
     public volatile boolean playersHidden = false;
+    /** Client-side latency simulation in milliseconds (0 = off). Real players only. */
+    public volatile int simulatedPing = 0;
 
     public ProfileData(UUID uuid, String name) { this.uuid = uuid; this.name = name; }
 
@@ -85,6 +87,7 @@ public final class ProfileData {
         s.set("guild", guild);
         s.set("lobby-number", lobbyNumber);
         s.set("players-hidden", playersHidden);
+        s.set("simulated-ping", simulatedPing);
         s.set("bedwars.star", bwStar);
         s.set("bedwars.exp", bwExp);
         s.set("bedwars.coins", bwCoins);
@@ -113,6 +116,7 @@ public final class ProfileData {
         guild = s.getString("guild", null);
         lobbyNumber = s.getInt("lobby-number", lobbyNumber);
         playersHidden = s.getBoolean("players-hidden", false);
+        simulatedPing = Math.max(0, Math.min(1000, s.getInt("simulated-ping", simulatedPing)));
         bwStar = s.getInt("bedwars.star", bwStar);
         bwExp = s.getInt("bedwars.exp", bwExp);
         bwCoins = s.getInt("bedwars.coins", bwCoins);

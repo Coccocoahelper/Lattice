@@ -6,6 +6,7 @@ import net.h2020.core.lobby.LobbyBots;
 import net.h2020.core.lobby.LobbyManager;
 import net.h2020.core.lobby.PlayerCounts;
 import net.h2020.core.lobby.npc.NpcManager;
+import net.h2020.core.packet.PingSimulator;
 import net.h2020.core.profile.ProfileServiceImpl;
 import net.h2020.core.scoreboard.ScoreboardServiceImpl;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -22,6 +23,7 @@ public final class Core {
     public LobbyManager lobby;
     public NpcManager npcs;
     public LobbyBots lobbyBots;
+    public PingSimulator ping;
 
     public Core(JavaPlugin plugin, CoreConfig config) {
         this.plugin = plugin;

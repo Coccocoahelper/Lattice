@@ -11,6 +11,9 @@ commands:
   lobby:
     description: Return to lobby
     aliases: [l, hub]
+  settings:
+    description: Open the settings menu
+    usage: /settings
   lattice:
     description: Admin/video tools (bots, games, watchdog)
     aliases: [h2020, lat]

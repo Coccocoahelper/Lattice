@@ -12,8 +12,10 @@ import net.h2020.api.gui.MenuListener;
 import net.h2020.core.tab.TabFilter;
 import net.h2020.core.lobby.LobbyBots;
 import net.h2020.core.lobby.LobbyManager;
+import net.h2020.core.lobby.SettingsMenu;
 import net.h2020.core.lobby.npc.NpcManager;
 import net.h2020.core.packet.PacketInjector;
+import net.h2020.core.packet.PingSimulator;
 import net.h2020.core.profile.ChatListener;
 import net.h2020.core.profile.ProfileServiceImpl;
 import net.h2020.core.profile.StatsListener;
@@ -70,8 +72,10 @@ public final class CoreModule implements Module {
         H2020.register(GameManager.class, core.games);
 
         injector = new PacketInjector(plugin.getLogger());
+        core.ping = new PingSimulator(core, plugin.getLogger());
         // order matters within a priority: profiles/scoreboards first so the lobby can use them on join
         register(plugin, injector);
+        register(plugin, core.ping);
         register(plugin, core.profiles);
         register(plugin, core.scoreboards);
         register(plugin, new ChatListener(core));
@@ -83,10 +87,24 @@ public final class CoreModule implements Module {
         register(plugin, tab);
         register(plugin, core.lobby);
         register(plugin, core.npcs);
+        net.h2020.core.combat.Knockback knockback = new net.h2020.core.combat.Knockback();
+        knockback.load(plugin.getConfig().getConfigurationSection("core.knockback"));
+        register(plugin, knockback);
 
         register(plugin, new net.h2020.core.command.HelpMenu());
         command(plugin, "play", new PlayCommand(core));
         command(plugin, "lobby", new LobbyCommand(core));
+        command(plugin, "settings", new org.bukkit.command.CommandExecutor() {
+            @Override public boolean onCommand(org.bukkit.command.CommandSender sender, org.bukkit.command.Command cmd,
+                                                String label, String[] args) {
+                if (!(sender instanceof Player)) {
+                    sender.sendMessage(org.bukkit.ChatColor.RED + "Players only.");
+                    return true;
+                }
+                new SettingsMenu(core).open((Player) sender);
+                return true;
+            }
+        });
         net.h2020.core.command.SpectateCommand spec = new net.h2020.core.command.SpectateCommand(core);
         command(plugin, "spectate", spec);
         org.bukkit.command.PluginCommand sp = plugin.getCommand("spectate");

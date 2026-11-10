@@ -260,7 +260,11 @@ public final class LobbyMenus {
             });
         }
         m.set(34, new ItemBuilder(Material.REDSTONE_COMPARATOR).name(ChatColor.GREEN + "Settings & Visibility")
-                .lore(ChatColor.GRAY + "Customise your Hypixel experience.").build(), unavailable("Settings"));
+                .lore(ChatColor.GRAY + "Customise your Hypixel experience.").build(), new Menu.Click() {
+            @Override public void click(Player pl, ClickType type) {
+                new SettingsMenu(core).open(pl);
+            }
+        });
         close(m, 49);
         m.open(p);
         click(p);
