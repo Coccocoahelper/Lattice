@@ -3,6 +3,8 @@ package net.h2020.core.command;
 import net.h2020.api.H2020;
 import net.h2020.api.bot.BotService;
 import net.h2020.api.core.Rank;
+import net.h2020.api.core.SidebarTemplate;
+import net.h2020.api.core.Sidebars;
 import net.h2020.api.game.Game;
 import net.h2020.api.game.GameState;
 import net.h2020.api.game.GameType;
@@ -41,7 +43,8 @@ public final class AdminCommand implements TabExecutor {
     private static final String[] TEAMSHIFT_KEYS = {"spawn", "bed", "generator", "shop", "upgrades", "base"};
     private static final String TEAM_COLOURS = "red, blue, green, yellow, aqua, white, pink, gray";
     private static final List<String> SUBS = Arrays.asList("games", "create", "start", "fill", "bots", "watch", "end", "train", "replay", "reload", "date", "edit", "maptag", "teamshift", "tags", "mapimportdir",
-            "rank", "level", "build", "setspawn", "npc", "cheaters", "fillspeed", "background", "npcprobe", "ping", "pingselftest", "settingsprobe");
+            "rank", "level", "build", "setspawn", "npc", "cheaters", "fillspeed", "background", "npcprobe", "ping", "pingselftest", "settingsprobe",
+            "sidebar");
     private final Core core;
 
     public AdminCommand(Core core) { this.core = core; }
@@ -59,6 +62,11 @@ public final class AdminCommand implements TabExecutor {
     }
 
     private static String r(String s) { return ChatColor.RED + s; }
+
+    /** Preview output uses '&' so it survives a console log. */
+    private static String amp(String s) {
+        return s == null ? "" : s.replace(ChatColor.COLOR_CHAR, '&');
+    }
 
     @Override
     public boolean onCommand(CommandSender s, Command cmd, String label, String[] a) {
@@ -1094,6 +1102,61 @@ public final class AdminCommand implements TabExecutor {
                 core.plugin.getConfig().set("core.background-games", core.config.backgroundGames);
                 core.plugin.saveConfig();
                 s.sendMessage(g("Background bot-only games set to " + core.config.backgroundGames));
+                return true;
+            }
+            case "sidebar": {
+                String action = a.length > 1 ? a[1].toLowerCase() : "list";
+                if (action.equals("list")) {
+                    boolean papi = net.h2020.api.H2020.find(net.h2020.api.core.ScoreboardService.class) != null
+                            && Sidebars.placeholderApi();
+                    s.sendMessage(g("boards: " + String.join(", ", Sidebars.names())
+                            + " (PlaceholderAPI: " + (papi ? "yes" : "no") + ")"));
+                    return true;
+                }
+                if (action.equals("reload")) {
+                    try {
+                        Sidebars.reload();
+                        s.sendMessage(g("sidebar.yml reloaded: " + Sidebars.names().size() + " board(s)"));
+                    } catch (Throwable t) {
+                        s.sendMessage(r("sidebar.yml reload failed: " + t.getMessage()));
+                    }
+                    return true;
+                }
+                if (action.equals("preview")) {
+                    if (a.length < 3) { s.sendMessage(r("/lattice sidebar preview <board> [player]")); return true; }
+                    SidebarTemplate template = Sidebars.get(a[2].toLowerCase());
+                    if (template == null) {
+                        s.sendMessage(r("No enabled board '" + a[2] + "'. Boards: " + String.join(", ", Sidebars.names())));
+                        return true;
+                    }
+                    Player target = null;
+                    if (a.length >= 4) {
+                        target = Bukkit.getPlayerExact(a[3]);
+                        if (target == null) { s.sendMessage(r("Unknown player " + a[3])); return true; }
+                    } else if (s instanceof Player) {
+                        target = (Player) s;
+                    }
+                    java.util.Map<String, String> vars = new java.util.HashMap<String, String>();
+                    // a preview shows every configured line, including conditionals, so use the union of their flags
+                    java.util.Set<String> flags = new java.util.HashSet<String>();
+                    for (SidebarTemplate.Line line : template.lines) flags.addAll(line.when);
+                    // lobby boards can be previewed with the real profile values, which is how the substitution is checked
+                    if (target != null && core.lobby != null) {
+                        net.h2020.api.game.GameFamily fam = null;
+                        if (template.name.startsWith("bedwars")) fam = net.h2020.api.game.GameFamily.BEDWARS;
+                        else if (template.name.startsWith("skywars")) fam = net.h2020.api.game.GameFamily.SKYWARS;
+                        if (template.name.equals("main") || template.name.endsWith("-lobby")) {
+                            vars.putAll(core.lobby.sidebarVars(target, fam));
+                        }
+                    }
+                    s.sendMessage(g("Sidebar " + template.name + " title: " + amp(template.renderTitle(target, vars))));
+                    java.util.List<String> lines = template.render(target, vars, flags, null);
+                    for (int i = 0; i < lines.size(); i++) {
+                        s.sendMessage(ChatColor.GRAY + String.valueOf(i + 1) + ": " + ChatColor.RESET + amp(lines.get(i)));
+                    }
+                    return true;
+                }
+                s.sendMessage(r("/lattice sidebar [list] | reload | preview <board> [player]"));
                 return true;
             }
             default:

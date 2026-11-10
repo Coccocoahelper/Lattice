@@ -304,6 +304,12 @@ public final class LobbyManager implements LobbyHooks, Listener {
 
     // ---------------- sidebars ----------------
 
+    /** Real profile values for a lobby board, so /lattice sidebar preview shows what a player would actually see. */
+    public java.util.Map<String, String> sidebarVars(Player p, net.h2020.api.game.GameFamily family) {
+        return sidebars.varsFor(p, family);
+    }
+
+
     private void tickSidebars() {
         for (Player p : Bukkit.getOnlinePlayers()) {
             if (!inLobby(p) || CoreUtil.isBot(p)) continue;

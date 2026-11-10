@@ -5,6 +5,8 @@ import net.h2020.api.bot.BotService;
 import net.h2020.api.core.ProfileService;
 import net.h2020.api.core.Rank;
 import net.h2020.api.core.ScoreboardService;
+import net.h2020.api.core.SidebarTemplate;
+import net.h2020.api.core.Sidebars;
 import net.h2020.api.game.GameFamily;
 import net.h2020.api.game.GameManager;
 import net.h2020.api.game.GameState;
@@ -53,6 +55,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -977,6 +980,37 @@ public final class SkywarsGame implements SkywarsView {
         if (sb == null) return;
         String title = ChatColor.YELLOW + "" + ChatColor.BOLD + "SKYWARS";
         String mode = insane() ? ChatColor.RED + "Insane" : ChatColor.GREEN + "Normal";
+        boolean waiting = preGame();
+        SidebarTemplate board = Sidebars.get(waiting ? "skywars-waiting" : "skywars-playing");
+        if (board != null) {
+            TimedEvent next = nextEvent < events.size() ? events.get(nextEvent) : null;
+            String event = next == null || state == GameState.ENDING
+                    ? ChatColor.GREEN + "None"
+                    : ChatColor.GREEN + next.label + " " + Chat.clock(next.at - elapsed);
+            int teamsLeft = 0;
+            for (SkywarsTeam t : teams) if (t.alive()) teamsLeft++;
+            for (Player p : players()) {
+                Map<String, String> vars = new HashMap<String, String>();
+                vars.put("date", date);
+                vars.put("id", id);
+                vars.put("players", String.valueOf(players.size()));
+                vars.put("max", String.valueOf(maxPlayers()));
+                vars.put("countdown", String.valueOf(Math.max(0, countdown + 1)));
+                vars.put("map", this.template.name());
+                vars.put("mode", mode);
+                vars.put("event", event);
+                vars.put("alive", String.valueOf(alive.size()));
+                vars.put("teams", String.valueOf(teamsLeft));
+                vars.put("kills", String.valueOf(kills(p)));
+                Set<String> flags = new HashSet<String>();
+                flags.add(waiting ? "waiting" : "playing");
+                flags.add(type.teamSize() > 1 ? "teams" : "solo");
+                flags.add(insane() ? "insane" : "normal");
+                if (waiting) flags.add(state == GameState.STARTING ? "starting" : "idle");
+                sb.setSidebar(p, board.renderTitle(p, vars), board.render(p, vars, flags, null));
+            }
+            return;
+        }
         for (Player p : players()) {
             List<String> l = new ArrayList<>();
             l.add(ChatColor.GRAY + date + "  " + ChatColor.DARK_GRAY + id);

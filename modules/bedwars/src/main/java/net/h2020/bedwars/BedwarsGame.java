@@ -6,6 +6,8 @@ import net.h2020.api.bot.BotService;
 import net.h2020.api.core.ProfileService;
 import net.h2020.api.core.Rank;
 import net.h2020.api.core.ScoreboardService;
+import net.h2020.api.core.SidebarTemplate;
+import net.h2020.api.core.Sidebars;
 import net.h2020.api.game.BedwarsShopItem;
 import net.h2020.api.game.BedwarsView;
 import net.h2020.api.game.GameFamily;
@@ -60,6 +62,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -741,6 +744,28 @@ public final class BedwarsGame implements BedwarsView {
     private void updateWaitingBoards() {
         ScoreboardService sb = H2020.find(ScoreboardService.class);
         if (sb == null) return;
+        SidebarTemplate template = Sidebars.get("bedwars-waiting");
+        if (template != null) {
+            Map<String, String> vars = new HashMap<String, String>();
+            vars.put("date", date);
+            vars.put("id", id);
+            vars.put("map", map.name());
+            vars.put("players", String.valueOf(players.size()));
+            vars.put("max", String.valueOf(type.maxPlayers()));
+            vars.put("countdown", String.valueOf(countdown));
+            vars.put("mode", type.displayName());
+            Set<String> flags = new HashSet<String>();
+            flags.add("waiting");
+            flags.add(state == GameState.STARTING ? "starting" : "idle");
+            flags.add(soloMode() ? "solo" : "teams");
+            for (BwPlayer bp : players.values()) {
+                try {
+                    sb.setSidebar(bp.player, template.renderTitle(bp.player, vars),
+                            template.render(bp.player, vars, flags, null));
+                } catch (Throwable ignored) { }
+            }
+            return;
+        }
         List<String> lines = new ArrayList<>();
         lines.add(ChatColor.GRAY + date + "  " + ChatColor.DARK_GRAY + id);
         lines.add(blank(1));
@@ -1422,6 +1447,41 @@ public final class BedwarsGame implements BedwarsView {
                 ? ChatColor.WHITE + EVENT_NAMES[nextEvent] + " in " + ChatColor.GREEN + Text.clock(nextEventSeconds())
                 : ChatColor.WHITE + "Game End in " + ChatColor.GREEN + Text.clock(0);
         boolean stats = teams.size() <= 4;
+        SidebarTemplate template = Sidebars.get("bedwars-playing");
+        if (template != null) {
+            for (BwPlayer bp : players.values()) {
+                List<String> teamLines = new ArrayList<String>();
+                for (BwTeam t : teams) {
+                    String status;
+                    if (t.bedAlive) status = ChatColor.GREEN + "✔";
+                    else if (t.participated && t.remaining() > 0) status = ChatColor.GREEN + "" + t.remaining();
+                    else status = ChatColor.RED + "✘";
+                    String line = t.color.chat + t.color.letter() + " " + ChatColor.WHITE + t.color.displayName + ": " + status;
+                    if (bp.team == t) line += ChatColor.GRAY + " YOU";
+                    teamLines.add(line);
+                }
+                Map<String, String> vars = new HashMap<String, String>();
+                vars.put("date", date);
+                vars.put("id", id);
+                vars.put("event", event);
+                vars.put("kills", String.valueOf(bp.kills));
+                vars.put("final_kills", String.valueOf(bp.finalKills));
+                vars.put("beds", String.valueOf(bp.bedsBroken));
+                Set<String> flags = new HashSet<String>();
+                flags.add("playing");
+                if (stats) flags.add("stats");
+                flags.add(soloMode() ? "solo" : "teams");
+                try {
+                    sb.setSidebar(bp.player, template.renderTitle(bp.player, vars),
+                            template.render(bp.player, vars, flags, teamLines));
+                    sb.setTabHeaderFooter(bp.player, ChatColor.AQUA + "You are playing on " + ChatColor.YELLOW + ChatColor.BOLD + "MC.HYPIXEL.NET\n",
+                            "\n" + ChatColor.AQUA + "Kills: " + ChatColor.YELLOW + bp.kills + ChatColor.AQUA + " Final Kills: "
+                                    + ChatColor.YELLOW + bp.finalKills + ChatColor.AQUA + " Beds Broken: " + ChatColor.YELLOW + bp.bedsBroken
+                                    + "\n\n" + ChatColor.GREEN + "Ranks, Boosters & MORE! " + ChatColor.RED + ChatColor.BOLD + "STORE.HYPIXEL.NET");
+                } catch (Throwable ignored) { }
+            }
+            return;
+        }
         for (BwPlayer bp : players.values()) {
             List<String> lines = new ArrayList<>();
             lines.add(ChatColor.GRAY + date + "  " + ChatColor.DARK_GRAY + id);

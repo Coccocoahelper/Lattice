@@ -1,0 +1,135 @@
+# Sidebar layouts. Every board can be switched off or replaced without touching Java.
+# Lines are either plain strings or maps with `text:` and an optional comma-separated `when:` flag list.
+# Unknown %placeholders% are passed to PlaceholderAPI when it is installed (%server_online%, %player_name%, ...).
+boards:
+  main:
+    enabled: true
+    title: "&e&lHYPIXEL"
+    lines:
+      - "%date%"
+      - ""
+      - "Rank: %rank%"
+      - "Achievement Points: &e%ap%"
+      - "Guild: %guild%"
+      - ""
+      - "Hypixel Level: &a%level%"
+      - "Lobby: &a%lobby%"
+      - "Players: &a%players%"
+      - ""
+      - "&ewww.hypixel.net"
+
+  bedwars-lobby:
+    enabled: true
+    title: "&e&lBED WARS"
+    lines:
+      - "%date%"
+      - ""
+      - "Level: %bw_star%"
+      - ""
+      - "Progress: %bw_progress%"
+      - "%bw_bar%"
+      - ""
+      - "Loot Chests: %bw_loot%"
+      - ""
+      - "Coins: %bw_coins%"
+      - ""
+      - "Total Kills: %bw_kills%"
+      - "Total Wins: %bw_wins%"
+      - ""
+      - "&ewww.hypixel.net"
+
+  skywars-lobby:
+    enabled: true
+    title: "&e&lSKYWARS"
+    lines:
+      - "%date%"
+      - ""
+      - "Your Level: %sw_level%"
+      - "Progress: %sw_progress%"
+      - "%sw_bar%"
+      - ""
+      - "Total Kills: %sw_kills%"
+      - "Total Wins: %sw_wins%"
+      - ""
+      - "Coins: %sw_coins%"
+      - "Souls: %sw_souls%"
+      - "Tokens: %sw_tokens%"
+      - ""
+      - "&ewww.hypixel.net"
+
+  bedwars-waiting:
+    enabled: true
+    title: "&e&lBED WARS"
+    lines:
+      - "&7%date%  &8%id%"
+      - ""
+      - "&fMap: &a%map%"
+      - "&fPlayers: &a%players%/%max%"
+      - ""
+      - text: "&fStarting in &a%countdown%s"
+        when: "starting"
+      - text: "&fWaiting..."
+        when: "idle"
+      - ""
+      - "&fMode: &a%mode%"
+      - "&fVersion: &7v1.6"
+      - ""
+      - "&ewww.hypixel.net"
+
+  bedwars-playing:
+    enabled: true
+    title: "&e&lBED WARS"
+    lines:
+      - "&7%date%  &8%id%"
+      - ""
+      - "%event%"
+      - ""
+      - "%teams%"
+      - ""
+      - text: "&fKills: &a%kills%"
+        when: "stats"
+      - text: "&fFinal Kills: &a%final_kills%"
+        when: "stats"
+      - text: "&fBeds Broken: &a%beds%"
+        when: "stats"
+      - text: ""
+        when: "stats"
+      - "&ewww.hypixel.net"
+
+  skywars-waiting:
+    enabled: true
+    title: "&e&lSKYWARS"
+    lines:
+      - "&7%date%  &8%id%"
+      - ""
+      - "&fPlayers: &a%players%/%max%"
+      - ""
+      - text: "&fStarting in &a%countdown%s"
+        when: "starting"
+      - text: "&fWaiting..."
+        when: "idle"
+      - ""
+      - "&fMap: &a%map%"
+      - "&fMode: %mode%"
+      - ""
+      - "&ewww.hypixel.net"
+
+  skywars-playing:
+    enabled: true
+    title: "&e&lSKYWARS"
+    lines:
+      - "&7%date%  &8%id%"
+      - ""
+      - "&fNext Event:"
+      - "%event%"
+      - ""
+      - "&fPlayers left: &a%alive%"
+      - text: "&fTeams left: &a%teams%"
+        when: "teams"
+      - ""
+      - "&fKills: &a%kills%"
+      - ""
+      - "&fMap: &a%map%"
+      - "&fMode: %mode%"
+      - ""
+      - "&ewww.hypixel.net"

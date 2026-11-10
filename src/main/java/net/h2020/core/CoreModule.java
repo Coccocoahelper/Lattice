@@ -70,6 +70,7 @@ public final class CoreModule implements Module {
         H2020.register(ProfileService.class, core.profiles);
         H2020.register(ScoreboardService.class, core.scoreboards);
         H2020.register(GameManager.class, core.games);
+        net.h2020.api.core.Sidebars.init(plugin);
 
         injector = new PacketInjector(plugin.getLogger());
         core.ping = new PingSimulator(core, plugin.getLogger(),
