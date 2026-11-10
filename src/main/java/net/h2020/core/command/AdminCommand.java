@@ -206,8 +206,8 @@ public final class AdminCommand implements TabExecutor {
                 return true;
             }
             case "ping": {
-                // /h2020 ping <player> [ms] -- inspect or set the simulated latency of a real client
-                if (a.length < 2) { s.sendMessage(r("/h2020 ping <player> [ms] | /h2020 ping off")); return true; }
+                // /h2020 ping <player> [ms] [jitter] -- inspect or set the simulated latency of a real client
+                if (a.length < 2) { s.sendMessage(r("/h2020 ping <player> [ms] [jitter] | /h2020 ping off")); return true; }
                 if (a[1].equalsIgnoreCase("off")) {
                     if (!(s instanceof Player)) { s.sendMessage(r("A player must run /h2020 ping off.")); return true; }
                     Player p = (Player) s;
@@ -220,15 +220,21 @@ public final class AdminCommand implements TabExecutor {
                 if (t == null) { s.sendMessage(r("Unknown player " + a[1])); return true; }
                 if (a.length >= 3) {
                     int ms = parseInt(a[2], -1);
-                    if (ms < 0) { s.sendMessage(r("/h2020 ping <player> <0-1000>")); return true; }
-                    core.ping.set(t, ms);
+                    if (ms < 0) { s.sendMessage(r("/h2020 ping <player> [ms] [jitter] (ms 0-1000, jitter 0-500)")); return true; }
+                    int jitter = core.ping.jitter(t.getUniqueId());
+                    if (a.length >= 4) {
+                        jitter = parseInt(a[3], -1);
+                        if (jitter < 0) { s.sendMessage(r("/h2020 ping <player> [ms] [jitter] (ms 0-1000, jitter 0-500)")); return true; }
+                    }
+                    core.ping.set(t, ms, jitter);
                 }
-                s.sendMessage(g("ping " + t.getName() + ": " + core.ping.delay(t.getUniqueId()) + " ms, handler "
+                s.sendMessage(g("ping " + t.getName() + ": " + core.ping.delay(t.getUniqueId()) + " ms +/- "
+                        + core.ping.jitter(t.getUniqueId()) + " ms, handler "
                         + (core.ping.installed(t) ? "installed" : "not installed")));
                 return true;
             }
             case "pingselftest": {
-                // /h2020 pingselftest -- headless proof of the half-delay maths, no client needed
+                // /h2020 pingselftest -- headless proof of the half-delay maths and the per-packet variability
                 try {
                     final long[] seen = new long[1];
                     EmbeddedChannel ch = new EmbeddedChannel();
@@ -241,10 +247,34 @@ public final class AdminCommand implements TabExecutor {
                     ch.pipeline().addBefore("packet_handler", PingSimulator.HANDLER, new PingSimulator.Handler(200));
 
                     long keepalive = measurePing(ch, new PacketPlayInKeepAlive(), seen);
-                    long delayed = measurePing(ch, new PacketPlayInChat("pingselftest"), seen);
-                    boolean ok = keepalive >= 0 && keepalive < 20 && delayed >= 80 && delayed <= 160;
-                    String line = "pingselftest: keepalive " + keepalive + "ms, delayed " + delayed + "ms, "
-                            + (ok ? "ok" : "FAILED (want keepalive <20ms, delayed 80-160ms)");
+                    long fixed = measurePing(ch, new PacketPlayInChat("pingselftest"), seen);
+
+                    final long[] jitterSeen = new long[1];
+                    EmbeddedChannel jitterCh = new EmbeddedChannel();
+                    jitterCh.pipeline().addLast("packet_handler", new ChannelInboundHandlerAdapter() {
+                        @Override public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+                            jitterSeen[0] = System.currentTimeMillis();
+                            ctx.fireChannelRead(msg);
+                        }
+                    });
+                    jitterCh.pipeline().addBefore("packet_handler", PingSimulator.HANDLER,
+                            new PingSimulator.Handler(200, 100));
+
+                    long min = Long.MAX_VALUE, max = Long.MIN_VALUE;
+                    boolean measured = true;
+                    for (int i = 0; i < 20; i++) {
+                        long d = measurePing(jitterCh, new PacketPlayInChat("pingselftest" + i), jitterSeen);
+                        if (d < 0) { measured = false; break; }
+                        min = Math.min(min, d);
+                        max = Math.max(max, d);
+                    }
+
+                    boolean ok = keepalive >= 0 && keepalive < 20 && fixed >= 80 && fixed <= 160
+                            && measured && min >= 40 && max - min >= 20;
+                    String jitterText = measured ? min + "-" + max + "ms" : "?";
+                    String line = "pingselftest: keepalive " + keepalive + "ms, fixed " + fixed + "ms, jitter "
+                            + jitterText + ", " + (ok ? "ok"
+                            : "FAILED (want keepalive <20ms, fixed 80-160ms, jitter min >=40ms and spread >=20ms)");
                     s.sendMessage(ok ? g(line) : r(line));
                 } catch (Throwable t) {
                     s.sendMessage(r("pingselftest failed: " + t));

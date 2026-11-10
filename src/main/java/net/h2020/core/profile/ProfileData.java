@@ -33,6 +33,8 @@ public final class ProfileData {
     public volatile boolean playersHidden = false;
     /** Client-side latency simulation in milliseconds (0 = off). Real players only. */
     public volatile int simulatedPing = 0;
+    /** Per-packet latency variability in milliseconds (0 = fixed). Real players only. */
+    public volatile int simulatedJitter = 0;
 
     public ProfileData(UUID uuid, String name) { this.uuid = uuid; this.name = name; }
 
@@ -88,6 +90,7 @@ public final class ProfileData {
         s.set("lobby-number", lobbyNumber);
         s.set("players-hidden", playersHidden);
         s.set("simulated-ping", simulatedPing);
+        s.set("simulated-jitter", simulatedJitter);
         s.set("bedwars.star", bwStar);
         s.set("bedwars.exp", bwExp);
         s.set("bedwars.coins", bwCoins);
@@ -117,6 +120,7 @@ public final class ProfileData {
         lobbyNumber = s.getInt("lobby-number", lobbyNumber);
         playersHidden = s.getBoolean("players-hidden", false);
         simulatedPing = Math.max(0, Math.min(1000, s.getInt("simulated-ping", simulatedPing)));
+        simulatedJitter = Math.max(0, Math.min(500, s.getInt("simulated-jitter", simulatedJitter)));
         bwStar = s.getInt("bedwars.star", bwStar);
         bwExp = s.getInt("bedwars.exp", bwExp);
         bwCoins = s.getInt("bedwars.coins", bwCoins);
