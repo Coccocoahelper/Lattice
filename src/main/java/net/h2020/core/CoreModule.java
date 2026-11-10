@@ -72,7 +72,8 @@ public final class CoreModule implements Module {
         H2020.register(GameManager.class, core.games);
 
         injector = new PacketInjector(plugin.getLogger());
-        core.ping = new PingSimulator(core, plugin.getLogger());
+        core.ping = new PingSimulator(core, plugin.getLogger(),
+                plugin.getConfig().getBoolean("core.simulated-ping", false));
         // order matters within a priority: profiles/scoreboards first so the lobby can use them on join
         register(plugin, injector);
         register(plugin, core.ping);

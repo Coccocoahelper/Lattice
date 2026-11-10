@@ -38,7 +38,9 @@ import java.util.regex.Pattern;
 /** /h2020 — admin and video tools. */
 public final class AdminCommand implements TabExecutor {
     private static final Pattern DATE = Pattern.compile("\\d{2}/\\d{2}/\\d{2}");
-    private static final List<String> SUBS = Arrays.asList("games", "create", "start", "fill", "bots", "watch", "end", "train", "replay", "reload", "date", "edit", "maptag", "tags", "mapimportdir",
+    private static final String[] TEAMSHIFT_KEYS = {"spawn", "bed", "generator", "shop", "upgrades", "base"};
+    private static final String TEAM_COLOURS = "red, blue, green, yellow, aqua, white, pink, gray";
+    private static final List<String> SUBS = Arrays.asList("games", "create", "start", "fill", "bots", "watch", "end", "train", "replay", "reload", "date", "edit", "maptag", "teamshift", "tags", "mapimportdir",
             "rank", "level", "build", "setspawn", "npc", "cheaters", "fillspeed", "background", "npcprobe", "ping", "pingselftest", "settingsprobe");
     private final Core core;
 
@@ -206,14 +208,35 @@ public final class AdminCommand implements TabExecutor {
                 return true;
             }
             case "ping": {
-                // /h2020 ping <player> [ms] [jitter] -- inspect or set the simulated latency of a real client
-                if (a.length < 2) { s.sendMessage(r("/h2020 ping <player> [ms] [jitter] | /h2020 ping off")); return true; }
+                // /h2020 ping [status|enable|disable|off] | /h2020 ping <player> [ms] [jitter]
+                if (a.length < 2 || a[1].equalsIgnoreCase("status")) {
+                    s.sendMessage(core.ping.enabled()
+                            ? g("simulated ping is enabled (config core.simulated-ping)")
+                            : r("simulated ping is disabled (config core.simulated-ping)"));
+                    return true;
+                }
+                if (a[1].equalsIgnoreCase("enable") || a[1].equalsIgnoreCase("disable")) {
+                    boolean on = a[1].equalsIgnoreCase("enable");
+                    core.ping.setEnabled(on);
+                    if (on) s.sendMessage(g("simulated ping is enabled (config core.simulated-ping)"));
+                    else s.sendMessage(g("simulated ping is disabled (config core.simulated-ping); handlers removed from all online players"));
+                    return true;
+                }
                 if (a[1].equalsIgnoreCase("off")) {
                     if (!(s instanceof Player)) { s.sendMessage(r("A player must run /h2020 ping off.")); return true; }
                     Player p = (Player) s;
-                    core.ping.set(p, 0);
-                    s.sendMessage(g("Simulated ping disabled for " + p.getName() + " (handler "
-                            + (core.ping.installed(p) ? "installed" : "removed") + ")."));
+                    core.ping.clear(p.getUniqueId());
+                    try {
+                        net.h2020.core.profile.ProfileData data = core.profiles.data(p);
+                        data.simulatedPing = 0;
+                        data.simulatedJitter = 0;
+                    } catch (Throwable ignored) {}
+                    core.ping.remove(p);
+                    s.sendMessage(g("Simulated ping cleared for " + p.getName() + " (handler removed)."));
+                    return true;
+                }
+                if (!core.ping.enabled()) {
+                    s.sendMessage(r("simulated ping is disabled - run /h2020 ping enable first"));
                     return true;
                 }
                 Player t = Bukkit.getPlayerExact(a[1]);
@@ -335,6 +358,27 @@ public final class AdminCommand implements TabExecutor {
                             + mode + " with " + kit + " setup item(s), flying=" + flying + ", left=" + left));
                     return true;
                 }
+                if (a.length >= 4 && a[2].equalsIgnoreCase("holotest")) {
+                    // headless proof: enter the editor, count the ArmorStands it put in the world, leave again
+                    Player who = Bukkit.getPlayerExact(a[3]);
+                    if (who == null) { s.sendMessage(r("No player " + a[3])); return true; }
+                    String err = ed.open(who, a[1]);
+                    if (err != null) { s.sendMessage(r(err)); return true; }
+                    org.bukkit.World w = who.getWorld();
+                    int stands = 0;
+                    StringBuilder names = new StringBuilder();
+                    if (w != null) for (org.bukkit.entity.Entity en : w.getEntities()) {
+                        if (!(en instanceof org.bukkit.entity.ArmorStand)) continue;
+                        org.bukkit.entity.ArmorStand as = (org.bukkit.entity.ArmorStand) en;
+                        if (!as.isVisible() && as.getCustomName() != null && as.isCustomNameVisible()) {
+                            stands++;
+                            if (names.length() < 160) names.append(as.getCustomName().replace('\u00a7', '&')).append(" | ");
+                        }
+                    }
+                    ed.leave(who);
+                    s.sendMessage(g("holotest " + a[1] + ": " + stands + " hologram(s): " + names));
+                    return true;
+                }
                 if (a.length >= 6 && a[2].equalsIgnoreCase("picktest")) {
                     // what the wand would write for a click on that block, without touching the map
                     org.bukkit.World w = Bukkit.getWorlds().get(0);
@@ -379,6 +423,157 @@ public final class AdminCommand implements TabExecutor {
                         + at.getBlockY() + "," + at.getBlockZ() + " (maps reloaded)")
                         : r("Could not write map.yml for " + a[1] + " at " + dir.getAbsolutePath()
                         + " (dir=" + dir.isDirectory() + ", map.yml=" + new java.io.File(dir, "map.yml").isFile() + ")"));
+                return true;
+            }
+            case "teamshift": {
+                // /lattice teamshift <map> swap|rotate|offset ... - move existing team point sets between colours
+                if (a.length < 3) {
+                    s.sendMessage(r("/lattice teamshift <map> swap <colourA> <colourB> | rotate <1-7> | offset <colour> <dx> <dy> <dz>"));
+                    return true;
+                }
+                net.h2020.api.map.MapService ms = H2020.find(net.h2020.api.map.MapService.class);
+                if (!(ms instanceof net.h2020.maps.MapServiceImpl)) { s.sendMessage(r("No map service")); return true; }
+                net.h2020.maps.MapEditService ed = ((net.h2020.maps.MapServiceImpl) ms).editor();
+                if (ed != null && ed.inSession(a[1])) {
+                    s.sendMessage(r("The editor for " + a[1] + " is open - close it before shifting team points."));
+                    return true;
+                }
+                net.h2020.api.map.MapTemplate t = ms.byName(a[1]);
+                if (t == null) { s.sendMessage(r("No map " + a[1])); return true; }
+                java.io.File dir = ms.folderOf(a[1]);
+                if (dir == null || !dir.isDirectory()) { s.sendMessage(r("No map folder for " + a[1])); return true; }
+                String mode = a[2].toLowerCase(java.util.Locale.ROOT);
+
+                if (mode.equals("swap")) {
+                    if (a.length < 5) {
+                        s.sendMessage(r("/lattice teamshift <map> swap <colourA> <colourB>"));
+                        return true;
+                    }
+                    net.h2020.api.game.TeamColor ca = teamColor(a[3]);
+                    net.h2020.api.game.TeamColor cb = teamColor(a[4]);
+                    if (ca == null || cb == null) {
+                        s.sendMessage(r("Unknown colour. Colours: " + TEAM_COLOURS));
+                        return true;
+                    }
+                    if (ca == cb) { s.sendMessage(r("Pick two different colours.")); return true; }
+                    List<net.h2020.api.game.TeamColor> present = existingTeams(t);
+                    if (!present.contains(ca) || !present.contains(cb)) {
+                        s.sendMessage(r("Both colours must exist on " + t.name() + " - "
+                                + ca.name().toLowerCase(java.util.Locale.ROOT) + " and "
+                                + cb.name().toLowerCase(java.util.Locale.ROOT) + " are not both set."));
+                        return true;
+                    }
+                    java.util.Map<String, List<org.bukkit.Location>> aa =
+                            new java.util.LinkedHashMap<String, List<org.bukkit.Location>>();
+                    java.util.Map<String, List<org.bukkit.Location>> bb =
+                            new java.util.LinkedHashMap<String, List<org.bukkit.Location>>();
+                    for (String k : TEAMSHIFT_KEYS) {
+                        aa.put(k, teamPoints(t, ca, k));
+                        bb.put(k, teamPoints(t, cb, k));
+                    }
+                    int moved = 0;
+                    boolean ok = true;
+                    for (String k : TEAMSHIFT_KEYS) {
+                        if (!writeTeamPoints(dir, ca, k, bb.get(k))
+                                || !writeTeamPoints(dir, cb, k, aa.get(k))) { ok = false; break; }
+                        if (!aa.get(k).isEmpty()) moved++;
+                        if (!bb.get(k).isEmpty()) moved++;
+                    }
+                    if (!ok) {
+                        s.sendMessage(r("Could not write the swapped team points into " + a[1] + "'s map.yml."));
+                        return true;
+                    }
+                    ms.reload();
+                    s.sendMessage(g("teamshift " + t.name() + ": swapped "
+                            + ca.name().toLowerCase(java.util.Locale.ROOT) + " and "
+                            + cb.name().toLowerCase(java.util.Locale.ROOT) + ", " + moved + " key(s) moved."));
+                    return true;
+                }
+
+                if (mode.equals("rotate")) {
+                    if (a.length < 4) {
+                        s.sendMessage(r("/lattice teamshift <map> rotate <1-7>"));
+                        return true;
+                    }
+                    int n = parseInt(a[3], -1);
+                    if (n < 1 || n > 7) {
+                        s.sendMessage(r("rotate needs a number from 1 to 7."));
+                        return true;
+                    }
+                    List<net.h2020.api.game.TeamColor> teams = existingTeams(t);
+                    if (teams.size() < 2) {
+                        s.sendMessage(r("No team points to rotate on " + t.name() + "."));
+                        return true;
+                    }
+                    java.util.Map<String, List<org.bukkit.Location>> old =
+                            new java.util.LinkedHashMap<String, List<org.bukkit.Location>>();
+                    for (net.h2020.api.game.TeamColor c : teams)
+                        for (String k : TEAMSHIFT_KEYS) old.put(teamKey(c, k), teamPoints(t, c, k));
+                    int moved = 0;
+                    boolean ok = true;
+                    for (int i = 0; i < teams.size() && ok; i++) {
+                        net.h2020.api.game.TeamColor target = teams.get(i);
+                        net.h2020.api.game.TeamColor source = teams.get((i + n) % teams.size());
+                        for (String k : TEAMSHIFT_KEYS) {
+                            List<org.bukkit.Location> pts = old.get(teamKey(source, k));
+                            if (!writeTeamPoints(dir, target, k, pts)) { ok = false; break; }
+                            if (!pts.isEmpty()) moved++;
+                        }
+                    }
+                    if (!ok) {
+                        s.sendMessage(r("Could not write the rotated team points into " + a[1] + "'s map.yml."));
+                        return true;
+                    }
+                    ms.reload();
+                    s.sendMessage(g("teamshift " + t.name() + ": rotated " + n + " position(s) through "
+                            + teams.size() + " team(s), " + moved + " key(s) moved."));
+                    return true;
+                }
+
+                if (mode.equals("offset")) {
+                    if (a.length < 7) {
+                        s.sendMessage(r("/lattice teamshift <map> offset <colour> <dx> <dy> <dz>"));
+                        return true;
+                    }
+                    net.h2020.api.game.TeamColor c = teamColor(a[3]);
+                    if (c == null) { s.sendMessage(r("Unknown colour. Colours: " + TEAM_COLOURS)); return true; }
+                    double dx = parseDouble(a[4], Double.NaN);
+                    double dy = parseDouble(a[5], Double.NaN);
+                    double dz = parseDouble(a[6], Double.NaN);
+                    if (Double.isNaN(dx) || Double.isNaN(dy) || Double.isNaN(dz)
+                            || Double.isInfinite(dx) || Double.isInfinite(dy) || Double.isInfinite(dz)) {
+                        s.sendMessage(r("Offsets must be numbers (dy may be negative)."));
+                        return true;
+                    }
+                    int moved = 0;
+                    boolean ok = true;
+                    for (String k : TEAMSHIFT_KEYS) {
+                        List<org.bukkit.Location> pts = teamPoints(t, c, k);
+                        if (pts.isEmpty()) continue;
+                        List<org.bukkit.Location> shifted = new ArrayList<org.bukkit.Location>();
+                        for (org.bukkit.Location l : pts)
+                            shifted.add(new org.bukkit.Location(l.getWorld(), l.getX() + dx, l.getY() + dy,
+                                    l.getZ() + dz, l.getYaw(), l.getPitch()));
+                        if (!writeTeamPoints(dir, c, k, shifted)) { ok = false; break; }
+                        moved++;
+                    }
+                    if (!ok) {
+                        s.sendMessage(r("Could not write the offset team points into " + a[1] + "'s map.yml."));
+                        return true;
+                    }
+                    if (moved == 0) {
+                        s.sendMessage(r("No team." + c.name().toLowerCase(java.util.Locale.ROOT)
+                                + ".* points on " + t.name() + "."));
+                        return true;
+                    }
+                    ms.reload();
+                    s.sendMessage(g("teamshift " + t.name() + ": offset "
+                            + c.name().toLowerCase(java.util.Locale.ROOT) + " by " + dx + ", " + dy + ", " + dz
+                            + ", " + moved + " key(s) moved."));
+                    return true;
+                }
+
+                s.sendMessage(r("/lattice teamshift <map> swap <colourA> <colourB> | rotate <1-7> | offset <colour> <dx> <dy> <dz>"));
                 return true;
             }
             case "testdeposit": {
@@ -1007,6 +1202,58 @@ public final class AdminCommand implements TabExecutor {
         return null;
     }
 
+    private static net.h2020.api.game.TeamColor teamColor(String raw) {
+        if (raw == null) return null;
+        for (net.h2020.api.game.TeamColor c : net.h2020.api.game.TeamColor.values())
+            if (c.name().equalsIgnoreCase(raw)) return c;
+        return null;
+    }
+
+    private static String teamKey(net.h2020.api.game.TeamColor c, String suffix) {
+        return "team." + c.name().toLowerCase(java.util.Locale.ROOT) + "." + suffix;
+    }
+
+    /** Every colour that actually has at least one team point on this map, in the canonical team order. */
+    private static List<net.h2020.api.game.TeamColor> existingTeams(MapTemplate t) {
+        List<net.h2020.api.game.TeamColor> out = new ArrayList<net.h2020.api.game.TeamColor>();
+        if (t == null) return out;
+        for (net.h2020.api.game.TeamColor c : net.h2020.api.game.TeamColor.values()) {
+            for (String k : TEAMSHIFT_KEYS) {
+                if (!t.points(teamKey(c, k)).isEmpty()) { out.add(c); break; }
+            }
+        }
+        return out;
+    }
+
+    /** One team key as Locations (yaw preserved), ready for MapEditor's point writer. */
+    private static List<org.bukkit.Location> teamPoints(MapTemplate t, net.h2020.api.game.TeamColor c, String suffix) {
+        List<org.bukkit.Location> out = new ArrayList<org.bukkit.Location>();
+        if (t == null) return out;
+        String key = teamKey(c, suffix);
+        List<org.bukkit.util.Vector> pts = t.points(key);
+        if (pts == null) return out;
+        World w = Bukkit.getWorlds().isEmpty() ? null : Bukkit.getWorlds().get(0);
+        for (int i = 0; i < pts.size(); i++) {
+            org.bukkit.util.Vector v = pts.get(i);
+            out.add(new org.bukkit.Location(w, v.getX(), v.getY(), v.getZ(), t.yaw(key, i), 0f));
+        }
+        return out;
+    }
+
+    /**
+     * Replace one team point set through MapEditor: clear the old entries, then append the new ones. Appending is the
+     * only writer that copes with a source set having a different number of points (a bed is two, a spawn one).
+     */
+    private static boolean writeTeamPoints(java.io.File dir, net.h2020.api.game.TeamColor c, String suffix,
+                                           List<org.bukkit.Location> pts) {
+        String key = teamKey(c, suffix);
+        while (net.h2020.maps.MapEditor.removePoint(dir, key, 0)) { }
+        for (org.bukkit.Location l : pts) {
+            if (!net.h2020.maps.MapEditor.writePoint(dir, key, l, false, -2)) return false;
+        }
+        return true;
+    }
+
     @Override
     public List<String> onTabComplete(CommandSender s, Command cmd, String label, String[] a) {
         List<String> out = new ArrayList<>();
@@ -1023,6 +1270,13 @@ public final class AdminCommand implements TabExecutor {
                 } else if (a.length == 3) {
                     java.util.Collections.addAll(out, net.h2020.maps.MapEditor.keys());
                 } else out.add("head");
+                return out;
+            }
+            if (sub.equals("teamshift")) {
+                net.h2020.api.map.MapService ms = H2020.find(net.h2020.api.map.MapService.class);
+                if (ms != null) for (net.h2020.api.game.GameFamily f : net.h2020.api.game.GameFamily.values())
+                    for (net.h2020.api.map.MapTemplate t : ms.templates(f))
+                        if (!out.contains(t.name())) out.add(t.name());
                 return out;
             }
             if (sub.equals("create") || sub.equals("fill")) {
@@ -1042,13 +1296,29 @@ public final class AdminCommand implements TabExecutor {
             } else if (sub.equals("rank") || sub.equals("level")) {
                 for (Player p : Bukkit.getOnlinePlayers()) if (p.getName().toLowerCase().startsWith(a[1].toLowerCase())) out.add(p.getName());
             } else if (sub.equals("ping")) {
-                if ("off".startsWith(a[1].toLowerCase())) out.add("off");
+                for (String c : new String[]{"off", "status", "enable", "disable"})
+                    if (c.startsWith(a[1].toLowerCase())) out.add(c);
                 for (Player p : Bukkit.getOnlinePlayers()) if (p.getName().toLowerCase().startsWith(a[1].toLowerCase())) out.add(p.getName());
             }
         } else if (a.length == 3 && a[0].equalsIgnoreCase("rank")) {
             for (Rank rk : Rank.values()) if (rk.name().toLowerCase().startsWith(a[2].toLowerCase())) out.add(rk.name());
         } else if (a.length == 3 && a[0].equalsIgnoreCase("ping")) {
             for (String ms : new String[]{"0", "50", "100", "150", "200", "300", "500"}) if (ms.startsWith(a[2])) out.add(ms);
+        } else if (a.length >= 3 && a[0].equalsIgnoreCase("teamshift")) {
+            String mode = a[2].toLowerCase();
+            if (a.length == 3) {
+                for (String c : new String[]{"swap", "rotate", "offset"}) if (c.startsWith(mode)) out.add(c);
+            } else if (a.length == 4) {
+                if (mode.equals("rotate")) {
+                    for (int i = 1; i <= 7; i++) out.add(String.valueOf(i));
+                } else {
+                    for (net.h2020.api.game.TeamColor c : net.h2020.api.game.TeamColor.values())
+                        out.add(c.name().toLowerCase(java.util.Locale.ROOT));
+                }
+            } else if (a.length == 5 && mode.equals("swap")) {
+                for (net.h2020.api.game.TeamColor c : net.h2020.api.game.TeamColor.values())
+                    out.add(c.name().toLowerCase(java.util.Locale.ROOT));
+            }
         }
         return out;
     }

@@ -61,6 +61,11 @@ core:
 
   # Players joining from this machine (localhost) are made op automatically, so you can use /h2020 right away.
   op-local-players: true
+
+  # Simulated client latency (/settings). Off by default: it misbehaves under real play. Admin toggle:
+  # /lattice ping enable|disable
+  simulated-ping: false
+
 # Bots module. Everything here is also editable in game with /bot settings (same values, saved back here).
 bots:
   # Average skill of newly spawned bots, 0 (complete beginner) .. 1 (sweat).

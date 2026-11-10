@@ -67,6 +67,24 @@ public final class MapEditor {
         try { y.save(f); return true; } catch (IOException e) { return false; }
     }
 
+    /**
+     * Replace a key with exactly two points: a base box is two opposite corners, not a bed whose head is derived from
+     * the foot's yaw, so it cannot go through writePoint's second-point path.
+     */
+    public static boolean setPair(File mapDir, String key, Location first, Location second) {
+        if (mapDir == null || !mapDir.isDirectory()) return false;
+        File f = new File(mapDir, MapFiles.MAP_YML);
+        if (!f.isFile()) return false;
+        YamlConfiguration y = new YamlConfiguration();
+        y.options().pathSeparator('/');
+        try { y.load(f); } catch (Exception e) { return false; }
+        List<Map<String, Object>> list = new ArrayList<Map<String, Object>>();
+        list.add(point(first));
+        list.add(point(second));
+        y.set("points/" + key, list);
+        try { y.save(f); return true; } catch (IOException e) { return false; }
+    }
+
     private static Map<String, Object> point(Location l) {
         Map<String, Object> m = new LinkedHashMap<String, Object>();
         m.put("x", num(l.getX()));

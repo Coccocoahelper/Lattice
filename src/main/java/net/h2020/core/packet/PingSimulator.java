@@ -9,6 +9,7 @@ import net.h2020.core.CoreUtil;
 import net.h2020.core.profile.ProfileData;
 import net.minecraft.server.v1_8_R3.PacketPlayInKeepAlive;
 import net.minecraft.server.v1_8_R3.PacketPlayOutKeepAlive;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -35,24 +36,38 @@ public final class PingSimulator implements Listener {
 
     private final Core core;
     private final Logger log;
+    private volatile boolean enabled;
     private final Map<UUID, Integer> delays = new ConcurrentHashMap<UUID, Integer>();
     private final Map<UUID, Integer> jitters = new ConcurrentHashMap<UUID, Integer>();
 
-    public PingSimulator(Core core, Logger log) {
+    public PingSimulator(Core core, Logger log, boolean enabled) {
         this.core = core;
         this.log = log;
+        this.enabled = enabled;
+    }
+
+    /** Whether the simulator may install handlers and apply latency at all. */
+    public boolean enabled() { return enabled; }
+
+    /** Turn the simulator on or off; turning it off tears down every installed handler immediately. */
+    public void setEnabled(boolean on) {
+        this.enabled = on;
+        if (!enabled) for (Player p : Bukkit.getOnlinePlayers()) remove(p);
     }
 
     /** Set the delay, save it on the profile, and reinstall the channel handler immediately. */
-    public void set(Player p, int ms) {
+    public boolean set(Player p, int ms) {
+        if (!enabled) return false;
         int value = clamp(ms);
         set(p.getUniqueId(), value);
         try { core.profiles.data(p).simulatedPing = value; } catch (Throwable ignored) {}
         apply(p);
+        return true;
     }
 
     /** Set both the base delay and the variability, save them, and reinstall the handler. */
-    public void set(Player p, int ms, int jitter) {
+    public boolean set(Player p, int ms, int jitter) {
+        if (!enabled) return false;
         int value = clamp(ms);
         int jitterValue = clampJitter(jitter);
         set(p.getUniqueId(), value, jitterValue);
@@ -62,6 +77,7 @@ public final class PingSimulator implements Listener {
             data.simulatedJitter = jitterValue;
         } catch (Throwable ignored) {}
         apply(p);
+        return true;
     }
 
     /** The per-player setting, clamped to 0..1000. */
@@ -93,6 +109,7 @@ public final class PingSimulator implements Listener {
     }
 
     public void apply(final Player p) {
+        if (!enabled) { remove(p); return; }
         // A bot's "channel" is an embedded stub that carries no traffic, so installing here would only make the
         // probe claim a delay that never happens. Bots have their own latency model instead.
         if (CoreUtil.isBot(p)) { remove(p); return; }
@@ -131,7 +148,7 @@ public final class PingSimulator implements Listener {
             ProfileData data = core.profiles.data(p);
             set(p.getUniqueId(), data.simulatedPing, data.simulatedJitter);
         } catch (Throwable ignored) {}
-        apply(p);
+        if (enabled) apply(p);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

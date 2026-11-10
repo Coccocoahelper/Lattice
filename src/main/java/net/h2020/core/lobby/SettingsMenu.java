@@ -30,22 +30,31 @@ public final class SettingsMenu {
         UUID id = p.getUniqueId();
         int ping = core.ping.delay(id);
         int jitter = core.ping.jitter(id);
+        boolean pingEnabled = core.ping.enabled();
 
-        m.set(4, new ItemBuilder(Material.WATCH).name(ChatColor.GREEN + "Connection")
+        ItemBuilder connection = new ItemBuilder(pingEnabled ? Material.WATCH : Material.BARRIER)
+                .name(ChatColor.GREEN + "Connection")
                 .lore(ChatColor.GRAY + "Base ping: " + ChatColor.WHITE + label(ping),
                         ChatColor.GRAY + "Variability: " + ChatColor.WHITE + jitter + " ms",
-                        ChatColor.GRAY + "Applies to your real client connection.").build());
+                        ChatColor.GRAY + "Applies to your real client connection.");
+        if (!pingEnabled) connection.lore(ChatColor.RED + "Disabled on this server");
+        m.set(4, connection.build());
 
         ItemBuilder pingItem = new ItemBuilder(Material.WATCH)
                 .name(ChatColor.GREEN + "Ping: " + ChatColor.WHITE + label(ping))
-                .lore(ChatColor.GRAY + "Current: " + ChatColor.WHITE + label(ping), "",
-                        ChatColor.YELLOW + "Left-click: +5 ms",
-                        ChatColor.YELLOW + "Right-click: -5 ms",
-                        ChatColor.YELLOW + "Shift-left: +5 ms variability",
-                        ChatColor.YELLOW + "Shift-right: -5 ms variability");
-        if (ping > 0) pingItem.glow();
+                .lore(ChatColor.GRAY + "Current: " + ChatColor.WHITE + label(ping), "");
+        if (pingEnabled) {
+            pingItem.lore(ChatColor.YELLOW + "Left-click: +5 ms",
+                    ChatColor.YELLOW + "Right-click: -5 ms",
+                    ChatColor.YELLOW + "Shift-left: +5 ms variability",
+                    ChatColor.YELLOW + "Shift-right: -5 ms variability");
+            if (ping > 0) pingItem.glow();
+        } else {
+            pingItem.lore(ChatColor.RED + "Simulated ping is disabled on this server.");
+        }
         m.set(11, pingItem.hideAll().build(), new Menu.Click() {
             @Override public void click(Player pl, ClickType type) {
+                if (!core.ping.enabled()) return;
                 int currentPing = core.ping.delay(pl.getUniqueId());
                 int currentJitter = core.ping.jitter(pl.getUniqueId());
                 if (type == ClickType.LEFT) currentPing = Math.min(MAX_PING, currentPing + STEP);
@@ -58,17 +67,22 @@ public final class SettingsMenu {
             }
         });
 
-        m.set(15, new ItemBuilder(Material.REDSTONE_COMPARATOR)
-                .name(ChatColor.GREEN + "Variability: " + ChatColor.WHITE + jitter + " ms")
-                .lore(ChatColor.GRAY + "Each packet is held for the base ping",
-                        ChatColor.GRAY + "plus or minus this much, chosen at",
-                        ChatColor.GRAY + "random for every packet.",
-                        "",
-                        ChatColor.GRAY + "Shift-click the ping item to change it.",
-                        "",
-                        ChatColor.GRAY + "In practice: " + ChatColor.WHITE + practice(ping, jitter))
-                .hideAll().build(), new Menu.Click() {
+        ItemBuilder jitterItem = new ItemBuilder(Material.REDSTONE_COMPARATOR)
+                .name(ChatColor.GREEN + "Variability: " + ChatColor.WHITE + jitter + " ms");
+        if (pingEnabled) {
+            jitterItem.lore(ChatColor.GRAY + "Each packet is held for the base ping",
+                    ChatColor.GRAY + "plus or minus this much, chosen at",
+                    ChatColor.GRAY + "random for every packet.",
+                    "",
+                    ChatColor.GRAY + "Shift-click the ping item to change it.",
+                    "",
+                    ChatColor.GRAY + "In practice: " + ChatColor.WHITE + practice(ping, jitter));
+        } else {
+            jitterItem.lore(ChatColor.RED + "Simulated ping is disabled on this server.");
+        }
+        m.set(15, jitterItem.hideAll().build(), new Menu.Click() {
             @Override public void click(Player pl, ClickType type) {
+                if (!core.ping.enabled()) return;
                 core.ping.set(pl, core.ping.delay(pl.getUniqueId()), core.ping.jitter(pl.getUniqueId()));
                 pl.playSound(pl.getLocation(), Sound.CLICK, 1f, 1f);
                 open(pl);

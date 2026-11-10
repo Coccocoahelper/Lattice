@@ -10,6 +10,8 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -22,6 +24,7 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
+import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -62,6 +65,10 @@ public final class MapEditService implements Listener {
         String armed;
         boolean armedBed;
         int armedIndex = -1;      // -2 append a new generator, >=0 replace that one, -1 replace the first
+        /** Fast setup: the point keys still to set. Empty means the wizard is not running. */
+        List<String> queue = new ArrayList<String>();
+        String queueTeam;
+        boolean holograms = true;
 
         Session(UUID player, String map, File dir, World world, String worldName) {
             this.player = player;
@@ -93,6 +100,8 @@ public final class MapEditService implements Listener {
     private final Map<UUID, Session> sessions = new HashMap<UUID, Session>();
     /** slot -> action, rebuilt with every menu so a stale inventory cannot fire an old action. */
     private final Map<UUID, Map<Integer, String>> actions = new HashMap<UUID, Map<Integer, String>>();
+    /** Floating point labels spawned for each session. */
+    private final Map<UUID, List<ArmorStand>> holograms = new HashMap<UUID, List<ArmorStand>>();
 
     public MapEditService(JavaPlugin plugin, MapServiceImpl service) {
         this.plugin = plugin;
@@ -107,6 +116,13 @@ public final class MapEditService implements Listener {
     }
 
     public boolean inSession(Player p) { return sessions.containsKey(p.getUniqueId()); }
+
+    /** True while anybody is editing this map: setup commands must not write under an open editor. */
+    public boolean inSession(String map) {
+        if (map == null) return false;
+        for (Session s : sessions.values()) if (map.equalsIgnoreCase(s.map)) return true;
+        return false;
+    }
 
     // ===================================================================================== open / close
 
@@ -151,6 +167,7 @@ public final class MapEditService implements Listener {
         p.getInventory().setItem(8, item(Material.COMPASS, ChatColor.RED + "Exit editor",
                 ChatColor.GRAY + "Right-click to leave; nothing is lost."));
         p.updateInventory();
+        spawnHolograms(s);
         p.sendMessage(ChatColor.AQUA + "Editing " + ChatColor.WHITE + st.name + ChatColor.AQUA
                 + ". Right-click the book for the menu, arm a point, then left-click the block with the wand.");
         return null;
@@ -166,6 +183,9 @@ public final class MapEditService implements Listener {
 
     /** Leave the editor and drop the private world. */
     public void close(Session s, boolean teleportOut) {
+        clearHolograms(s);
+        s.queue.clear();
+        s.queueTeam = null;
         sessions.remove(s.player);
         actions.remove(s.player);
         Player p = Bukkit.getPlayer(s.player);
@@ -194,10 +214,19 @@ public final class MapEditService implements Listener {
 
     /** page 0 = overview, 1..n = team pages, then generators, lobby, limits. */
     public Inventory menu(Player p, Session s, int page, String team) {
+        // opening the book again is the escape hatch from the fast setup wizard
+        s.queue.clear();
+        s.queueTeam = null;
         return menu(p.getUniqueId(), s, page, team, p.getName());
     }
 
     public Inventory menu(UUID owner, Session s, int page, String team, String who) {
+        boolean teamChanged = team != null && !team.equals(s.team);
+        if (teamChanged) {
+            // a half-finished wizard belongs to the old team
+            s.queue.clear();
+            s.queueTeam = null;
+        }
         s.page = page;
         if (team != null) s.team = team;
         MapTemplate t = template(s);
@@ -222,6 +251,11 @@ public final class MapEditService implements Listener {
             inv.setItem(22, item(Material.COMPASS, ChatColor.RED + "Leave the editor",
                     ChatColor.GRAY + "Every change is already saved."));
             act.put(22, "exit");
+            inv.setItem(24, item(Material.NAME_TAG, ChatColor.AQUA + "Holograms: "
+                            + (s.holograms ? "on" : "off"),
+                    ChatColor.GRAY + "Floating labels at every point already set.",
+                    ChatColor.YELLOW + "Click to toggle"));
+            act.put(24, "holograms");
         } else if (page == 1) {
             int slot = 10;
             for (int i = 0; i < TEAM_DYE.length; i++) {
@@ -248,6 +282,13 @@ public final class MapEditService implements Listener {
             point(inv, act, 14, Material.DIAMOND, "Upgrades NPC / villager", "team." + c + ".upgrades", t, false);
             point(inv, act, 15, Material.GOLD_BLOCK, "Base corner 1", "team." + c + ".base", t, false);
             point(inv, act, 16, Material.GOLD_BLOCK, "Base corner 2", "team." + c + ".base", t, true);
+            ItemStack fast = item(Material.NETHER_STAR, ChatColor.YELLOW + "Fast setup",
+                    ChatColor.GRAY + "Walk spawn, bed, shop, upgrades, generator,",
+                    ChatColor.GRAY + "then the base box is derived automatically.",
+                    ChatColor.YELLOW + "Click to start the wizard");
+            if (!s.queue.isEmpty() && c.equals(s.queueTeam)) fast = glow(fast);
+            inv.setItem(20, fast);
+            act.put(20, "fastsetup");
             inv.setItem(22, item(Material.ARROW, ChatColor.GRAY + "Back"));
             act.put(22, "page:1");
             inv.setItem(26, item(Material.COMPASS, ChatColor.RED + "Leave the editor"));
@@ -301,6 +342,7 @@ public final class MapEditService implements Listener {
         }
         Holder h = (Holder) inv.getHolder();
         h.inventory = inv;
+        if (teamChanged) spawnHolograms(s);
         return inv;
     }
 
@@ -356,7 +398,7 @@ public final class MapEditService implements Listener {
 
         if (e.getAction() == Action.LEFT_CLICK_BLOCK && type == Material.BLAZE_ROD) {
             e.setCancelled(true);
-            if (s.armed == null) {
+            if (s.armed == null && s.queue.isEmpty()) {
                 e.getPlayer().sendMessage(ChatColor.RED + "Nothing armed - open the book and pick a point first.");
                 return;
             }
@@ -390,6 +432,29 @@ public final class MapEditService implements Listener {
         if (a == null) return;
 
         if (a.equals("exit")) { p.closeInventory(); close(s, true); return; }
+        if (a.equals("fastsetup")) {
+            String c = s.team;
+            s.queue.clear();
+            s.queue.add("team." + c + ".spawn");
+            s.queue.add("team." + c + ".bed");
+            s.queue.add("team." + c + ".shop");
+            s.queue.add("team." + c + ".upgrades");
+            s.queue.add("team." + c + ".generator");
+            s.queueTeam = c;
+            s.armed = null;
+            s.armedBed = false;
+            s.armedIndex = -1;
+            p.closeInventory();
+            p.sendMessage(ChatColor.AQUA + "Fast setup for " + capitalise(c)
+                    + ": left-click the SPAWN block with the wand (1/5)");
+            return;
+        }
+        if (a.equals("holograms")) {
+            s.holograms = !s.holograms;
+            if (s.holograms) spawnHolograms(s); else clearHolograms(s);
+            p.openInventory(menu(p, s, s.page, null));
+            return;
+        }
         if (a.startsWith("page:")) { p.openInventory(menu(p, s, Integer.parseInt(a.substring(5)), null)); return; }
         if (a.startsWith("team:")) { p.openInventory(menu(p, s, 2, a.substring(5))); return; }
         if (a.equals("limit")) {
@@ -416,6 +481,7 @@ public final class MapEditService implements Listener {
                 String gen = key.substring(key.indexOf(':') + 1);
                 MapEditor.removePoint(s.dir, gen, idx);
                 service.reload();
+                spawnHolograms(s);
                 p.sendMessage(ChatColor.GREEN + "Removed " + gen + " " + (idx + 1) + ".");
                 p.openInventory(menu(p, s, 9, null));
                 return;
@@ -461,22 +527,108 @@ public final class MapEditService implements Listener {
     // ===================================================================================== writing
 
     /** The wand landed: write the armed point at that block. */
-    private void apply(Player p, Session s, Block block) {
-        boolean ok = write(s, s.armed, s.armedBed, null, block);
+    private boolean apply(Player p, Session s, Block block) {
+        boolean queued = !s.queue.isEmpty();
+        if (queued) {
+            // the wizard walks its own queue: the head is the key, and the bed needs its bed handling
+            s.armed = s.queue.get(0);
+            s.armedBed = s.armed.endsWith(".bed");
+            s.armedIndex = -1;
+        }
+        String key = s.armed;
+        if (key == null) return false;
+        boolean ok = write(s, key, s.armedBed, null, block);
         if (ok) {
-            p.sendMessage(ChatColor.GREEN + "Set " + s.armed + " to " + block.getX() + "," + block.getY() + ","
+            p.sendMessage(ChatColor.GREEN + "Set " + key + " to " + block.getX() + "," + block.getY() + ","
                     + block.getZ() + " on " + s.map + ChatColor.DARK_GRAY + " (map.yml written)");
         } else {
-            p.sendMessage(ChatColor.RED + "Could not write " + s.armed + " into map.yml.");
+            p.sendMessage(ChatColor.RED + "Could not write " + key + " into map.yml.");
         }
         s.armed = null;
         s.armedBed = false;
         s.armedIndex = -1;
+        if (ok && queued) {
+            s.queue.remove(0);
+            if (!s.queue.isEmpty()) {
+                String next = s.queue.get(0);
+                int step = 6 - s.queue.size();
+                p.sendMessage(ChatColor.AQUA + "Fast setup for " + capitalise(s.queueTeam == null ? s.team : s.queueTeam)
+                        + ": left-click the " + stepName(next) + " block with the wand (" + step + "/5)");
+            } else {
+                finishFastSetup(p, s);
+            }
+        }
+        return ok;
+    }
+
+    /** The wizard's five points are in: derive and write the team's base box, then announce the result. */
+    private void finishFastSetup(Player p, Session s) {
+        String c = s.queueTeam == null ? s.team : s.queueTeam;
+        MapTemplate t = template(s);
+        List<Vector> pts = new ArrayList<Vector>();
+        addPoint(pts, t, "team." + c + ".spawn");
+        addPoint(pts, t, "team." + c + ".bed");
+        addPoint(pts, t, "team." + c + ".shop");
+        addPoint(pts, t, "team." + c + ".upgrades");
+        addPoint(pts, t, "team." + c + ".generator");
+        Vector spawn = t == null ? null : t.point("team." + c + ".spawn");
+        if (spawn == null || pts.isEmpty()) {
+            p.sendMessage(ChatColor.RED + "Fast setup for " + capitalise(c)
+                    + " could not read the points back from map.yml.");
+            s.queueTeam = null;
+            return;
+        }
+        double minX = Double.MAX_VALUE, minZ = Double.MAX_VALUE;
+        double maxX = -Double.MAX_VALUE, maxZ = -Double.MAX_VALUE;
+        for (Vector v : pts) {
+            minX = Math.min(minX, v.getX());
+            maxX = Math.max(maxX, v.getX());
+            minZ = Math.min(minZ, v.getZ());
+            maxZ = Math.max(maxZ, v.getZ());
+        }
+        minX -= 6;
+        maxX += 6;
+        minZ -= 6;
+        maxZ += 6;
+        int y = spawn.getBlockY();
+        Location min = new Location(s.world, minX, y - 10, minZ);
+        Location max = new Location(s.world, maxX, y + 20, maxZ);
+        boolean ok = MapEditor.setPair(s.dir, "team." + c + ".base", min, max);
+        if (ok) {
+            service.reload();
+            spawnHolograms(s);
+            p.sendMessage(ChatColor.AQUA + "Fast setup for " + capitalise(c)
+                    + " complete: spawn, bed, shop, upgrades, generator, base ("
+                    + (int) Math.round(minX) + ", " + (int) Math.round(minZ) + ".."
+                    + (int) Math.round(maxX) + ", " + (int) Math.round(maxZ) + ")");
+        } else {
+            p.sendMessage(ChatColor.RED + "Fast setup for " + capitalise(c)
+                    + " could not write the base box into map.yml.");
+        }
+        s.queueTeam = null;
+    }
+
+    private static void addPoint(List<Vector> out, MapTemplate t, String key) {
+        if (t == null) return;
+        List<Vector> pts = t.points(key);
+        if (pts != null && !pts.isEmpty()) out.add(pts.get(0));
+    }
+
+    private static String stepName(String key) {
+        if (key.endsWith(".spawn")) return "SPAWN";
+        if (key.endsWith(".bed")) return "BED";
+        if (key.endsWith(".shop")) return "SHOP";
+        if (key.endsWith(".upgrades")) return "UPGRADES";
+        if (key.endsWith(".generator")) return "GENERATOR";
+        return key.toUpperCase(Locale.ROOT);
     }
 
     private boolean write(Session s, String key, String value) {
         boolean ok = MapEditor.setScalar(s.dir, key, value);
-        if (ok) service.reload();
+        if (ok) {
+            service.reload();
+            spawnHolograms(s);
+        }
         return ok;
     }
 
@@ -493,11 +645,97 @@ public final class MapEditService implements Listener {
         } else {
             ok = MapEditor.writePoint(s.dir, key, at, bed, s.armedIndex);
         }
-        if (ok) service.reload();
+        if (ok) {
+            service.reload();
+            spawnHolograms(s);
+        }
         return ok;
     }
 
     // ===================================================================================== helpers
+
+    /** A floating label over every point already set, so a builder can read the map without arming keys. */
+    private void spawnHolograms(Session s) {
+        clearHolograms(s);
+        if (!s.holograms || s.world == null) return;
+        MapTemplate t = template(s);
+        if (t == null) return;
+        List<ArmorStand> stands = new ArrayList<ArmorStand>();
+        holograms.put(s.player, stands);
+
+        String color = s.team == null ? "red" : s.team;
+        ChatColor team = teamChat(color);
+        String label = capitalise(color);
+        String prefix = "team." + color + ".";
+        stand(s, stands, first(t, prefix + "spawn"), holoName(team, label + " Spawn"));
+        stand(s, stands, first(t, prefix + "bed"), holoName(team, label + " Bed"));
+        stand(s, stands, first(t, prefix + "generator"), holoName(team, label + " Generator"));
+        stand(s, stands, first(t, prefix + "shop"), holoName(team, label + " Shop"));
+        stand(s, stands, first(t, prefix + "upgrades"), holoName(team, label + " Upgrades"));
+        stand(s, stands, first(t, prefix + "base"), holoName(team, label + " Base"));
+
+        stand(s, stands, first(t, "waiting.lobby"), holoName(ChatColor.YELLOW, "Lobby"));
+        stand(s, stands, first(t, "spectator"), holoName(ChatColor.YELLOW, "Spectator"));
+        stand(s, stands, first(t, "mid"), holoName(ChatColor.YELLOW, "Mid"));
+        List<Vector> dia = t.points("gen.diamond");
+        for (int i = 0; i < dia.size(); i++)
+            stand(s, stands, dia.get(i), holoName(ChatColor.AQUA, "Diamond " + (i + 1)));
+        List<Vector> em = t.points("gen.emerald");
+        for (int i = 0; i < em.size(); i++)
+            stand(s, stands, em.get(i), holoName(ChatColor.GREEN, "Emerald " + (i + 1)));
+    }
+
+    /** ChatColor.WHITE + "" + ChatColor.BOLD + "<Team> <Thing>", recoloured by point family. */
+    private static String holoName(ChatColor color, String text) {
+        return ChatColor.WHITE + "" + ChatColor.BOLD + color + text;
+    }
+
+    private void stand(Session s, List<ArmorStand> stands, Vector at, String name) {
+        if (at == null) return;
+        try {
+            ArmorStand as = s.world.spawn(new Location(s.world, at.getX(), at.getY() + 1.5, at.getZ()),
+                    ArmorStand.class);
+            as.setVisible(false);
+            as.setGravity(false);
+            as.setSmall(true);
+            as.setMarker(true);
+            as.setCustomNameVisible(true);
+            as.setCustomName(name);
+            setInvulnerable(as);
+            stands.add(as);
+        } catch (Throwable ignored) {
+            // a point in an unloaded chunk must not stop the editor from writing the point itself
+        }
+    }
+
+    /** setInvulnerable(true); the 1.8.8 Bukkit Entity interface does not expose it, so call it where it exists. */
+    private static void setInvulnerable(ArmorStand as) {
+        try {
+            as.getClass().getMethod("setInvulnerable", boolean.class).invoke(as, Boolean.TRUE);
+        } catch (Throwable ignored) {
+            // an older server simply keeps the marker stands damageable, which no builder will notice
+        }
+    }
+
+    private void clearHolograms(Session s) {
+        List<ArmorStand> stands = holograms.remove(s.player);
+        if (stands == null) return;
+        for (ArmorStand as : stands) {
+            if (as == null || as.isDead()) continue;
+            try { as.remove(); } catch (Throwable ignored) { }
+        }
+    }
+
+    private static Vector first(MapTemplate t, String key) {
+        if (t == null) return null;
+        List<Vector> pts = t.points(key);
+        return pts == null || pts.isEmpty() ? null : pts.get(0);
+    }
+
+    private static ChatColor teamChat(String color) {
+        try { return TeamColor.valueOf(color.toUpperCase(Locale.ROOT)).chat; }
+        catch (Throwable e) { return ChatColor.GRAY; }
+    }
 
     private MapTemplate template(Session s) {
         MapService ms = H2020.find(MapService.class);
@@ -526,6 +764,18 @@ public final class MapEditService implements Listener {
 
     @SuppressWarnings("deprecation")
     private static ItemStack wool(byte dye) { return new ItemStack(Material.WOOL, 1, dye); }
+
+    /** Enchanted glint without a real enchantment, used to show that the wizard is running. */
+    @SuppressWarnings("deprecation")
+    private static ItemStack glow(ItemStack stack) {
+        stack.addUnsafeEnchantment(Enchantment.DURABILITY, 1);
+        ItemMeta meta = stack.getItemMeta();
+        if (meta != null) {
+            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+            stack.setItemMeta(meta);
+        }
+        return stack;
+    }
 
     /**
      * Where a left-clicked block puts a point: the centre of the column, one block up, because almost every point is a
