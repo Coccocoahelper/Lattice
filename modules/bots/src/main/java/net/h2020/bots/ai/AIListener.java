@@ -193,7 +193,9 @@ final class AIListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBreak(BlockBreakEvent e) {
-        SoundBus.emit(SoundBus.Kind.BREAK, e.getBlock().getLocation().add(0.5, 0.5, 0.5), e.getPlayer());
+        Player breaker = e.getPlayer();
+        SoundBus.emit(SoundBus.Kind.BREAK, e.getBlock().getLocation().add(0.5, 0.5, 0.5), breaker);
+        // the refusal is charged to whoever placed the block (recorded at placement time), never to the breaker
         net.h2020.bots.ai.ml.PlacementPolicy.noteBroken(e.getBlock().getX(), e.getBlock().getY(),
                 e.getBlock().getZ(), System.currentTimeMillis());
     }

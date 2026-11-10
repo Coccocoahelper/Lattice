@@ -105,6 +105,7 @@ final class BlockTactics {
                 mode = NONE;
                 if (r == Pillarer.Result.DONE) {
                     CombatStats.inc("block.pillar.ok");
+                    net.h2020.bots.ai.ml.PlacementPolicy.placementDone(ctx.player.getUniqueId(), ctx.tick, foe);
                     highY = ctx.pos().getY();
                     holdHighUntil = ctx.tick + AIMath.range(ctx.rng, 80, 200);
                 }
@@ -113,7 +114,10 @@ final class BlockTactics {
             case WALL: {
                 BlockPlacer.Result r = placer.tick();
                 if (r == BlockPlacer.Result.RUNNING) return true;
-                if (r == BlockPlacer.Result.DONE && cellIdx == 0) CombatStats.inc("block.wall");
+                if (r == BlockPlacer.Result.DONE && cellIdx == 0) {
+                    CombatStats.inc("block.wall");
+                    net.h2020.bots.ai.ml.PlacementPolicy.placementDone(ctx.player.getUniqueId(), ctx.tick, foe);
+                }
                 if (++cellIdx < cells.length && r == BlockPlacer.Result.DONE) {
                     placer.setNeedSight(true);
                     placer.setFast(true);
@@ -127,15 +131,18 @@ final class BlockTactics {
                 BlockBreaker.Result r = breaker.tick();
                 if (r == BlockBreaker.Result.RUNNING) return true;
                 if (r == BlockBreaker.Result.DONE) CombatStats.inc("block.cut");
+                // CUT removes a block instead of placing one, and this tactic has no bridge-cut PLACE step to attach
+                // an outcome to, so no placementDone() call belongs here: the fill after a MIDDLE break is scored.
                 mode = NONE;
                 return false;
             }
             case STOMP: {
                 BlockPlacer.Result r = placer.tick();
                 if (r == BlockPlacer.Result.RUNNING) return true;
-                if (r == BlockPlacer.Result.DONE) net.h2020.bots.ai.ml.PlacementPolicy.completed((int) (ctx.tick - started));
+                if (r == BlockPlacer.Result.DONE) net.h2020.bots.ai.ml.PlacementPolicy.completed(ctx.player.getUniqueId(), (int) (ctx.tick - started));
                 if (r == BlockPlacer.Result.DONE) {
                     CombatStats.inc("block.stomp");
+                    net.h2020.bots.ai.ml.PlacementPolicy.placementDone(ctx.player.getUniqueId(), ctx.tick, foe);
                     if (cellIdx + 1 < cells.length) {
                         cellIdx++;
                         placer.setNeedSight(true);
@@ -160,6 +167,7 @@ final class BlockTactics {
                     }
                     if (cellIdx + 1 >= cells.length) {
                         CombatStats.inc("block.duelpillar");
+                        if (r == BlockPlacer.Result.DONE) net.h2020.bots.ai.ml.PlacementPolicy.placementDone(ctx.player.getUniqueId(), ctx.tick, foe);
                         phase = 1;
                         flankUntil = ctx.tick + AIMath.range(ctx.rng, 8, 16);
                         // the side the fight-flow model says he is drifting away from is the side to take
@@ -200,6 +208,7 @@ final class BlockTactics {
                 BlockPlacer.Result r = placer.tick();
                 if (r == BlockPlacer.Result.RUNNING) return true;
                 if (r == BlockPlacer.Result.DONE) CombatStats.inc("block.middleexit.fill");
+                if (r == BlockPlacer.Result.DONE) net.h2020.bots.ai.ml.PlacementPolicy.placementDone(ctx.player.getUniqueId(), ctx.tick, foe);
                 mode = NONE;
                 return false;
             }
@@ -212,6 +221,7 @@ final class BlockTactics {
                 if (r == BlockPlacer.Result.RUNNING) return true;
                 if (r == BlockPlacer.Result.DONE) {
                     CombatStats.inc("block.drivethru.place");
+                    net.h2020.bots.ai.ml.PlacementPolicy.placementDone(ctx.player.getUniqueId(), ctx.tick, foe);
                     cellIdx++;
                     if (cellIdx < cells.length) {
                         placer.setNeedSight(true);
@@ -227,8 +237,9 @@ final class BlockTactics {
                 if (r == BlockPlacer.Result.RUNNING) return true;
                 mode = NONE;
                 if (r == BlockPlacer.Result.DONE) {
-                    net.h2020.bots.ai.ml.PlacementPolicy.completed((int) (ctx.tick - started));
+                    net.h2020.bots.ai.ml.PlacementPolicy.completed(ctx.player.getUniqueId(), (int) (ctx.tick - started));
                     CombatStats.inc("block.headhitter");
+                    net.h2020.bots.ai.ml.PlacementPolicy.placementDone(ctx.player.getUniqueId(), ctx.tick, foe);
                     headHitUntil = ctx.tick + AIMath.range(ctx.rng, 25, 60);
                 }
                 return false;
@@ -306,7 +317,8 @@ final class BlockTactics {
         if (ctx.nav.doingAction() || !ctx.c.onGround()) return false;
         Scene f = scene(target, d, losing);
         if (f.blocks < 1 || !f.hotBlocks) return false;
-        int[] order = net.h2020.bots.ai.ml.PlacementPolicy.rank(ctx, style, target, d, f.onLine, losing, winProb);
+        int[] order = net.h2020.bots.ai.ml.PlacementPolicy.rank(ctx.player.getUniqueId(), ctx, style, target, d,
+                f.onLine, losing, winProb);
         for (int i = 0; i < order.length; i++) {
             boolean started;
             switch (order[i]) {
@@ -324,7 +336,7 @@ final class BlockTactics {
                 default: started = false; break;
             }
             if (started) {
-                net.h2020.bots.ai.ml.PlacementPolicy.record(order, i);
+                net.h2020.bots.ai.ml.PlacementPolicy.record(ctx.player.getUniqueId(), order, i);
                 net.h2020.bots.ai.ml.SelfStats.onBedBlock(ctx.player, ctx.tick);
                 return true;
             }
@@ -545,6 +557,7 @@ final class BlockTactics {
         placer.setNeedSight(true);
         placer.start(f.x, hy, f.z, Inv.BLOCK);
         mode = HEAD;
+        foe = f.target;
         CombatStats.inc("block.headhitter.try");
         tick();
         return true;
@@ -564,6 +577,7 @@ final class BlockTactics {
                 started = ctx.tick;
                 pillar.start(f.x, f.y, f.z, (int) Math.ceil(up) + 1);
                 mode = TOWER;
+                foe = f.target;
                 CombatStats.inc("block.rise");
                 ctx.nav.stop();
                 tick();
@@ -580,6 +594,7 @@ final class BlockTactics {
         started = ctx.tick;
         pillar.start(f.x, f.y, f.z, AIMath.range(ctx.rng, 3, 4));
         mode = TOWER;
+        foe = f.target;
         CombatStats.inc("block.pillar");
         ctx.nav.stop();
         tick();
@@ -607,6 +622,7 @@ final class BlockTactics {
         placer.setNeedSight(true);
         placer.start(bx, f.y, bz, Inv.BLOCK);
         mode = WALL;
+        foe = f.target;
         ctx.nav.stop();
         CombatStats.inc("block.shelter");
         return true;
@@ -637,6 +653,7 @@ final class BlockTactics {
         placer.setNeedSight(false);
         placer.start(bx, by, bz, Inv.BLOCK);
         mode = WALL;
+        foe = null;              // only a Location here: no collapse sample, hit/taken still count
         CombatStats.inc("block.safety");
         return true;
     }
@@ -658,6 +675,7 @@ final class BlockTactics {
         placer.setNeedSight(true);
         placer.start(bx, f.y, bz, Inv.BLOCK);
         mode = WALL;
+        foe = f.target;
         ctx.nav.stop();
         CombatStats.inc("block.ramp");
         return true;
@@ -682,6 +700,7 @@ final class BlockTactics {
         placer.setNeedSight(true);
         placer.start(bx, f.y, bz, Inv.BLOCK);
         mode = WALL;
+        foe = f.target;
         ctx.nav.stop();
         CombatStats.inc("block.backstep");
         return true;
@@ -701,6 +720,7 @@ final class BlockTactics {
         placer.setNeedSight(true);
         placer.start(bx, f.y, bz, Inv.BLOCK);
         mode = WALL;
+        foe = f.target;
         ctx.nav.stop();
         tick();
         return true;

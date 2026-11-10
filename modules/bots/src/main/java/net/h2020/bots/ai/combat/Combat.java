@@ -296,7 +296,7 @@ public final class Combat {
             int hits = hitsLanded - hitsAtStart;
             int swings = ctx.c.swings() - swingsAtStart;
             net.h2020.bots.ai.ml.AimPolicy.record(aimArm, hits, swings, avgFightDist());
-            net.h2020.bots.ai.ml.PlacementPolicy.discard();
+            net.h2020.bots.ai.ml.PlacementPolicy.discard(ctx.player.getUniqueId());
             fightScored = true;
             ctx.c.setAimPolicy(0, 1.0);
         }
@@ -414,6 +414,8 @@ public final class Combat {
         // every hit opens a scoring window: the arbiter is learning even while the hand-written rule decides, so the
         // window has to be closed on the next hits regardless of whether the model acted
         markArbiterWindow();
+        // a hit inside a placement's window is what a stomp / wall was for
+        net.h2020.bots.ai.ml.PlacementPolicy.onLanded(ctx.player.getUniqueId(), ctx.tick, victim);
     }
 
     public void onHurt(Player attacker) {
@@ -437,6 +439,8 @@ public final class Combat {
         if (target == null && attacker != null) engage(attacker);
         else if (attacker != null && attacker != target && ctx.pos().distance(attacker.getLocation()) < 3.5
                 && target != null && ctx.pos().distance(target.getLocation()) > 5) engage(attacker);
+        // taking a hit inside a placement's window means the block handed the opponent a free hit
+        net.h2020.bots.ai.ml.PlacementPolicy.onTaken(ctx.player.getUniqueId(), ctx.tick);
     }
 
     /** A projectile of ours hit someone (stats). */
@@ -515,7 +519,7 @@ public final class Combat {
         net.h2020.bots.ai.ml.AimPolicy.record(aimArm, hits, swings, avgFightDist());
         net.h2020.bots.ai.ml.SelfStats.onFight(ctx.player, win);
         net.h2020.bots.ai.ml.SelfStats.onHits(ctx.player, hits, swings);
-        net.h2020.bots.ai.ml.PlacementPolicy.finish(win);
+        net.h2020.bots.ai.ml.PlacementPolicy.finish(ctx.player.getUniqueId(), win);
         net.h2020.bots.ai.ml.DuelPolicy.terminal(win, false, gearDiffVs(target));
         net.h2020.bots.ai.ml.DuelPolicy.onFightEnd();
         ctx.c.setAimPolicy(0, 1.0);
@@ -732,6 +736,8 @@ public final class Combat {
     // ------------------------------------------------------------------------------------------------ v2
 
     private void v2Tick(Location me, Location tl, double d, long stalledFor, long noHitsFor) {
+        // the fight tick owns the placement outcome window: one poll per tick, no second scheduler
+        net.h2020.bots.ai.ml.PlacementPolicy.poll(ctx.player.getUniqueId(), ctx.tick, target);
         if (stalledFor > 200 && noHitsFor > 200) {
             // unreachable: a pearl across the gap first, if we have one
             if (tryEngagePearl(tl, d)) return;

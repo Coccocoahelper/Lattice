@@ -239,6 +239,11 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                 }
                 case "ml": {
                     String a = args.length > 1 ? args[1].toLowerCase(Locale.ROOT) : "stats";
+                    if (a.equals("placeoutcome")) {
+                        // headless attribution check (works from the console: no bot and no fight needed)
+                        sender.sendMessage(net.h2020.bots.ai.ml.PlacementPolicy.selftest());
+                        return true;
+                    }
                     if (a.equals("bots")) {
                         boolean on = args.length > 2 && args[2].equalsIgnoreCase("on");
                         net.h2020.bots.ai.ml.MlSettings.setTrainFromBots(on);

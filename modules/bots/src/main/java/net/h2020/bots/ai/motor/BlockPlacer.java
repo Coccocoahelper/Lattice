@@ -257,7 +257,9 @@ public final class BlockPlacer {
             if (sneakFor && !ctx.motor.sneaking()) { ctx.motor.sneak(true); return Result.RUNNING; }
             ctx.c.rightClick();
             // remember the cell: if it is taken down within three seconds the placement was a miss, not a win
-            net.h2020.bots.ai.ml.PlacementPolicy.notePlaced(tx, ty, tz, System.currentTimeMillis());
+            net.h2020.bots.ai.ml.PlacementPolicy.notePlaced(
+                    ctx.player == null ? null : ctx.player.getUniqueId(),
+                    tx, ty, tz, System.currentTimeMillis());
             if (sneakFor) { ctx.motor.sneak(false); net.h2020.api.stats.CombatStats.inc("place.oninteractive"); }
             clicks++;
             verifyWait = fast ? 0 : 1;
