@@ -16,3 +16,4 @@ bot-behaviour.patch
 # downloaded at start-up by start-server.sh
 libs/swm/*.jar
 run/slime_worlds/
+maps-import/

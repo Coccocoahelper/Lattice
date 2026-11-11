@@ -233,6 +233,12 @@ public final class Slime implements SlimeWorlds.Spawner {
             return true;
         } catch (Throwable t) {
             log.warning("[slime] import of " + slimeName + " failed: " + root(t));
+            // the root cause is what actually explains the failure; the reflective frames are noise
+            Throwable c = t;
+            while (c.getCause() != null && c.getCause() != c) c = c.getCause();
+            for (StackTraceElement el : c.getStackTrace())
+                if (el.getClassName().startsWith("net.swofty") || el.getClassName().startsWith("net.h2020"))
+                    log.warning("[slime]   at " + el);
             return false;
         }
     }

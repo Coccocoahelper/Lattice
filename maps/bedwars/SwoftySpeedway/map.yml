@@ -1,0 +1,112 @@
+# Converted from Swofty-Developments/HypixelRecreation configuration/bedwars/maps.json
+# map id: speedway
+name: "SwoftySpeedway"
+family: BEDWARS
+teams: [8]
+build-limit: 100
+bounds:
+  min: {x: -100, y: -100, z: -100}
+  max: {x: 100, y: 100, z: 100}
+points:
+  team.aqua.spawn:
+    - {x: 32.49501313553803, y: 66, z: 83.53070551834745, yaw: -179.5393}
+  team.aqua.bed:
+    - {x: 32, y: 66, z: 70}
+    - {x: 32, y: 66, z: 71}
+  team.aqua.shop:
+    - {x: 26.505141024953048, y: 66, z: 83.00298652272173, yaw: -89.855774}
+  team.aqua.upgrades:
+    - {x: 38.456872802559054, y: 66, z: 82.99083246172962, yaw: 89.84564}
+  team.aqua.generator:
+    - {x: 32, y: 65.5, z: 85.5, yaw: 0}
+  team.blue.spawn:
+    - {x: 32.44825455698304, y: 66, z: -82.21619659979275, yaw: -0.28649902}
+  team.blue.bed:
+    - {x: 32, y: 66, z: -70}
+    - {x: 32, y: 66, z: -71}
+  team.blue.shop:
+    - {x: 38.651112821199156, y: 66, z: -82.0636611406802, yaw: 89.842865}
+  team.blue.upgrades:
+    - {x: 26.513876353954437, y: 66, z: -81.96871672001237, yaw: -90.00635}
+  team.blue.generator:
+    - {x: 32, y: 65.5, z: -86.5, yaw: 0}
+  team.gray.spawn:
+    - {x: -82.25697683329115, y: 66, z: -31.5320875690394, yaw: -89.97522}
+  team.gray.bed:
+    - {x: -70, y: 66, z: -32}
+    - {x: -71, y: 66, z: -32}
+  team.gray.shop:
+    - {x: -81.97052279318929, y: 66, z: -37.314472093522035, yaw: -0.00012207031}
+  team.gray.upgrades:
+    - {x: -81.90479994981206, y: 66, z: -25.66597099278967, yaw: 179.39453}
+  team.gray.generator:
+    - {x: -86, y: 65.5, z: -32.5, yaw: 0}
+  team.green.spawn:
+    - {x: 83.52472511460185, y: 66, z: -31.47239674724424, yaw: 90.308716}
+  team.green.bed:
+    - {x: 70, y: 66, z: -32}
+    - {x: 71, y: 66, z: -32}
+  team.green.shop:
+    - {x: 83.02754376288796, y: 66, z: -25.50247371161989, yaw: 179.69226}
+  team.green.upgrades:
+    - {x: 83.01808132101671, y: 66, z: -37.4449225565394, yaw: 0.89160156}
+  team.green.generator:
+    - {x: 87.07588737864218, y: 65.5, z: -31.54334025712658, yaw: 0}
+  team.pink.spawn:
+    - {x: -82.45194161144515, y: 66, z: 32.51095973557253, yaw: -89.387085}
+  team.pink.bed:
+    - {x: -70, y: 66, z: 32}
+    - {x: -71, y: 66, z: 32}
+  team.pink.shop:
+    - {x: -82.02040193311008, y: 66, z: 26.41980214690541, yaw: -0.3010254}
+  team.pink.upgrades:
+    - {x: -82.03912265565305, y: 66, z: 38.52496280339181, yaw: 0}
+  team.pink.generator:
+    - {x: -86, y: 65.5, z: 31.5, yaw: 0}
+  team.red.spawn:
+    - {x: -31.429089110829988, y: 66, z: -82.53114534212739, yaw: -0.12023926}
+  team.red.bed:
+    - {x: -32, y: 66, z: -70}
+    - {x: -32, y: 66, z: -71}
+  team.red.shop:
+    - {x: -25.54262467705194, y: 66, z: -82.05912286154171, yaw: 89.54819}
+  team.red.upgrades:
+    - {x: -37.470634976194255, y: 66, z: -81.95370501834397, yaw: -90.30185}
+  team.red.generator:
+    - {x: -32, y: 65.5, z: -86.5, yaw: 0}
+  team.white.spawn:
+    - {x: -31.489605948109872, y: 66, z: 83.4640637242984, yaw: -179.40198}
+  team.white.bed:
+    - {x: -32, y: 66, z: 70}
+    - {x: -32, y: 66, z: 71}
+  team.white.shop:
+    - {x: -37.57120528835294, y: 66, z: 82.97098866205523, yaw: -90.00214}
+  team.white.upgrades:
+    - {x: -25.504363571226587, y: 66, z: 82.96805231054407, yaw: 89.39459}
+  team.white.generator:
+    - {x: -32, y: 65.5, z: 85.5, yaw: 0}
+  team.yellow.spawn:
+    - {x: 83.44142018547358, y: 66, z: 32.516950785630655, yaw: 89.557495}
+  team.yellow.bed:
+    - {x: 70, y: 66, z: 32}
+    - {x: 71, y: 66, z: 32}
+  team.yellow.shop:
+    - {x: 82.98866742168755, y: 66, z: 38.39515375216421, yaw: 179.6955}
+  team.yellow.upgrades:
+    - {x: 83.0012612940198, y: 66, z: 26.688584248556545, yaw: -0.4545288}
+  team.yellow.generator:
+    - {x: 86, y: 65.5, z: 31.5, yaw: 0}
+  gen.diamond:
+    - {x: -31.5, y: 65, z: -31.5, yaw: 0}
+    - {x: -31.5, y: 65, z: 32.5, yaw: 0}
+    - {x: 32.5, y: 65, z: -31.5, yaw: 0}
+    - {x: 32.5, y: 65, z: 32.5, yaw: 0}
+  gen.emerald:
+    - {x: -11.5, y: 66, z: 15.5, yaw: 0}
+    - {x: -2.5, y: 56, z: 8.5, yaw: 0}
+    - {x: 3.5, y: 56, z: -7.5, yaw: 0}
+    - {x: 12.5, y: 66, z: -14.5, yaw: 0}
+  waiting.lobby:
+    - {x: 0, y: 98, z: 0, yaw: 0}
+  spectator:
+    - {x: 0, y: 80, z: 0, yaw: 0}
