@@ -17,6 +17,9 @@ public interface BotController {
     /** forward: -1 (S) .. 1 (W); strafe: -1 (D) .. 1 (A) (vanilla sign convention). */
     void setMovement(float forward, float strafe);
     void setJumping(boolean jump);
+
+    /** The brain has a reason for this bot to move this tick (engaged or navigating). Used by movement counters. */
+    default void setTickPurpose(boolean purpose) { }
     void setSneaking(boolean sneak);
     void setSprinting(boolean sprint);
 

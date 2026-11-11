@@ -108,6 +108,10 @@ public final class VirtualClient implements BotController, FakeNetworkManager.Si
     // ---- keys (what the bot's fingers hold) ----
     private float keyForward, keyStrafe;
     private boolean keyJump, keySneak, keySprint;
+    /** Set by the brain each tick when this bot has a reason to move; used only by the movement counters. */
+    public boolean clientTickHasPurpose;
+
+    @Override public void setTickPurpose(boolean purpose) { clientTickHasPurpose = purpose; }
     private boolean rightHeld;
     private int pendingRightClicks;
     private BlockPosition forcedUseBlock;
@@ -788,7 +792,23 @@ public final class VirtualClient implements BotController, FakeNetworkManager.Si
         ItemStack boots = ep.inventory.armor[0];
         phys.depthStrider = boots == null ? 0 : EnchantmentManager.getEnchantmentLevel(8, boots);
 
+        double preX = phys.posX, preZ = phys.posZ;
         phys.livingUpdate(inStrafe, inForward, inJump, dead);
+        // what the body was actually doing this tick: input present, sprinting, and how far it went
+        if (inForward != 0 || inStrafe != 0) {
+            if (phys.sprinting) net.h2020.api.stats.CombatStats.inc("mv.sprint.tick");
+            else net.h2020.api.stats.CombatStats.inc("mv.walk.tick");
+            if (inStrafe != 0) net.h2020.api.stats.CombatStats.inc("mv.strafe.tick");
+        }
+        double step = Math.hypot(phys.posX - preX, phys.posZ - preZ);
+        if (step > 0.24) net.h2020.api.stats.CombatStats.inc("mv.fast.tick");
+        else if (step > 0.10) net.h2020.api.stats.CombatStats.inc("mv.normal.tick");
+        else net.h2020.api.stats.CombatStats.inc("mv.slow.tick");
+        if (inForward != 0 || inStrafe != 0) net.h2020.api.stats.CombatStats.inc("move.input.tick");
+        else if (clientTickHasPurpose) net.h2020.api.stats.CombatStats.inc("move.noinput.tick");
+        if (Math.abs(phys.posX - preX) + Math.abs(phys.posZ - preZ) < 0.02) {
+            if (inForward != 0 || inStrafe != 0) net.h2020.api.stats.CombatStats.inc("move.input.nomove");
+        } else net.h2020.api.stats.CombatStats.inc("move.moved.tick");
 
         if (phys.onGround && abilitiesFlying && gamemode != 3) {
             abilitiesFlying = false;

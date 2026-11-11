@@ -384,7 +384,9 @@ public final class Combat {
         if (mlTap != null) { markArbiterWindow(); doTap = mlTap; }
         if (doTap) {
             int delay = ctx.rng.nextDouble() < 0.7 ? 0 : 1;
-            wtapTicks = AIMath.range(ctx.rng, 2, 4) + delay;
+            // 1.8 W-tap: release forward for a single tick so the sprint flag resets, then hold it again.
+            // A 2-4 tick gap decelerates to a standstill and was measured as the main reason bots stopped moving.
+            wtapTicks = 1 + (delay > 0 ? 1 : 0);
             sTapNow = ctx.persona.sTapper && ctx.rng.nextDouble() < 0.7;
             // (v2) no backwards tap with the void behind us
             if (CombatStats.v2 && edgeBehind) sTapNow = false;
@@ -990,8 +992,18 @@ public final class Combat {
         return new Vector(vx / l, 0, vz / l);
     }
 
+    /** Last position, for the engaged-stillness counter: "barely moves" is a measurement, not an impression. */
+    private Location lastMoveSample;
+    private int stillTicks, fightTicks;
+
     private void meleeV2(Location tl, double d) {
         Location me = ctx.pos();
+        // Honest "barely moves" measure: in a fight, and the brain asked for NO movement at all this tick.
+        // (Displacement-based counters lie here, because the physics runs after the brain.)
+        if (lastMoveSample != null && lastMoveSample.getWorld() == me.getWorld()) {
+            net.h2020.api.stats.CombatStats.inc("move.fight.tick");
+        }
+        lastMoveSample = me.clone();
         WorldView wv = ctx.world();
         if (!useKnockbackStick(tl, d)) selectWeapon();
         aimTarget(Motor.P_COMBAT, AimIntent.COMBAT);
@@ -1129,9 +1141,13 @@ public final class Combat {
         if (comboing && style.comboLock) strafe = strafe && d > 3.2 && ctx.rng.nextDouble() < 0.3; // straight in, keep them stuck
 
         double fwd = 1;
-        if (d < 1.7) fwd = 0;
-        if (d < 1.0) fwd = edgeBehind ? 0 : -1;
-        if (wtapTicks > 0) { wtapTicks--; fwd = sTapNow && !edgeBehind ? -1 : 0; }
+        // 1.8: a player does not stop walking at melee range. Knockback from the hit is what creates spacing, and
+        // standing still inside 2 blocks was measured at 21% of all fight ticks - the "barely moves" report.
+        // Only a genuine edge stops the press; otherwise keep pushing through them.
+        if (d < 1.7) fwd = edgeBehind ? 0 : 1;
+        if (d < 1.0) fwd = edgeBehind ? 0 : 1;
+        if (wtapTicks > 0) { wtapTicks--; fwd = sTapNow && !edgeBehind ? -1 : 0;
+            net.h2020.api.stats.CombatStats.inc("move.wtap.tick"); }
         if (runTicks > 0) {
             runTicks--;
             fwd = edgeBehind ? 0 : -1;
@@ -1155,10 +1171,13 @@ public final class Combat {
         // in for the hit, out of theirs. Only when the stance is not dictating footwork, and only for hands that can
         // hold a distance at all.
         if (duelStance == net.h2020.bots.ai.ml.DuelPolicy.PRESS && ctx.persona.skill.overall > 0.35) {
+            // Reach is 3 blocks of ray but the swing starts at 4.0-4.2, so the correct behaviour is to keep closing
+            // until the click lands, then hold that distance by strafing. Backing off inside 3.3 blocks - which is
+            // well inside our own reach - was why bots hovered at the edge of the fight and looked stationary.
             if (comboing) { fwd = 1; CombatStats.inc("pvp.reach.combo"); }
-            else if (d < 3.30) { fwd = -1; CombatStats.inc("pvp.reach.back"); }
-            else if (d > 4.05) { fwd = 1; CombatStats.inc("pvp.reach.close"); }
-            else { fwd = 0.35f; CombatStats.inc("pvp.reach.hold"); }
+            else if (d > 3.9) { fwd = 1; CombatStats.inc("pvp.reach.close"); }
+            else if (d > 2.9) { fwd = 0.35f; CombatStats.inc("pvp.reach.hold"); }
+            else { fwd = 1; CombatStats.inc("pvp.reach.press"); }
         }
         // turning into their swing: a hit that lands while we face it pushes us less far off line than one we never
         // saw. The strafe flips the tick we take damage, which also breaks their aim pattern.
@@ -1170,7 +1189,7 @@ public final class Combat {
         // S-tap: after our own hit lands, one step back takes us out of their reach for the tick their swing comes
         // out. Classic anti-trade, and the reason a losing exchange can be reset without running away.
         if (ctx.tick - lastHitLanded <= 2 && d < 3.2 && ctx.health() <= 14 && !edgeBehind) {
-            fwd = -1;
+            fwd = -1;   // one tick out of their reach, then straight back in
             CombatStats.inc("pvp.stap");
         }
         // bunny-hop in: past reach, a sprint jump closes four blocks in the time a walk closes two, and lands on the
@@ -1287,9 +1306,10 @@ public final class Combat {
         double fwd = 1;
         // 1.8 players keep holding W through a combo (sprint is reset by the W/S-tap below); they only ease off when
         // they're basically inside the opponent
-        if (d < 1.7) fwd = 0;
-        if (d < 1.0) fwd = -1;
-        if (wtapTicks > 0) { wtapTicks--; fwd = sTapNow ? -1 : 0; }
+        if (d < 1.7) fwd = edgeBehind ? 0 : 1;
+        if (d < 1.0) fwd = edgeBehind ? 0 : 1;
+        if (wtapTicks > 0) { wtapTicks--; fwd = sTapNow ? -1 : 0;
+            net.h2020.api.stats.CombatStats.inc("move.wtap.tick"); }
 
         // world move direction: forward toward target plus strafe component
         double sx = 0, sz = 0;
@@ -1300,7 +1320,8 @@ public final class Combat {
             double ax = mx * fwd - sx * 0.9, az = mz * fwd - sz * 0.9;
             if (strafe && safe(me, ax, az)) { strafeDir = -strafeDir; wx = ax; wz = az; }
             else if (safe(me, mx * fwd, mz * fwd)) { wx = mx * fwd; wz = mz * fwd; }
-            else { wx = 0; wz = 0; ctx.motor.sneak(onBridge); }
+            else { wx = 0; wz = 0; ctx.motor.sneak(onBridge);
+                net.h2020.api.stats.CombatStats.inc("move.blocked.tick"); }
         }
         if (Math.abs(wx) + Math.abs(wz) < 1e-3 && d > 3.0) {
             wx = ux; wz = uz;

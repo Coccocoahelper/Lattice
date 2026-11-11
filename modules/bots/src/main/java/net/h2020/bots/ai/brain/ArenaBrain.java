@@ -13,6 +13,9 @@ public final class ArenaBrain extends BaseBrain {
     @Override
     protected void onActive() { }
 
+    private long repathAt;
+    private org.bukkit.Location roamTo;
+
     @Override
     protected void think() {
         if (ctx.tick >= nextScan || target == null || !target.isOnline() || target.isDead()) {
@@ -25,7 +28,29 @@ public final class ArenaBrain extends BaseBrain {
             if (other) ctx.combat.engage(target);
             else ctx.combat.disengage();
         }
+        if (other) { ctx.nav.stop(); ctx.combat.tick(); return; }
+        // No target in range: walk to it instead of standing still. The arena used to leave a bot rooted the moment
+        // its opponent died or spawned across the pad, which is most of the "bots barely move" report.
         ctx.combat.tick();
+        if (target == null) { idleRoam(); return; }
+        double d2 = ctx.pos().distanceSquared(target.getLocation());
+        if (ctx.tick >= repathAt || roamTo == null || roamTo.distanceSquared(target.getLocation()) > 9.0) {
+            repathAt = ctx.tick + 20;
+            roamTo = target.getLocation().clone();
+            ctx.nav.goTo(roamTo, 2.0);
+        }
+        if (d2 < 6.0 * 6.0) ctx.nav.tick();
+    }
+
+    /** Nothing to chase at all: wander the pad so a duel is never two statues. */
+    private void idleRoam() {
+        if (ctx.tick < repathAt && ctx.nav.active()) { ctx.nav.tick(); return; }
+        repathAt = ctx.tick + 60;
+        double a = ctx.rng.nextDouble() * Math.PI * 2;
+        double r = 4 + ctx.rng.nextDouble() * 10;
+        org.bukkit.Location me = ctx.pos();
+        ctx.nav.goTo(new org.bukkit.Location(me.getWorld(), me.getX() + Math.cos(a) * r, me.getY(), me.getZ() + Math.sin(a) * r), 2.0);
+        ctx.nav.tick();
     }
 
     private Player nearest() {

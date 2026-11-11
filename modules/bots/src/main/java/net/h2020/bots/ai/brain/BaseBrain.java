@@ -62,6 +62,7 @@ public abstract class BaseBrain implements BotBrain {
                 ctx.motor.aimEntity(Motor.P_FLICK, flickTarget, AimIntent.FLICK);
             }
             // (combat package) clutches when knocked off / the calm heal after a fight pre-empt the brain this tick
+            ctx.c.setTickPurpose(ctx.combat.engaged() || ctx.nav.active());
             if (!ctx.combat.emergencyTick()) think();
             ctx.nav.settle();
             // a player in water holds space: swims to the surface and bobs there, high enough that pushing into a
