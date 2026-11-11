@@ -10,8 +10,13 @@ import net.h2020.api.game.GameState;
 import net.h2020.api.game.GameType;
 import net.h2020.api.map.MapService;
 import net.h2020.api.map.MapTemplate;
+import net.h2020.bots.ai.brain.ArenaBrain;
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
+import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.ArrayList;
@@ -22,10 +27,17 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 /**
- * A concurrency governor for bot-only Bed Wars games: it keeps as many games alive as the server can sustain and
- * measures the resulting throughput. Unlike {@link Arena}, a slow game is force-finished instead of stopping the run.
+ * A concurrency governor for bot-only training runs.
+ * <p>
+ * The game mode keeps as many Bed Wars games alive as the server can sustain and measures the resulting throughput;
+ * a slow game is force-finished instead of stopping the run.
+ * <p>
+ * The duel mode does not use games at all: it keeps {@link #MAX_DUELS} close-quarters duels alive on the flat
+ * {@code pvp_arena} pad, three bots each, so {@code BlockTactics.consider()} runs often enough for the placement
+ * policy to train. Arena sessions never end, so each duel is recycled on a timer with fresh bodies.
  * <p>
  * The trainer never unloads a world itself. It only calls {@link Game#shutdown()} and lets the game do its own
  * teardown, because WindSpigot can race a world unload against its own world ticker.
@@ -34,9 +46,19 @@ public final class Trainer {
     private static final int MAX_GAMES_CAP = 24;
     private static final int DURATION_WINDOW = 20;
 
+    /** At most one duel per quadrant of the 45x45 arena pad. */
+    private static final int MAX_DUELS = 4;
+    private static final int BOTS_PER_DUEL = 3;
+    private static final int DUEL_FLOOR_Y = 64;
+    /** The world PvpArena owns; used for the status line and as the fallback arena name. */
+    private static final String ARENA_WORLD = "pvp_arena";
+    private static final String ARENA_CLASS = "net.h2020.core.arena.PvpArena";
+
     private static JavaPlugin plugin;
     private static boolean installed;
     private static boolean running;
+    /** True when the run is the arena duel mode rather than Bot Bed Wars games. */
+    private static boolean duelsMode;
 
     /** How many games the governor currently wants alive, and the ceiling start() was given. */
     private static int target;
@@ -46,6 +68,24 @@ public final class Trainer {
     /** Created by this trainer and not yet finished. */
     private static final Set<String> tracked = new LinkedHashSet<String>();
     private static final Map<String, Long> startTimes = new HashMap<String, Long>();
+
+    /**
+     * Duel slots (0..3, one per arena quadrant) and when the current bodies of each were spawned - the duel
+     * counterpart of {@link #startTimes}. Slot -> UUID strings of the three bots currently fighting for it, and
+     * slot -> how many times it has been recycled (the spawn ring rotates with it so bodies do not pile up).
+     */
+    private static final Map<Integer, Long> duelStartTimes = new HashMap<Integer, Long>();
+    private static final Map<Integer, List<String>> duelBots = new HashMap<Integer, List<String>>();
+    private static final Map<Integer, Integer> duelCycles = new HashMap<Integer, Integer>();
+    /** Every bot UUID this trainer spawned in duel mode, so stop() can remove leftovers from any duel. */
+    private static final Set<String> duelBotIds = new LinkedHashSet<String>();
+
+    private static int duelSeconds = 60;
+    private static long duelsRecycled;
+
+    /** Cached PvpArena class/methods: the replay plugin does not compile against core, it reuses it by reflection. */
+    private static Class<?> arenaType;
+    private static boolean arenaTypeTried;
 
     private static long gamesStarted;
     private static long gamesFinished;
@@ -63,6 +103,15 @@ public final class Trainer {
     private static long hit0;
     private static long taken0;
     private static long beds0;
+    private static long collapse0;
+    private static long none0;
+    private static long reached0;
+    private static long started0;
+    private static long declined0;
+    private static long gateNoBlocks0;
+    private static long gateNoHotbar0;
+    private static long gateAir0;
+    private static long gateNav0;
     private static int botsPerGame = 16;
     /** Absolute ceiling for a game length, so a caller cannot ask for an endless game. */
     private static int maxGameSeconds = 240;
@@ -125,16 +174,12 @@ public final class Trainer {
 
         tracked.clear();
         startTimes.clear();
+        clearDuelState();
         gamesStarted = 0;
         gamesFinished = 0;
         gamesForced = 0;
         runStartedAt = System.currentTimeMillis();
-        replay0 = net.h2020.api.train.Replay.rows();
-        tracked0 = (long) net.h2020.api.stats.CombatStats.total("ml.place.tracked");
-        armed0 = (long) net.h2020.api.stats.CombatStats.total("ml.place.armed");
-        hit0 = (long) net.h2020.api.stats.CombatStats.total("ml.place.outcome.hit");
-        taken0 = (long) net.h2020.api.stats.CombatStats.total("ml.place.outcome.taken");
-        beds0 = (long) net.h2020.api.stats.CombatStats.total("bed.raid.ok");
+        captureBaselines();
         durationCount = 0;
         durationNext = 0;
         Arrays.fill(lastGameSeconds, 0.0);
@@ -147,40 +192,104 @@ public final class Trainer {
         target = 1;
         maxTarget = cap;
         maxGames = cap;
+        duelsMode = false;
         running = true;
         return "sprint trainer started: target 1, max " + cap + " games, game cap " + gameSeconds
                 + "s, 5-tick governor";
+    }
+
+    /**
+     * Start the arena duel mode: {@code maxDuels} groups of {@value #BOTS_PER_DUEL} bots on the flat pvp_arena pad,
+     * one group per quadrant, all on {@link ArenaBrain}. Arena fights never end on their own, so every duel is
+     * recycled after {@code duelSecondsWanted} seconds with fresh bodies. No {@code Game} exists in this mode.
+     */
+    public static String startDuels(int maxDuelsWanted, int duelSecondsWanted) {
+        if (running) return "already running (" + (duelsMode ? duelStartTimes.size() + " duels" : "target " + target + "/" + maxGames + ")");
+        if (Arena.running()) return "arena is running - stop it first";
+        if (!ensureInstalled()) return "replay plugin not available";
+
+        BotService bs = H2020.find(BotService.class);
+        if (bs == null) return "bots module not available";
+        World world = arenaWorld();
+        if (world == null) return "could not load the pvp arena - check the server log for PvpArena";
+
+        int cap = Math.max(1, Math.min(MAX_DUELS, maxDuelsWanted));
+        duelSeconds = Math.max(10, Math.min(600, duelSecondsWanted));
+
+        tracked.clear();
+        startTimes.clear();
+        clearDuelState();
+        gamesStarted = 0;
+        gamesFinished = 0;
+        gamesForced = 0;
+        runStartedAt = System.currentTimeMillis();
+        captureBaselines();
+        durationCount = 0;
+        durationNext = 0;
+        Arrays.fill(lastGameSeconds, 0.0);
+        mapCursor = 0;
+        pass = 0;
+        lastAdaptPass = 0;
+        lastCreateOk = true;
+        lastTps = 20.0;
+        lastCreateWarn = 0L;
+        target = 0;
+        maxTarget = 0;
+        maxGames = 0;
+        duelsMode = true;
+        running = true;
+
+        long now = System.currentTimeMillis();
+        for (int slot = 0; slot < cap; slot++) {
+            duelCycles.put(Integer.valueOf(slot), Integer.valueOf(0));
+            duelStartTimes.put(Integer.valueOf(slot), Long.valueOf(now));
+            spawnDuel(slot, 0);
+        }
+        if (plugin != null) plugin.getLogger().info("[trainer] duel mode: " + cap + " duels x " + BOTS_PER_DUEL
+                + " bots in " + ARENA_WORLD + ", recycling every " + duelSeconds + "s");
+        return "duel trainer started: " + cap + " duels x " + BOTS_PER_DUEL + " bots in " + ARENA_WORLD
+                + ", recycle every " + duelSeconds + "s";
     }
 
     public static String stop() {
         if (!running) return "trainer not running";
         long elapsed = Math.max(0L, System.currentTimeMillis() - runStartedAt);
         long started = gamesStarted, finished = gamesFinished, forced = gamesForced;
+        boolean wasDuels = duelsMode;
+        int liveDuels = duelStartTimes.size();
+        long recycled = duelsRecycled;
 
-        BedwarsTools tools = H2020.find(BedwarsTools.class);
-        if (tools != null) {
-            try { tools.applySprint(false); } catch (Throwable t) {
-                if (plugin != null) plugin.getLogger().warning("[trainer] could not disable the sprint profile: " + t);
-            }
-        }
-        GameManager gm = H2020.find(GameManager.class);
-        for (String id : new ArrayList<String>(tracked)) {
-            Game g = null;
-            if (gm != null) {
-                for (Game any : gm.games()) {
-                    if (any.id().equals(id)) { g = any; break; }
+        if (wasDuels) {
+            // Arena sessions have no Game to shut down: removing our own bots is the whole teardown. The world and
+            // its pad stay exactly where they are, so the next duel run can reuse them.
+            removeAllDuelBots();
+        } else {
+            BedwarsTools tools = H2020.find(BedwarsTools.class);
+            if (tools != null) {
+                try { tools.applySprint(false); } catch (Throwable t) {
+                    if (plugin != null) plugin.getLogger().warning("[trainer] could not disable the sprint profile: " + t);
                 }
             }
-            if (g == null) continue;
-            try { g.shutdown(); } catch (Throwable t) {
-                if (plugin != null) plugin.getLogger().warning("[trainer] shutdown of " + id + " failed: " + t);
+            GameManager gm = H2020.find(GameManager.class);
+            for (String id : new ArrayList<String>(tracked)) {
+                Game g = null;
+                if (gm != null) {
+                    for (Game any : gm.games()) {
+                        if (any.id().equals(id)) { g = any; break; }
+                    }
+                }
+                if (g == null) continue;
+                try { g.shutdown(); } catch (Throwable t) {
+                    if (plugin != null) plugin.getLogger().warning("[trainer] shutdown of " + id + " failed: " + t);
+                }
             }
         }
         tracked.clear();
         startTimes.clear();
+        clearDuelState();
         running = false;
 
-        // all state cleared: a second start() after this one must begin from a clean slate
+        // all state cleared: a second start() or startDuels() after this one must begin from a clean slate
         target = 0;
         maxTarget = 0;
         maxGames = 0;
@@ -188,12 +297,7 @@ public final class Trainer {
         gamesFinished = 0;
         gamesForced = 0;
         runStartedAt = 0L;
-        replay0 = 0L;
-        tracked0 = 0L;
-        armed0 = 0L;
-        hit0 = 0L;
-        taken0 = 0L;
-        beds0 = 0L;
+        resetBaselines();
         durationCount = 0;
         durationNext = 0;
         Arrays.fill(lastGameSeconds, 0.0);
@@ -203,6 +307,11 @@ public final class Trainer {
         lastCreateOk = false;
         lastTps = 20.0;
         lastCreateWarn = 0L;
+        duelsMode = false;
+        if (wasDuels) {
+            return "duel trainer stopped after " + clock(elapsed) + ": " + liveDuels + " duels, " + recycled
+                    + " recycled";
+        }
         return "sprint trainer stopped after " + clock(elapsed) + ": " + started + " started, " + finished
                 + " finished, " + forced + " force-finished";
     }
@@ -215,6 +324,34 @@ public final class Trainer {
         }
         long elapsed = Math.max(0L, System.currentTimeMillis() - runStartedAt);
         long denom = Math.max(1L, elapsed);
+        if (duelsMode) {
+            long armed = delta("ml.place.armed", armed0);
+            long hit = delta("ml.place.outcome.hit", hit0);
+            long taken = delta("ml.place.outcome.taken", taken0);
+            long collapse = delta("ml.place.outcome.collapse", collapse0);
+            long none = delta("ml.place.outcome.none", none0);
+            long reached = delta("tactics.reached", reached0);
+            long started = delta("tactics.started", started0);
+            long declined = delta("tactics.declined", declined0);
+            long gateNoBlocks = delta("tactics.gate.noblocks", gateNoBlocks0);
+            long gateNoHotbar = delta("tactics.gate.nohotbar", gateNoHotbar0);
+            long gateAir = delta("tactics.gate.air", gateAir0);
+            long gateNav = delta("tactics.gate.nav", gateNav0);
+            long armedPerHour = armed * 3600000L / denom;
+            long hitPerHour = hit * 3600000L / denom;
+            out.add("§6[trainer] §emode §fduels§7, duels §f" + duelStartTimes.size() + "§7 live, recycled §f"
+                    + duelsRecycled + "§7, TPS §f" + String.format(Locale.ROOT, "%.1f", lastTps));
+            // the game counters are shared state and read zero here: label them instead of pretending they are broken
+            out.add("§7games: §f0§7 started, §f0§7 finished, §f0§7 force-finished §8(duel mode - no games)");
+            out.add("§7throughput: §f0§7 games/hour §8(duel mode - no games)");
+            out.add("§7learning: §f" + armed + "§7 decisions armed, §f" + hit + "§7 outcome-hit, §f" + taken
+                    + "§7 outcome-taken, §f" + collapse + "§7 collapse, §f" + none + "§7 none");
+            out.add("§7tactics: §f" + reached + "§7 reached, §f" + started + "§7 started, §f" + declined
+                    + "§7 declined, §f" + gateNoBlocks + "/" + gateNoHotbar + "/" + gateAir + "/" + gateNav
+                    + "§7 gate:noblocks/nohotbar/air/nav");
+            out.add("§7per hour: §f" + armedPerHour + "§7 armed, §f" + hitPerHour + "§7 hits");
+            return out;
+        }
         // Every game that ended counts: under the sprint cap almost all of them are force-finished, so counting
         // only natural finishes would make the throughput figure read zero while the trainer is saturated.
         long gamesPerHour = (gamesFinished + gamesForced) * 3600000L / denom;
@@ -250,6 +387,7 @@ public final class Trainer {
         if (!running) return;
         pass++;
         lastTps = tps();
+        if (duelsMode) { tickDuels(); return; }
 
         GameManager gm = H2020.find(GameManager.class);
         if (gm == null) return;
@@ -290,6 +428,234 @@ public final class Trainer {
             if (!startOne()) break;   // do not spin on the same failure every pass
         }
         adapt();
+    }
+
+    // ------------------------------------------------------------------------------------------------ duels
+
+    /**
+     * Arena sessions never finish, so the governor recycles instead of replacing: a duel older than duelSeconds is
+     * torn down to its three bots and started again with fresh bodies in the same quadrant. It never touches a Game
+     * (there is none) and never unloads the arena world.
+     */
+    private static void tickDuels() {
+        long now = System.currentTimeMillis();
+        for (Integer slot : new ArrayList<Integer>(duelStartTimes.keySet())) {
+            Long at = duelStartTimes.get(slot);
+            if (at == null) continue;
+            if (now - at.longValue() >= duelSeconds * 1000L) recycleDuel(slot.intValue(), now);
+        }
+    }
+
+    private static void recycleDuel(int slot, long now) {
+        BotService bs = H2020.find(BotService.class);
+        removeDuelBots(slot, bs);
+        int cycle = cycleOf(slot) + 1;
+        duelCycles.put(Integer.valueOf(slot), Integer.valueOf(cycle));
+        duelStartTimes.put(Integer.valueOf(slot), Long.valueOf(now));
+        spawnDuel(slot, cycle);
+        duelsRecycled++;
+        if (plugin != null) plugin.getLogger().info("[trainer] duel " + slot + " recycled (cycle " + cycle + ")");
+    }
+
+    private static int cycleOf(int slot) {
+        Integer c = duelCycles.get(Integer.valueOf(slot));
+        return c == null ? 0 : c.intValue();
+    }
+
+    /** Spawn the three bots of one duel, spread on a small ring inside that duel's quadrant of the pad. */
+    private static void spawnDuel(int slot, int cycle) {
+        BotService bs = H2020.find(BotService.class);
+        World world = arenaWorld();
+        if (bs == null || world == null) return;
+        for (int i = 0; i < BOTS_PER_DUEL; i++) {
+            final Location at = duelSpawn(world, slot, cycle, i);
+            Bot bot;
+            try {
+                bot = bs.spawn(bs.randomProfile(), at);
+            } catch (Throwable t) {
+                if (plugin != null) plugin.getLogger().warning("[trainer] could not spawn a duel bot: " + t);
+                continue;
+            }
+            if (bot == null) continue;
+            Player p = bot.player();
+            if (p == null) continue;
+            String id = p.getUniqueId().toString();
+            List<String> ids = duelBots.get(Integer.valueOf(slot));
+            if (ids == null) {
+                ids = new ArrayList<String>();
+                duelBots.put(Integer.valueOf(slot), ids);
+            }
+            ids.add(id);
+            duelBotIds.add(id);
+            // The arena's own path finishes the join two ticks later, once the fake client has logged in: same retry
+            // the game path uses. Teleport + kit + ArenaBrain is exactly what /h2020 arena bot gives a bot.
+            final Bot spawned = bot;
+            Bukkit.getScheduler().runTaskLater(plugin, new Runnable() {
+                @Override public void run() { finishDuelSpawn(spawned, at); }
+            }, 2L);
+        }
+    }
+
+    private static void finishDuelSpawn(Bot bot, Location at) {
+        if (bot == null) return;
+        Player p = bot.player();
+        if (bot.isRemoved() || p == null || !p.isOnline()) return;
+        if (at == null || at.getWorld() == null) return;
+        try {
+            p.teleport(at);
+            p.setGameMode(GameMode.SURVIVAL);
+            p.setHealth(20.0);
+            p.setFoodLevel(20);
+            p.setFireTicks(0);
+            p.removePotionEffect(org.bukkit.potion.PotionEffectType.INVISIBILITY);
+            arenaKit(p);
+        } catch (Throwable t) {
+            if (plugin != null) plugin.getLogger().warning("[trainer] duel join failed for "
+                    + (p == null ? "?" : p.getName()) + ": " + t);
+        }
+        if (!(bot.brain() instanceof ArenaBrain)) bot.setBrain(new ArenaBrain());
+    }
+
+    /**
+     * A duel slot is also its quadrant: slots 0..3 are (-x,-z), (+x,-z), (-x,+z), (+x,+z). The ring phase advances
+     * with the cycle, so a recycled duel gets clear air instead of dropping its bodies back onto the old pile.
+     */
+    private static Location duelSpawn(World world, int slot, int cycle, int index) {
+        double cx = (slot % 2 == 0 ? -1.0 : 1.0) * 9.5;
+        double cz = (slot / 2 == 0 ? -1.0 : 1.0) * 9.5;
+        double phase = cycle * 0.9 + slot * 0.4;
+        double angle = phase + index * (Math.PI * 2.0 / BOTS_PER_DUEL);
+        double radius = 2.5;
+        double x = cx + Math.cos(angle) * radius;
+        double z = cz + Math.sin(angle) * radius;
+        // face the middle of the pad, so a duel starts as a fight rather than three bots looking at the floor
+        float yaw = (float) Math.toDegrees(Math.atan2(x, -z));
+        return new Location(world, x, DUEL_FLOOR_Y + 1, z, yaw, 0f);
+    }
+
+    /** Remove that duel's current bodies and forget their ids, but leave every other duel alone. */
+    private static void removeDuelBots(int slot, BotService bs) {
+        List<String> ids = duelBots.remove(Integer.valueOf(slot));
+        if (ids == null) return;
+        for (String id : ids) removeDuelBot(bs, id);
+    }
+
+    private static void removeAllDuelBots() {
+        BotService bs = H2020.find(BotService.class);
+        for (String id : new ArrayList<String>(duelBotIds)) removeDuelBot(bs, id);
+        duelBotIds.clear();
+    }
+
+    private static void removeDuelBot(BotService bs, String id) {
+        if (id == null) return;
+        try {
+            Player p = Bukkit.getPlayer(UUID.fromString(id));
+            if (p != null && bs != null) {
+                Bot b = bs.bot(p);
+                if (b != null) b.remove();
+            }
+        } catch (Throwable t) {
+            if (plugin != null) plugin.getLogger().warning("[trainer] could not remove duel bot " + id + ": " + t);
+        }
+        duelBotIds.remove(id);
+    }
+
+    private static void clearDuelState() {
+        duelStartTimes.clear();
+        duelBots.clear();
+        duelCycles.clear();
+        duelBotIds.clear();
+        duelsRecycled = 0L;
+    }
+
+    // ------------------------------------------------------------------------------------------------ arena bootstrap
+
+    /**
+     * Reuse the core arena's own bootstrap instead of building a world here. The replay plugin does not compile
+     * against core, so the call is reflective; PvpArena.world() is already idempotent (it returns the loaded world and
+     * only generates the pad the first time), which is exactly the rule the second startDuels() needs.
+     */
+    private static Class<?> arenaType() {
+        if (arenaTypeTried) return arenaType;
+        arenaTypeTried = true;
+        try {
+            Plugin owner = Bukkit.getPluginManager().getPlugin("Lattice");
+            ClassLoader loader = owner != null ? owner.getClass().getClassLoader() : Trainer.class.getClassLoader();
+            arenaType = loader.loadClass(ARENA_CLASS);
+        } catch (Throwable t) {
+            arenaType = null;
+            if (plugin != null) plugin.getLogger().warning("[trainer] cannot reach " + ARENA_CLASS + ": " + t);
+        }
+        return arenaType;
+    }
+
+    private static World arenaWorld() {
+        try {
+            Class<?> type = arenaType();
+            if (type == null) return Bukkit.getWorld(ARENA_WORLD);
+            Object w = type.getMethod("world").invoke(null);
+            return w instanceof World ? (World) w : Bukkit.getWorld(ARENA_WORLD);
+        } catch (Throwable t) {
+            if (plugin != null) plugin.getLogger().warning("[trainer] PvpArena.world() failed: " + t);
+            return Bukkit.getWorld(ARENA_WORLD);
+        }
+    }
+
+    private static void arenaKit(Player p) {
+        try {
+            Class<?> type = arenaType();
+            if (type == null) return;
+            type.getMethod("giveKit", Player.class).invoke(null, p);
+        } catch (Throwable t) {
+            if (plugin != null) plugin.getLogger().warning("[trainer] PvpArena.giveKit() failed: " + t);
+        }
+    }
+
+    // ------------------------------------------------------------------------------------------------ baselines
+
+    /** Take a reading of every counter a report subtracts from, exactly like start() always did for the games. */
+    private static void captureBaselines() {
+        replay0 = net.h2020.api.train.Replay.rows();
+        tracked0 = total("ml.place.tracked");
+        armed0 = total("ml.place.armed");
+        hit0 = total("ml.place.outcome.hit");
+        taken0 = total("ml.place.outcome.taken");
+        beds0 = total("bed.raid.ok");
+        collapse0 = total("ml.place.outcome.collapse");
+        none0 = total("ml.place.outcome.none");
+        reached0 = total("tactics.reached");
+        started0 = total("tactics.started");
+        declined0 = total("tactics.declined");
+        gateNoBlocks0 = total("tactics.gate.noblocks");
+        gateNoHotbar0 = total("tactics.gate.nohotbar");
+        gateAir0 = total("tactics.gate.air");
+        gateNav0 = total("tactics.gate.nav");
+    }
+
+    private static void resetBaselines() {
+        replay0 = 0L;
+        tracked0 = 0L;
+        armed0 = 0L;
+        hit0 = 0L;
+        taken0 = 0L;
+        beds0 = 0L;
+        collapse0 = 0L;
+        none0 = 0L;
+        reached0 = 0L;
+        started0 = 0L;
+        declined0 = 0L;
+        gateNoBlocks0 = 0L;
+        gateNoHotbar0 = 0L;
+        gateAir0 = 0L;
+        gateNav0 = 0L;
+    }
+
+    private static long total(String counter) {
+        return (long) net.h2020.api.stats.CombatStats.total(counter);
+    }
+
+    private static long delta(String counter, long baseline) {
+        return Math.max(0L, total(counter) - baseline);
     }
 
     /** Grow while TPS has headroom, shrink when it does not. At most one step every 20 passes. */

@@ -314,9 +314,14 @@ final class BlockTactics {
     boolean consider(Player target, double d, boolean losing) {
         if (mode != NONE) return tick();
         if (!CombatTuning.blockPlay || target == null) return false;
-        if (ctx.nav.doingAction() || !ctx.c.onGround()) return false;
+        // Each gate is counted: a placement branch that never runs looks identical to one that always declines, and
+        // the only way to tell them apart is to count where the decision stopped.
+        if (ctx.nav.doingAction()) { net.h2020.api.stats.CombatStats.inc("tactics.gate.nav"); return false; }
+        if (!ctx.c.onGround()) { net.h2020.api.stats.CombatStats.inc("tactics.gate.air"); return false; }
         Scene f = scene(target, d, losing);
-        if (f.blocks < 1 || !f.hotBlocks) return false;
+        if (f.blocks < 1) { net.h2020.api.stats.CombatStats.inc("tactics.gate.noblocks"); return false; }
+        if (!f.hotBlocks) { net.h2020.api.stats.CombatStats.inc("tactics.gate.nohotbar"); return false; }
+        net.h2020.api.stats.CombatStats.inc("tactics.reached");
         int[] order = net.h2020.bots.ai.ml.PlacementPolicy.rank(ctx.player.getUniqueId(), ctx, style, target, d,
                 f.onLine, losing, winProb);
         for (int i = 0; i < order.length; i++) {
@@ -336,11 +341,13 @@ final class BlockTactics {
                 default: started = false; break;
             }
             if (started) {
+                net.h2020.api.stats.CombatStats.inc("tactics.started");
                 net.h2020.bots.ai.ml.PlacementPolicy.record(ctx.player.getUniqueId(), order, i);
                 net.h2020.bots.ai.ml.SelfStats.onBedBlock(ctx.player, ctx.tick);
                 return true;
             }
         }
+        net.h2020.api.stats.CombatStats.inc("tactics.declined");
         return false;
     }
 

@@ -5,7 +5,7 @@ import org.bukkit.command.CommandSender;
 import java.util.ArrayList;
 import java.util.List;
 
-/** /h2020 train start|stop|report|promote|discard|sprint - the self-play arena and the sprint trainer. */
+/** /h2020 train start|stop|report|promote|discard|sprint|duels - the self-play arena, sprint trainer and duels. */
 public final class TrainCommand {
     private TrainCommand() {}
 
@@ -30,6 +30,18 @@ public final class TrainCommand {
             // default cap matches Trainer's: the fastest measured setting, 201 games/hour on this host
             int gameSeconds = a.length > 3 ? parseInt(a[3], 60) : 60;
             s.sendMessage("§6[trainer] §e" + Trainer.start(max, gameSeconds));
+            return true;
+        }
+        if (sub.equals("duels")) {
+            String what = a.length > 2 ? a[2].toLowerCase() : "";
+            if (what.equals("stop")) { s.sendMessage("§6[trainer] §e" + Trainer.stop()); return true; }
+            if (what.equals("status")) {
+                for (String l : Trainer.report()) s.sendMessage(l);
+                return true;
+            }
+            int duels = a.length > 2 ? parseInt(a[2], 4) : 4;
+            int seconds = a.length > 3 ? parseInt(a[3], 60) : 60;
+            s.sendMessage("§6[trainer] §e" + Trainer.startDuels(duels, seconds));
             return true;
         }
         if (sub.equals("human")) {
@@ -57,12 +69,19 @@ public final class TrainCommand {
     public static List<String> complete(String[] a) {
         List<String> out = new ArrayList<String>();
         if (a.length == 2) {
-            for (String c : new String[]{"start", "stop", "report", "promote", "discard", "hindsight", "human", "sprint"})
+            for (String c : new String[]{"start", "stop", "report", "promote", "discard", "hindsight", "human",
+                    "sprint", "duels"})
                 if (c.startsWith(a[1].toLowerCase())) out.add(c);
         } else if (a.length == 3 && a[1].equalsIgnoreCase("sprint")) {
             for (String c : new String[]{"stop", "status", "4", "8", "12", "16", "24"})
                 if (c.startsWith(a[2].toLowerCase())) out.add(c);
         } else if (a.length == 4 && a[1].equalsIgnoreCase("sprint")) {
+            for (String c : new String[]{"30", "60", "90", "120", "180", "240"})
+                if (c.startsWith(a[3].toLowerCase())) out.add(c);
+        } else if (a.length == 3 && a[1].equalsIgnoreCase("duels")) {
+            for (String c : new String[]{"stop", "status", "1", "2", "3", "4"})
+                if (c.startsWith(a[2].toLowerCase())) out.add(c);
+        } else if (a.length == 4 && a[1].equalsIgnoreCase("duels")) {
             for (String c : new String[]{"30", "60", "90", "120", "180", "240"})
                 if (c.startsWith(a[3].toLowerCase())) out.add(c);
         }

@@ -772,6 +772,7 @@ public final class Combat {
         items.allowTnt = ctx.bot.brain() instanceof net.h2020.bots.ai.brain.BedwarsBrain;
         boolean meleeBusy = d < 3.2 && ctx.tick - Math.max(lastHitLanded, lastHurt) < 15;
         if (items.fightTick(target, d, lastHurt, meleeBusy)) {
+            net.h2020.api.stats.CombatStats.inc("pre.consider.items");
             if (items.eating()) {
                 if (d < 6) backOff(tl, d);
                 aimTarget(Motor.P_COMBAT, AimIntent.COMBAT);
@@ -793,7 +794,10 @@ public final class Combat {
         // the bed is right there and the defender is busy: put the sword away and break it now
         double enemyNear = nearestEnemyDist(d);
         if (bedRaid.active()) {
-            if (bedRaid.tick(ctx.tick - lastHurt, enemyNear)) return;
+            if (bedRaid.tick(ctx.tick - lastHurt, enemyNear)) {
+                net.h2020.api.stats.CombatStats.inc("pre.consider.bedraid");
+                return;
+            }
         } else if (CombatTuning.bedRaid && bedInfo != null && bedInfo.alive() && bedInfo.foot() != null
                 && bedRaid.consider(bedInfo.foot(), ctx.tick - lastHurt, enemyNear)) {
             if (bedRaid.tick(ctx.tick - lastHurt, enemyNear)) return;
@@ -813,6 +817,7 @@ public final class Combat {
                 CombatStats.inc("combat.blocks.equip");
             }
         }
+        net.h2020.api.stats.CombatStats.inc("pre.consider.reach");
         tactics.cps = cpsNow;
         tactics.winProb = pWin;
         if (tactics.consider(target, d, losing || (retreating && hp <= 8))) return;
