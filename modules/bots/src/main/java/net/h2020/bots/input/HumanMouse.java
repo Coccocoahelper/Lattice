@@ -24,9 +24,17 @@ import java.util.Random;
  *  - the aim point on an entity hitbox wanders around the chest/neck instead of the exact centre.
  */
 public final class HumanMouse {
-    public static final int FRAMES_PER_TICK = 4;
-    private static final double FRAME_MS = 50.0D / FRAMES_PER_TICK;
+    /** Rendered mouse frames per client tick (6 = 120 fps). Changed live with /bot fps. */
+    public static volatile int FRAMES_PER_TICK = 6;
     private static final int HIST = 16;
+
+    /** Milliseconds per rendered frame; read live so /bot fps takes effect on the very next frame. */
+    private static double frameMs() { return 50.0D / FRAMES_PER_TICK; }
+
+    /** /bot fps: clamp to 1..20 frames per 50 ms tick. */
+    public static void setFramesPerTick(int n) {
+        FRAMES_PER_TICK = Math.max(1, Math.min(20, n));
+    }
 
     public enum Mode { NONE, POINT, ENTITY, ROTATION }
 
@@ -196,11 +204,12 @@ public final class HumanMouse {
 
     /** Simulates the frames of one tick. eye = client eye position. */
     public void frames(double eyeX, double eyeY, double eyeZ) {
-        for (int i = 0; i < FRAMES_PER_TICK; i++) frame(eyeX, eyeY, eyeZ);
+        for (int i = 0; i < FRAMES_PER_TICK; i++) frameStep(eyeX, eyeY, eyeZ);
     }
 
-    private void frame(double ex, double ey, double ez) {
-        now += FRAME_MS;
+    /** Simulates one rendered frame; the caller can raycast/click between steps. eye = client eye position. */
+    public void frameStep(double ex, double ey, double ez) {
+        now += frameMs();
         double dYaw = 0.0D, dPitch = 0.0D;
 
         double desYaw = yaw, desPitch = pitch;
@@ -246,7 +255,7 @@ public final class HumanMouse {
 
         // target angular velocity estimate (deg/ms) for pursuit / lead
         if (hasTarget && haveLastDes) {
-            double vy = wrap(desYaw - lastDesYaw) / FRAME_MS, vp = (desPitch - lastDesPitch) / FRAME_MS;
+            double vy = wrap(desYaw - lastDesYaw) / frameMs(), vp = (desPitch - lastDesPitch) / frameMs();
             velYaw += (vy - velYaw) * 0.3D;
             velPitch += (vp - velPitch) * 0.3D;
         } else {
@@ -279,8 +288,8 @@ public final class HumanMouse {
         if (responsive && (mode == Mode.ENTITY || mode == Mode.POINT)) {
             double gain = pursuitGain();
             double vy = clampAbs(velYaw, 1.5D), vp = clampAbs(velPitch, 1.0D);
-            dYaw += gain * vy * FRAME_MS;
-            dPitch += gain * vp * FRAME_MS;
+            dYaw += gain * vy * frameMs();
+            dPitch += gain * vp * frameMs();
         }
 
         // 3) plan new / corrective submovements
@@ -298,13 +307,13 @@ public final class HumanMouse {
         }
 
         // 4) tremor, amplitude grows with hand speed
-        double inst = Math.sqrt(dYaw * dYaw + dPitch * dPitch) / FRAME_MS;
+        double inst = Math.sqrt(dYaw * dYaw + dPitch * dPitch) / frameMs();
         handSpeed += (inst - handSpeed) * 0.25D;
         double amp = (0.010D + 0.028D * (1.0D - aim)) * (0.25D + Math.min(1.5D, handSpeed / 0.12D));
-        trPhase1 += 2.0D * Math.PI * trFreq1 * FRAME_MS / 1000.0D;
-        trPhase2 += 2.0D * Math.PI * trFreq2 * FRAME_MS / 1000.0D;
-        trPhase3 += 2.0D * Math.PI * (trFreq2 * 1.07D) * FRAME_MS / 1000.0D;
-        trPhase4 += 2.0D * Math.PI * (trFreq1 * 0.93D) * FRAME_MS / 1000.0D;
+        trPhase1 += 2.0D * Math.PI * trFreq1 * frameMs() / 1000.0D;
+        trPhase2 += 2.0D * Math.PI * trFreq2 * frameMs() / 1000.0D;
+        trPhase3 += 2.0D * Math.PI * (trFreq2 * 1.07D) * frameMs() / 1000.0D;
+        trPhase4 += 2.0D * Math.PI * (trFreq1 * 0.93D) * frameMs() / 1000.0D;
         double tX = amp * (Math.sin(trPhase1) + 0.45D * Math.sin(trPhase2));
         double tY = amp * 0.8D * (Math.sin(trPhase3) + 0.45D * Math.sin(trPhase4));
         dYaw += tX - trLastX;
@@ -354,8 +363,8 @@ public final class HumanMouse {
     private void startMovement(double dy, double dp, double durMs, double curv) {
         double len = Math.sqrt(dy * dy + dp * dp);
         moving = true;
-        mvStart = now - FRAME_MS * 0.5D;
-        mvDur = Math.max(FRAME_MS, durMs);
+        mvStart = now - frameMs() * 0.5D;
+        mvDur = Math.max(frameMs(), durMs);
         mvYaw = dy;
         mvPitch = dp;
         mvCurv = curv;
@@ -430,7 +439,7 @@ public final class HumanMouse {
 
     private void driftAimPoint() {
         if (now >= nextAimPick) pickAimPoint(false);
-        double k = FRAME_MS / 300.0D;
+        double k = frameMs() / 300.0D;
         aimFrac += (aimFracGoal - aimFrac) * k;
         aimSide += (aimSideGoal - aimSide) * k;
     }

@@ -6,6 +6,7 @@ import net.h2020.api.bot.BotController;
 import net.h2020.api.bot.BotProfile;
 import net.h2020.api.bot.CheatProfile;
 import net.h2020.api.packet.PacketHub;
+import net.h2020.api.stats.CombatStats;
 import net.h2020.bots.input.ClickScheduler;
 import net.h2020.bots.input.HumanMouse;
 import net.h2020.bots.net.FakeNetworkManager;
@@ -546,14 +547,10 @@ public final class VirtualClient implements BotController, FakeNetworkManager.Si
 
         // ---- mouse frames rendered since the last tick ----
         mouse.tickStart();
-        if (!guiOpen()) {
-            double ey = phys.posY + (double) phys.eyeHeight();
-            mouse.frames(phys.posX, ey, phys.posZ);
-        }
 
         // ---- Minecraft.runTick ----
         if (rightClickDelayTimer > 0) --rightClickDelayTimer;
-        // EntityRenderer.getMouseOver: computed lazily (same rotation/position as here) - idle bots skip the ray trace
+        // EntityRenderer.getMouseOver: idle bots keep the lazy ray trace; the click path re-traces per frame below
         overValid = false;
         overYaw = mouse.yaw;
         overPitch = mouse.pitch;
@@ -575,19 +572,28 @@ public final class VirtualClient implements BotController, FakeNetworkManager.Si
         BlockPosition forced = forcedUseBlock;
         forcedUseBlock = null;
 
+        double eyeX = phys.posX, eyeY = phys.posY + (double) phys.eyeHeight(), eyeZ = phys.posZ;
         if (guiOpen() || !doneLoadingTerrain) {
             leftClickCounter = 10000;
+            if (!guiOpen()) mouse.frames(eyeX, eyeY, eyeZ);
+            overValid = false;
+            overYaw = mouse.yaw;
+            overPitch = mouse.pitch;
         } else {
-            if (presses > 0 || leftDown || rights > 0 || forced != null || rightHeld || isHittingBlock) ensureOver();
             if (leftClickCounter > 0) --leftClickCounter;
+            if (presses > 0 || leftDown || rights > 0 || forced != null || rightHeld || isHittingBlock) {
+                // per-frame rotation + uncached raycast + the queued click with THAT frame's aim
+                frameClickLoop(presses, rights, forced);
+            } else {
+                // idle path: one simulation of every frame, ray trace still deferred until something asks for it
+                mouse.frames(eyeX, eyeY, eyeZ);
+                overValid = false;
+                overYaw = mouse.yaw;
+                overPitch = mouse.pitch;
+            }
             if (usingItem) {
                 if (!rightHeld) onStoppedUsingItem();
-            } else {
-                for (int i = 0; i < presses; i++) clickMouse();
-                if (forced != null) useOnBlock(forced);
-                for (int i = 0; i < rights; i++) rightClickMouse();
             }
-            if (rightHeld && rightClickDelayTimer == 0 && !usingItem) rightClickMouse();
             sendClickBlockToController(leftDown);
             cheats.preMovement();
         }
@@ -604,8 +610,109 @@ public final class VirtualClient implements BotController, FakeNetworkManager.Si
         playerUpdate();
     }
 
+    /**
+     * One tick's mouse frames with the click budget spread over them. Frame 0 gets the first queued press, so a tick
+     * with presses = 1 still sends exactly one attack; every action is preceded by a rotation packet carrying that
+     * frame's aim, which is what lets a bot turn and place inside a single server tick.
+     */
+    private void frameClickLoop(int presses, int rights, BlockPosition forced) {
+        double ex = phys.posX, ey = phys.posY + (double) phys.eyeHeight(), ez = phys.posZ;
+        boolean canAct = !usingItem;
+        boolean forcedDone = false;
+        boolean heldDone = false;
+        for (int i = 0; i < HumanMouse.FRAMES_PER_TICK; i++) {
+            mouse.frameStep(ex, ey, ez);
+            frameOver();
+            boolean used = false;
+            if (canAct) {
+                if (presses > 0) {
+                    --presses;
+                    sendRotationNow();
+                    if (clickMouse()) {
+                        used = true;
+                        ++clickFramesUsed;
+                        CombatStats.inc("click.frames.used");
+                    }
+                }
+                if (!forcedDone) {
+                    forcedDone = true;
+                    if (forced != null) {
+                        sendRotationNow();
+                        useOnBlock(forced);
+                        used = true;
+                        ++clickFramesUsed;
+                        CombatStats.inc("click.frames.used");
+                    }
+                }
+                if (rights > 0) {
+                    --rights;
+                    sendRotationNow();
+                    rightClickMouse();
+                    used = true;
+                    ++clickFramesUsed;
+                    CombatStats.inc("click.frames.used");
+                }
+            }
+            if (!heldDone && rightHeld && rightClickDelayTimer == 0 && !usingItem) {
+                heldDone = true;
+                sendRotationNow();
+                rightClickMouse();
+                used = true;
+                ++clickFramesUsed;
+                CombatStats.inc("click.frames.used");
+            }
+            if (!used) {
+                ++clickFramesIdle;
+                CombatStats.inc("click.frames.idle");
+            }
+        }
+        // A burst larger than the frame count still has to be spent this tick; otherwise a queue build-up would
+        // silently lower the CPS the model asked for. Vanilla processes every queued press in the same tick too.
+        while (canAct && presses > 0) {
+            --presses;
+            sendRotationNow();
+            if (clickMouse()) {
+                ++clickFramesUsed;
+                CombatStats.inc("click.frames.used");
+            }
+        }
+        while (canAct && rights > 0) {
+            --rights;
+            sendRotationNow();
+            rightClickMouse();
+            ++clickFramesUsed;
+            CombatStats.inc("click.frames.used");
+        }
+    }
+
+    /** objectMouseOver for the frame that was just simulated: always re-traced, never a cached hit. */
+    private void frameOver() {
+        overValid = true;
+        overYaw = mouse.yaw;
+        overPitch = mouse.pitch;
+        over.compute(phys.world, ep, phys, overYaw, overPitch, cheats.entityReach(),
+                phys.creative ? 5.0D : 4.5D, phys.creative);
+    }
+
+    /**
+     * Sends the current mouse rotation immediately, before the action that depends on it. Real 1.8 orders packets
+     * as Flying (rotation) -> arm swing -> block place / use item / attack, and the server processes them in arrival
+     * order. A no-op when the rotation was already reported, so onUpdateWalkingPlayer does not repeat it at the end
+     * of the tick.
+     */
+    void sendRotationNow() {
+        float yaw = mouse.yaw, pitch = mouse.pitch;
+        if (yaw == lastReportedYaw && pitch == lastReportedPitch) return;
+        // 1.8: PacketCodec.flying(...) carries only onGround. The rotation-carrying PacketPlayInFlying variant is
+        // the C05 look packet, so that is what the pre-click rotation uses.
+        send(PacketCodec.look(yaw, pitch, cheats.groundFlag(phys.onGround)));
+        lastReportedYaw = yaw;
+        lastReportedPitch = pitch;
+    }
+
     private boolean overValid;
     private float overYaw, overPitch;
+    private int clickFramesUsed, clickFramesIdle;
 
     /** objectMouseOver for this tick (computed on first use). */
     MouseOver ensureOver() {
@@ -721,6 +828,7 @@ public final class VirtualClient implements BotController, FakeNetworkManager.Si
         double d3 = (double) (yaw - lastReportedYaw);
         double d4 = (double) (pitch - lastReportedPitch);
         boolean flag2 = d0 * d0 + d1 * d1 + d2 * d2 > 9.0E-4D || positionUpdateTicks >= 20;
+        // sendRotationNow() already reported the rotation of every frame that clicked; only a later change is sent here
         boolean flag3 = d3 != 0.0D || d4 != 0.0D;
         boolean ground = cheats.groundFlag(phys.onGround);
         if (DEBUG_NAME != null && DEBUG_NAME.equalsIgnoreCase(player.getName())) {
@@ -766,9 +874,9 @@ public final class VirtualClient implements BotController, FakeNetworkManager.Si
         send(PacketCodec.swing());
     }
 
-    /** Minecraft.clickMouse */
-    private void clickMouse() {
-        if (leftClickCounter > 0) return;
+    /** Minecraft.clickMouse. @return true if the click was actually performed (the miss guard can swallow it). */
+    private boolean clickMouse() {
+        if (leftClickCounter > 0) return false;
         swingItem();
         swings++;
         if (over.type == MouseOver.Type.ENTITY && over.entity != null) {
@@ -779,6 +887,7 @@ public final class VirtualClient implements BotController, FakeNetworkManager.Si
         } else if (gamemode != 1) {
             leftClickCounter = 10;
         }
+        return true;
     }
 
     /** PlayerControllerMP.attackEntity + client-side EntityPlayer.attackTargetEntityWithCurrentItem effects. */
@@ -1245,7 +1354,8 @@ public final class VirtualClient implements BotController, FakeNetworkManager.Si
                 .append(" dig=").append(isHittingBlock ? String.format("%.2f", curBlockDamageMP) : "-")
                 .append(" window=").append(windowId()).append(" cps=").append(String.format("%.1f", clicks.effectiveCps()))
                 .append(" cheat=").append(cheat).append(" ping=").append(pingMs).append("ms")
-                .append(" queued=").append(toServer.size()).append('/').append(toClient.size());
+                .append(" queued=").append(toServer.size()).append('/').append(toClient.size())
+                .append(" click.frames=").append(clickFramesUsed).append('/').append(clickFramesIdle);
         return sb.toString();
     }
 }

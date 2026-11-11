@@ -5,6 +5,7 @@ import net.h2020.api.bot.AimIntent;
 import net.h2020.api.bot.BotProfile;
 import net.h2020.api.bot.CheatProfile;
 import net.h2020.bots.client.VirtualClient;
+import net.h2020.bots.input.HumanMouse;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
@@ -29,7 +30,7 @@ final class BotCommand implements CommandExecutor, TabCompleter {
     private static final List<String> SUBS = Arrays.asList("help", "spawn", "remove", "list", "cheat", "look", "tp", "goto",
             "say", "walk", "stop", "jump", "sneak", "aim", "attack", "aimpos", "left", "right", "slot", "click", "close", "open",
             "settings", "skill", "ml", "why", "counters", "pvp", "deaths", "diag", "defspeed", "neo", "navstats", "navtrace", "zest", "resist",
-            "navfix", "navdebug", "swstats", "self", "menutest", "pltest", "shoptest");
+            "navfix", "navdebug", "swstats", "self", "menutest", "pltest", "shoptest", "fps");
 
     private final BotSettings settings;
     private BotSettingsMenu menu;
@@ -186,6 +187,7 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage("§7 aim and clicks: aim <player> | attack <player> | aimpos <x> <y> <z> | left [cps] | right | slot <n> | click | close | open");
                     sender.sendMessage("§7 combat: pvp [v1|v2|ab|reset|debug] | cheat <profile> | why <name> | counters | deaths [reset]");
                     sender.sendMessage("§7 bridging: diag on|off (diagonal stance) | defspeed on|off (fast bed defence) | neo (neo availability probe)");
+                    sender.sendMessage("§7 input: fps [1-20] (mouse frames per tick, 6 = 120 fps)");
                     sender.sendMessage("§7 learning: ml | navstats | navtrace <bot|off> | navfix <mask> | navdebug | swstats | menutest | pltest | shoptest");
                     sender.sendMessage("§7 chat: say <text>");
                     break;
@@ -204,6 +206,19 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                         if (settings.diagonalStance) net.h2020.bots.ai.motor.BridgeTuning.resetParked();
                     }
                     sender.sendMessage(P + "diagonal stance " + (net.h2020.bots.ai.motor.BridgeTuning.diagonalStance ? "ON" : "OFF"));
+                    break;
+                }
+                case "fps": {
+                    // rendered mouse frames per 50 ms tick; 6 = 120 fps. Applies live to every virtual client.
+                    if (args.length > 1) {
+                        int n;
+                        try { n = Integer.parseInt(args[1]); }
+                        catch (NumberFormatException e) { throw new IllegalArgumentException("Usage: /" + label + " fps [1-20]"); }
+                        if (n < 1 || n > 20) throw new IllegalArgumentException("fps is frames per tick, between 1 and 20");
+                        HumanMouse.setFramesPerTick(n);
+                    }
+                    sender.sendMessage(P + "mouse frames " + HumanMouse.FRAMES_PER_TICK + "/tick ("
+                            + (HumanMouse.FRAMES_PER_TICK * 20) + " fps)");
                     break;
                 }
                 case "resist": {
