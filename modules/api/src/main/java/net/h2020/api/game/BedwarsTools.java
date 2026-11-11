@@ -17,4 +17,6 @@ public interface BedwarsTools {
     void tower(CommandSender sender, org.bukkit.Location at);
     /** Re-read the Bed Wars shop catalogue after a config edit. */
     void reload();
+    /** Runtime-switchable training profile: short countdowns, fast respawns and a compressed event timeline. */
+    void applySprint(boolean on);
 }

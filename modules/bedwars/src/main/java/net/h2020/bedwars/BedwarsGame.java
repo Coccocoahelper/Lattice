@@ -445,7 +445,7 @@ public final class BedwarsGame implements BedwarsView {
         return Math.max(0, eventTime(nextEvent) - elapsedSeconds());
     }
 
-    private int eventTime(int i) { return (int) Math.round(EVENT_TIMES[i] * settings.timelineScale); }
+    private int eventTime(int i) { return (int) Math.round(EVENT_TIMES[i] * settings.efTimelineScale()); }
 
     private int elapsedSeconds() { return playStartTick < 0 ? 0 : (int) ((tick - playStartTick) / 20); }
 
@@ -703,7 +703,7 @@ public final class BedwarsGame implements BedwarsView {
         if (state == GameState.WAITING) {
             if (n >= min && n > 0) {
                 setState(GameState.STARTING);
-                countdown = n >= playerCap() ? Math.min(settings.countdown, settings.fullCountdown) : settings.countdown;
+                countdown = n >= playerCap() ? Math.min(settings.efCountdown(), settings.efFullCountdown()) : settings.efCountdown();
                 announceCountdown();
             }
         } else {
@@ -716,7 +716,7 @@ public final class BedwarsGame implements BedwarsView {
                     bp.player.playSound(bp.player.getLocation(), Sound.NOTE_STICKS, 1f, 1f);
                 }
             } else {
-                if (n >= playerCap() && countdown > settings.fullCountdown) countdown = settings.fullCountdown + 1;
+                if (n >= playerCap() && countdown > settings.efFullCountdown()) countdown = settings.efFullCountdown() + 1;
                 countdown--;
                 if (countdown <= 0) {
                     start();
@@ -1217,13 +1217,13 @@ public final class BedwarsGame implements BedwarsView {
             checkTeamElimination(v.team);
             checkWin();
         } else {
-            v.respawnAt = tick + settings.respawnSeconds * 20L;
-            v.lastRespawnSecond = settings.respawnSeconds;
+            v.respawnAt = tick + settings.efRespawnSeconds() * 20L;
+            v.lastRespawnSecond = settings.efRespawnSeconds();
             makeGhost(p);
             p.teleport(spectatorSpawn);
             Text.title(p, ChatColor.RED + "" + ChatColor.BOLD + "YOU DIED!", ChatColor.YELLOW + "You will respawn in "
-                    + ChatColor.RED + settings.respawnSeconds + ChatColor.YELLOW + " seconds!", 0, 30, 0);
-            p.sendMessage(ChatColor.YELLOW + "You will respawn in " + ChatColor.RED + settings.respawnSeconds
+                    + ChatColor.RED + settings.efRespawnSeconds() + ChatColor.YELLOW + " seconds!", 0, 30, 0);
+            p.sendMessage(ChatColor.YELLOW + "You will respawn in " + ChatColor.RED + settings.efRespawnSeconds()
                     + ChatColor.YELLOW + " seconds!");
         }
     }
@@ -1521,7 +1521,7 @@ public final class BedwarsGame implements BedwarsView {
         if (state == GameState.ENDING) return;
         winner = winnerTeam;
         setState(GameState.ENDING);
-        endAt = tick + settings.endSeconds * 20L;
+        endAt = tick + settings.efEndSeconds() * 20L;
         gadgets.clear();
         dragons.clear();
         for (BwPlayer bp : players.values()) {
@@ -1588,7 +1588,7 @@ public final class BedwarsGame implements BedwarsView {
 
     private void endingTick() {
         for (Generator g : generators) g.animate(tick);
-        if (tick % 20 == 0 && winner != null && endAt - tick > (settings.endSeconds - 6) * 20L) {
+        if (tick % 20 == 0 && winner != null && endAt - tick > (settings.efEndSeconds() - 6) * 20L) {
             for (Player m : winner.members) {
                 BwPlayer bp = data(m);
                 if (bp != null && !bp.eliminated && m.isOnline()) firework(m.getLocation(), winner.color.armor);

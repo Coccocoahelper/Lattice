@@ -63,6 +63,7 @@ public final class Arena {
 
     public static String start(int total, int train, int eval) {
         if (running()) return "already running (" + phase + ")";
+        if (Trainer.active()) return "trainer is running - stop it first";
         totalGames = Math.max(2, total);
         trainGames = Math.max(1, train);
         evalGames = Math.max(2, eval);

@@ -25,6 +25,15 @@ public final class BedwarsSettings {
     public double timelineScale = 1.0;
     /** How far from its bed a team's island counts as "in base" for heal pool, traps and protection. */
     public int islandRadius = 12;
+    /** Training profile: a game that starts almost immediately and runs its timeline compressed. */
+    public boolean sprint;
+
+    public void applySprint(boolean on) { sprint = on; }
+    public int efCountdown()      { return sprint ? 2 : countdown; }
+    public int efFullCountdown()  { return sprint ? 1 : fullCountdown; }
+    public int efRespawnSeconds() { return sprint ? 1 : respawnSeconds; }
+    public int efEndSeconds()     { return sprint ? 2 : endSeconds; }
+    public double efTimelineScale(){ return sprint ? 0.08 : timelineScale; }
 
     public static BedwarsSettings load(JavaPlugin plugin) {
         BedwarsSettings s = new BedwarsSettings();

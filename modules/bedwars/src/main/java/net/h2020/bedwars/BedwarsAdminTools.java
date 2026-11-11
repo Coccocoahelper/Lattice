@@ -95,6 +95,17 @@ public final class BedwarsAdminTools implements BedwarsTools {
         net.h2020.bedwars.shop.ShopCatalog.load(new java.io.File(module.plugin().getDataFolder(), "shops/bedwars.yml"));
     }
 
+    @Override
+    public void applySprint(boolean on) {
+        BedwarsSettings st = module.settings();
+        st.applySprint(on);
+        String line = "§6[sprint] §etraining speed §f" + (on ? "on" : "off")
+                + "§7 - countdown " + st.efCountdown() + "s, respawn " + st.efRespawnSeconds()
+                + "s, end " + st.efEndSeconds() + "s, timeline x"
+                + String.format(java.util.Locale.ROOT, "%s", st.efTimelineScale());
+        Bukkit.getServer().getConsoleSender().sendMessage(line);
+    }
+
     @Override public void generators(CommandSender s, Player asPlayerOrNull) {
         BedwarsGame g = game(asPlayerOrNull);
         if (g == null) { s.sendMessage(ChatColor.RED + "No game running."); return; }

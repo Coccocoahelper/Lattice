@@ -5,7 +5,7 @@ import org.bukkit.command.CommandSender;
 import java.util.ArrayList;
 import java.util.List;
 
-/** /h2020 train start|stop|report|promote|discard - the self-play arena. */
+/** /h2020 train start|stop|report|promote|discard|sprint - the self-play arena and the sprint trainer. */
 public final class TrainCommand {
     private TrainCommand() {}
 
@@ -19,6 +19,18 @@ public final class TrainCommand {
             return true;
         }
         if (sub.equals("stop")) { s.sendMessage("§6[train] §e" + Arena.stop()); return true; }
+        if (sub.equals("sprint")) {
+            String what = a.length > 2 ? a[2].toLowerCase() : "";
+            if (what.equals("stop")) { s.sendMessage("§6[trainer] §e" + Trainer.stop()); return true; }
+            if (what.equals("status")) {
+                for (String l : Trainer.report()) s.sendMessage(l);
+                return true;
+            }
+            int max = a.length > 2 ? parseInt(a[2], 8) : 8;
+            int gameSeconds = a.length > 3 ? parseInt(a[3], 90) : 90;
+            s.sendMessage("§6[trainer] §e" + Trainer.start(max, gameSeconds));
+            return true;
+        }
         if (sub.equals("human")) {
             if (a.length < 4) { s.sendMessage("§c/h2020 train human <gameId> <player>"); return true; }
             HumanReplay.Result r = HumanReplay.train(a[2], a[3]);
@@ -44,8 +56,14 @@ public final class TrainCommand {
     public static List<String> complete(String[] a) {
         List<String> out = new ArrayList<String>();
         if (a.length == 2) {
-            for (String c : new String[]{"start", "stop", "report", "promote", "discard", "hindsight", "human"})
+            for (String c : new String[]{"start", "stop", "report", "promote", "discard", "hindsight", "human", "sprint"})
                 if (c.startsWith(a[1].toLowerCase())) out.add(c);
+        } else if (a.length == 3 && a[1].equalsIgnoreCase("sprint")) {
+            for (String c : new String[]{"stop", "status", "4", "8", "12", "16", "24"})
+                if (c.startsWith(a[2].toLowerCase())) out.add(c);
+        } else if (a.length == 4 && a[1].equalsIgnoreCase("sprint")) {
+            for (String c : new String[]{"30", "60", "90", "120", "180", "240"})
+                if (c.startsWith(a[3].toLowerCase())) out.add(c);
         }
         return out;
     }
