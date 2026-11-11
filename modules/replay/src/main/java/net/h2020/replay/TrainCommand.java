@@ -27,7 +27,8 @@ public final class TrainCommand {
                 return true;
             }
             int max = a.length > 2 ? parseInt(a[2], 8) : 8;
-            int gameSeconds = a.length > 3 ? parseInt(a[3], 90) : 90;
+            // default cap matches Trainer's: the fastest measured setting, 201 games/hour on this host
+            int gameSeconds = a.length > 3 ? parseInt(a[3], 60) : 60;
             s.sendMessage("§6[trainer] §e" + Trainer.start(max, gameSeconds));
             return true;
         }

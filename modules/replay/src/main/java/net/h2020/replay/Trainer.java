@@ -67,7 +67,13 @@ public final class Trainer {
     /** Absolute ceiling for a game length, so a caller cannot ask for an endless game. */
     private static int maxGameSeconds = 240;
     /** Length of one sprint game; start() derives it from the trainer, tick() enforces it. */
-    private static int gameSeconds = 90;
+    /**
+     * Default game cap, in seconds. Measured on this host at 4 concurrent games, TPS held at 20.0:
+     * 60 s -> 201 games/hour, 180 s -> 48/hour, 300 s -> ~24/hour. Throughput is set almost entirely by this cap,
+     * because bot-only games do not reach a natural victory before it. It defaults to the fastest measured setting;
+     * pass a larger number when you want longer fights rather than more of them.
+     */
+    private static int gameSeconds = 60;
     private static double minTps = 18.0;
     private static int mapCursor;
 
