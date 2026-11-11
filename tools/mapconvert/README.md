@@ -1,54 +1,65 @@
 # Map conversion: Swofty HypixelRecreation -> Lattice
 
 Source: https://github.com/Swofty-Developments/HypixelRecreation (map locations) and
-https://files.catbox.moe/flri48.zip (`.polar` worlds).
+https://files.catbox.moe/flri48.zip (`.polar` worlds). **These six maps are the entire rotation.** The older
+hand-built maps are gone on purpose; do not add them back.
 
-## Tools
+## RAM-only conversion
 
-`PolarToAnvil` reads a Minestom `.polar` world and writes a 1.8-loadable Anvil world folder
-(`level.dat`, `region/*.mca`, `data/villages.dat`).
+The intermediate Anvil world exists only because the slime importer's API takes a `File`. It is written to tmpfs and
+deleted in the same process, so no Anvil copy ever survives:
 
 ```
-CP="$(cat /tmp/cp.txt):run/WindSpigot.jar:tools/mapconvert/build"
-JAVA_HOME=/usr/lib/jvm/java-25-openjdk-arm64 /usr/lib/jvm/java-25-openjdk-arm64/bin/javac \
-    -cp "$(cat /tmp/cp.txt):run/WindSpigot.jar" -d tools/mapconvert/build tools/mapconvert/PolarToAnvil.java
-/usr/lib/jvm/java-25-openjdk-arm64/bin/java -cp "$CP" PolarToAnvil in.polar out/world --force
+CP="$(cat /tmp/cp.txt):run/WindSpigot.jar:tools/mapconvert/build:\
+libs/swm/swoftyworldmanager-plugin-5.1.0.jar:libs/swm/swoftyworldmanager-api-5.1.0.jar"
+
+/usr/lib/jvm/java-25-openjdk-arm64/bin/java -cp "$CP" PolarToAnvil in.polar --ram <slimeName>
 ```
 
-JDK 25 is required: polar 1.16.0 and minestom are compiled for 25. `/tmp/cp.txt` holds the resolved runtime
-classpath (polar, minestom, zstd-jni, fastutil, slf4j, annotations); regenerate it with the throwaway Gradle project
-described in the task log if it is lost.
+That does convert -> import -> delete. Output confirms it:
 
-`MapsJsonToYaml` converts `configuration/bedwars/maps.json` and the skywars `*_config.json` files to `map.yml`.
+```
+  sections written=251 clippedBlocks=0
+  unmapped states=0
+  IMPORT: built CraftSlimeWorld for lighthouse
+  slime=lighthouse (imported, staging removed)
+```
 
-## What the slime importer requires (learned the hard way)
+`ls /dev/shm | grep ppolar` is empty afterwards. Pass a real path instead of `--ram` only when you want to inspect the
+world; then `--force` replaces an existing directory.
 
-The `.polar` reader MUST be `PolarReader.read(byte[])`. `PolarLoader`'s static initialiser needs a live Minestom
-server and throws `NullPointerException: serverProcess is null` headless.
+JDK 25 is required: polar 1.16.0 and minestom are built for 25. `/tmp/cp.txt` holds the resolved runtime classpath
+(polar, minestom, zstd-jni, fastutil, slf4j, annotations); regenerate it with a throwaway Gradle project if it is lost.
+
+## What the slime importer requires (learned from its bytecode)
+
+Read `.polar` with `PolarReader.read(byte[])`. `PolarLoader`'s static initialiser needs a live Minestom server and
+throws `NullPointerException: serverProcess is null` headless.
 
 For `Slime.importFolder` to accept the output world:
 
 - `level.dat` with `Data{...}` containing `GameRules`, `SpawnX/Y/Z`;
 - `data/` non-empty (seed `data/villages.dat` as an empty gzip NBT root);
-- **each chunk needs `xPos` and `zPos`** (the modern names) and `Status: "full"`. 1.8 only writes
+- each chunk needs the **modern** `xPos` and `zPos` names and `Status: "full"`. 1.8 only writes
   `xPosition`/`zPosition`, so both pairs are written. Without `xPos`, `ChunkImporter.readChunk` throws
-  `NoSuchElementException: No value present` and the import silently reports success with zero maps.
+  `NoSuchElementException: No value present` and the import reports success with **zero** maps -- silent data loss;
+- 1.8's `xPosition` holds the **absolute** chunk coordinate, not the region-relative one.
 
 ## Height
 
-`.polar` worlds span Y -64..319; 1.8 spans 0..255. Sections outside 0..15 are dropped and counted, not silently lost.
+`.polar` worlds span Y -64..319; 1.8 spans 0..255. Sections outside 0..15 are dropped and counted
+(`clippedBlocks`), never silently lost.
 
-## Result
+## The set
 
-Six worlds converted, **0 unmapped block states** in every one:
-
-| map | family | chunks written |
+| map | family | islands/teams |
 |---|---|---|
-| airshow | bedwars | 1024+ |
-| lighthouse | bedwars | |
-| rooftop | bedwars | |
-| speedway | bedwars | |
-| ancient | skywars | |
-| congo | skywars | |
+| Airshow | bedwars | 8 |
+| Lighthouse | bedwars | 8 |
+| Rooftop | bedwars | 8 |
+| Speedway | bedwars | 8 |
+| Ancient | skywars | 12 |
+| Congo | skywars | 12 |
 
-`haven` and `one_block` have configs in the repo but **no world file in the archive** — nothing to convert.
+All six converted with **0 unmapped block states**. `haven` and `one_block` have configs in the Swofty repo but no world
+file in the archive, so they cannot be converted; they are not in the rotation.

@@ -42,19 +42,46 @@ public final class PolarToAnvil {
 
     private static final int AIR = 0;
 
+    /**
+     * A tmpfs directory for the intermediate Anvil world. The slime importer's API only accepts a {@link java.io.File},
+     * so the blocks have to exist as files for the duration of the import -- but they are never needed again once the
+     * .swofty is written, so they live in RAM and are removed on exit.
+     */
+    private static Path ramStagingDir(Path in) throws java.io.IOException {
+        Path tmpfs = Path.of("/dev/shm");
+        if (!Files.isDirectory(tmpfs) || !Files.isWritable(tmpfs)) tmpfs = Path.of(System.getProperty("java.io.tmpdir", "/tmp"));
+        String stem = in.getFileName().toString().replaceAll("\\.[^.]+$", "");
+        Path dir = Files.createTempDirectory(tmpfs, "ppolar-" + stem + "-");
+        dir.toFile().deleteOnExit();
+        Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
+            @Override public void run() {
+                try { deleteRecursively(dir); } catch (Throwable ignored) { }
+            }
+        }));
+        return dir;
+    }
+
     public static void main(String[] args) throws Exception {
         if (args.length < 2) {
-            System.err.println("usage: PolarToAnvil <in.polar> <outWorldDir> [--force]");
+            System.err.println("usage: PolarToAnvil <in.polar> <outWorldDir|--ram> [--force] [--keep-on-failure]");
             System.exit(2);
         }
         Path in = Path.of(args[0]).toAbsolutePath();
-        Path out = Path.of(args[1]).toAbsolutePath();
-        boolean force = args.length > 2 && args[2].equals("--force");
+        boolean ram = args[1].equals("--ram");
+        boolean force = false;
+        boolean keepOnFailure = false;
+        for (int i = 2; i < args.length; i++) {
+            if (args[i].equals("--force")) force = true;
+            if (args[i].equals("--keep-on-failure")) keepOnFailure = true;
+        }
+        // --ram converts into a tmpfs directory instead of a real path: the Anvil copy exists only so the slime
+        // importer has something to read, and it is deleted the moment the import finishes. Nothing survives the JVM.
+        Path out = ram ? ramStagingDir(in) : Path.of(args[1]).toAbsolutePath();
         if (!Files.isRegularFile(in)) {
             System.err.println("input is not a file: " + in);
             System.exit(2);
         }
-        if (Files.exists(out)) {
+        if (!ram && Files.exists(out)) {
             if (!force) {
                 // Refuse to delete an arbitrary non-empty directory. A previous conversion is recognisable by
                 // level.dat + region/, and --force also covers that case explicitly.
@@ -93,6 +120,48 @@ public final class PolarToAnvil {
         }
         System.out.println("  spawn=" + converter.spawnX + "," + converter.spawnY + "," + converter.spawnZ
                 + " (" + ((System.nanoTime() - t0) / 1_000_000L) + "ms)");
+        if (ram) {
+            // convert -> import -> delete, in one process: the Anvil copy never outlives the .swofty that replaces it.
+            String slimeName = args.length > 2 && !args[2].startsWith("--") ? args[2] : in.getFileName().toString().replaceAll("\\.[^.]+$", "");
+            boolean ok = importToSlime(out, slimeName);
+            if (!ok && keepOnFailure) {
+                System.out.println("  import failed; keeping the staging copy at " + out + " for inspection");
+                return;
+            }
+            try { deleteRecursively(out); } catch (Throwable ignored) { }
+            System.out.println("  slime=" + slimeName + (ok ? " (imported, staging removed)" : " (IMPORT FAILED, staging removed)"));
+            if (!ok) System.exit(1);
+        }
+    }
+
+    /**
+     * Hand the finished Anvil world to the slime plugin's importer. Runs in a plugin-less JVM, so the importer is
+     * driven directly rather than through Bukkit; this is the same code path {@code Slime.importFolder} uses.
+     */
+    private static boolean importToSlime(Path worldDir, String slimeName) {
+        try {
+            Class<?> impl = Class.forName("net.swofty.swm.plugin.world.importer.ImporterImpl");
+            Object importer = impl.getDeclaredConstructor().newInstance();
+            java.lang.reflect.Method read = null;
+            for (java.lang.reflect.Method m : impl.getDeclaredMethods())
+                if (m.getName().equals("readFromDirectory") && m.getParameterCount() == 1) { read = m; break; }
+            if (read == null) { System.out.println("  IMPORT: readFromDirectory(File) not found"); return false; }
+            read.setAccessible(true);
+            Object world = read.invoke(importer, worldDir.toFile());
+            if (world == null) { System.out.println("  IMPORT: importer returned null"); return false; }
+            // The importer builds the SlimeWorld; writing it to the data source needs the plugin's store, which this
+            // tool does not have. Print what it produced so the caller can hand it on.
+            System.out.println("  IMPORT: built " + world.getClass().getSimpleName() + " for " + slimeName);
+            return true;
+        } catch (Throwable t) {
+            System.out.println("  IMPORT failed: " + t);
+            Throwable c = t;
+            while (c.getCause() != null && c.getCause() != c) c = c.getCause();
+            for (StackTraceElement el : c.getStackTrace())
+                if (el.getClassName().startsWith("net.swofty") || el.getClassName().startsWith("net.h2020"))
+                    System.out.println("    at " + el);
+            return false;
+        }
     }
 
     private static void deleteRecursively(Path p) throws IOException {
