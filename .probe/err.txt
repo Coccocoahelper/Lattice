@@ -1,0 +1,5 @@
+WARNING: A restricted method in java.lang.System has been called
+WARNING: java.lang.System::load has been called by com.github.luben.zstd.util.Native$2 in an unnamed module (file:/home/ubuntu/.gradle/caches/modules-2/files-2.1/com.github.luben/zstd-jni/1.5.7-7/f36a1a88f8f0e5f7f06aa99f23ea743cef49ded5/zstd-jni-1.5.7-7.jar)
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module
+WARNING: Restricted methods will be blocked in a future release unless native access is enabled
+

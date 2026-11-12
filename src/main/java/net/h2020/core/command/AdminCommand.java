@@ -42,8 +42,7 @@ public final class AdminCommand implements TabExecutor {
     private static final Pattern DATE = Pattern.compile("\\d{2}/\\d{2}/\\d{2}");
     private static final String[] TEAMSHIFT_KEYS = {"spawn", "bed", "generator", "shop", "upgrades", "base"};
     private static final String TEAM_COLOURS = "red, blue, green, yellow, aqua, white, pink, gray";
-    private static final List<String> SUBS = Arrays.asList("games", "create", "start", "fill", "bots", "watch", "end", "train", "replay", "reload", "date", "edit", "maptag", "teamshift", "tags", "mapimportdir",
-            "rank", "level", "build", "setspawn", "npc", "cheaters", "fillspeed", "background", "npcprobe", "ping", "pingselftest", "settingsprobe",
+    private static final List<String> SUBS = Arrays.asList("games", "create", "start", "fill", "bots", "watch", "end", "train", "replay", "reload", "date", "edit", "slimeimport", "maptag", "teamshift", "tags", "mapimportdir",            "rank", "level", "build", "setspawn", "npc", "cheaters", "fillspeed", "background", "npcprobe", "ping", "pingselftest", "settingsprobe",
             "sidebar");
     private final Core core;
 
@@ -788,6 +787,23 @@ public final class AdminCommand implements TabExecutor {
                 for (java.util.Map.Entry<String, int[]> e : sum.entrySet())
                     s.sendMessage(r(e.getKey()) + g(" - " + e.getValue()[0] + " map(s), "
                             + (e.getValue()[1] == 1 ? "DISABLED" : "enabled")));
+                return true;
+            }
+            case "slimeimport": {
+                // /lattice slimeimport <folder> <id>: import an arbitrary staged world folder into the slime store
+                // under an explicit id. /lattice convert only knows about map templates and the three fixed lobby ids,
+                // which is no help when a new lobby world has to be brought in beside the old one.
+                if (a.length < 3) { s.sendMessage(r("/h2020 slimeimport <folder> <slimeId>")); return true; }
+                net.h2020.api.map.MapService ms0 = H2020.find(net.h2020.api.map.MapService.class);
+                if (!(ms0 instanceof net.h2020.maps.MapServiceImpl)) { s.sendMessage(r("No map service")); return true; }
+                net.h2020.maps.MapServiceImpl svc = (net.h2020.maps.MapServiceImpl) ms0;
+                if (!svc.hasSlime()) { s.sendMessage(r("SwoftyWorldManager is not installed.")); return true; }
+                java.io.File src = new java.io.File(a[1].startsWith("/") ? a[1]
+                        : new java.io.File(".").getAbsolutePath() + "/" + a[1]);
+                if (!src.isDirectory()) { s.sendMessage(r("No folder " + src)); return true; }
+                boolean okImp = svc.importSlime(src.getAbsolutePath(), a[2]);
+                s.sendMessage(okImp ? g("Imported " + src.getName() + " as '" + a[2] + "'")
+                        : r("Import of " + src.getName() + " failed (see the log)"));
                 return true;
             }
             case "convert": {

@@ -38,6 +38,9 @@ public final class Slime implements SlimeWorlds.Spawner {
     private final Map<String, Deque<World>> pool = new ConcurrentHashMap<String, Deque<World>>();
     /** Bukkit world name to the slime world behind it, so release() can unload the right one. */
     private final Map<String, Object> live = new ConcurrentHashMap<String, Object>();
+
+    /** Ids with a pool build in flight, so concurrent callers cannot start duplicate clones. */
+    private final java.util.Set<String> refilling = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private final AtomicInteger seq = new AtomicInteger();
 
     private Slime(Logger log, Object plugin, Object fileLoader) throws Exception {
@@ -203,6 +206,9 @@ public final class Slime implements SlimeWorlds.Spawner {
         if (template == null) { if (id != null) prepare(id); return; }
         Deque<World> ready = pool.get(id);
         if (ready != null && !ready.isEmpty()) return;
+        // Only one build per id at a time. Without this every caller that finds an empty pool starts its own clone,
+        // and since the build is async they pile up (a lobby poll loop produced 45 copies of one map).
+        if (!refilling.add(id)) return;
         try {
             final String name = "instances/swm_" + id + "_" + seq.incrementAndGet();
             final Object copy = clone.invoke(template, name);
@@ -210,6 +216,7 @@ public final class Slime implements SlimeWorlds.Spawner {
             CompletableFuture<Void> future = (CompletableFuture<Void>) generateWorld.invoke(plugin, copy);
             future.whenComplete(new BiConsumer<Void, Throwable>() {
                 @Override public void accept(Void v, Throwable err) {
+                    refilling.remove(id);
                     if (err != null) { log.warning("[slime] could not build " + name + ": " + root(err)); return; }
                     World w = Bukkit.getWorld(name);
                     if (w == null) return;
@@ -219,6 +226,7 @@ public final class Slime implements SlimeWorlds.Spawner {
                 }
             });
         } catch (Throwable t) {
+            refilling.remove(id);
             log.warning("[slime] refill for " + mapName + " failed: " + root(t));
         }
     }

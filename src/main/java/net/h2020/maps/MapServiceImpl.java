@@ -45,6 +45,17 @@ public final class MapServiceImpl implements MapService {
     private final Logger log;
     final File mapsDir;
     Slime slime;
+
+    /** Import one staged world folder into the slime store under an explicit id (used by /lattice slimeimport). */
+    public boolean importSlime(String folder, String slimeId) {
+        if (slime == null) return false;
+        java.io.File src = new java.io.File(folder);
+        if (!src.isDirectory()) return false;
+        return slime.importFolder(src, slimeId);
+    }
+
+    /** Is the slime store attached? */
+    public boolean hasSlime() { return slime != null; }
     private final Map<String, StoredMapTemplate> templates = new LinkedHashMap<String, StoredMapTemplate>();
     /** instance world name (lower case) -> template */
     final Map<String, StoredMapTemplate> instances = new ConcurrentHashMap<String, StoredMapTemplate>();
@@ -147,6 +158,50 @@ public final class MapServiceImpl implements MapService {
             }
         }, 2L, 4L);
         return true;
+    }
+
+    /**
+     * A configured lobby that lives in the slime store arrives a few ticks after it is asked for. Poll for it, then
+     * re-point the lobby fields at it and put anybody who landed in the fallback world where they belong.
+     */
+    /** Configured lobbies whose slime copy is already requested, so a retry cannot request a second one. */
+    private final java.util.Set<String> lobbySpawning = new java.util.HashSet<String>();
+
+    /**
+     * The configured lobby is standing up as an empty void world. Ask the slime pool for the real map and, once a copy
+     * is handed out, move every player across and re-point the lobby field.
+     */
+    private void scheduleLobbySwap(final String worldName) {
+        final int[] tries = {0};
+        final org.bukkit.scheduler.BukkitTask[] holder = new org.bukkit.scheduler.BukkitTask[1];
+        holder[0] = Bukkit.getScheduler().runTaskTimer(plugin, new Runnable() {
+            @Override public void run() {
+                World real = null;
+                if (slime != null) real = slime.spawn(worldName, "lobby");
+                if (real == null && ++tries[0] <= 200) return;   // ~40 s at 4-tick intervals; the pool refills itself
+                holder[0].cancel();
+                lobbySpawning.remove(worldName);
+                if (real == null) {
+                    log.warning("[maps] lobby " + worldName + " has no slime copy yet; the empty world stays");
+                    return;
+                }
+                // re-point the lobby field and move everyone standing in the empty stand-in
+                World standIn = Bukkit.getWorld(worldName);
+                if (worldName.contains("bedwars")) bedwarsLobby = real;
+                else if (worldName.contains("skywars")) skywarsLobby = real;
+                else mainLobby = real;
+                final org.bukkit.Location spawn = real.getSpawnLocation();
+                if (standIn != null) for (org.bukkit.entity.Player p : standIn.getPlayers()) p.teleport(spawn);
+                if (standIn != null && standIn != real) {
+                    // the empty world has served its purpose: unload it so nothing can wander into it
+                    Bukkit.getScheduler().runTaskLater(plugin, new Runnable() {
+                        @Override public void run() { if (standIn.getPlayers().isEmpty()) WorldUnloader.unload(standIn); }
+                    }, 100L);
+                }
+                log.info("[maps] lobby " + worldName + " swapped to its slime copy " + real.getName()
+                        + " (" + spawn.getBlockX() + "," + spawn.getBlockY() + "," + spawn.getBlockZ() + ")");
+            }
+        }, 4L, 4L);
     }
 
     /** A map's blocks live in its slime file once converted, so the world folder is dead weight. */
@@ -405,7 +460,31 @@ public final class MapServiceImpl implements MapService {
         try {
             if (override != null && !override.isEmpty()) {
                 World w = Bukkit.getWorld(override);
-                if (w == null && new File(Worlds.container(), override + "/level.dat").isFile()) w = Bukkit.createWorld(new org.bukkit.WorldCreator(override));
+                // A slime copy outranks a world folder. The stand-in void world that keeps the boot alive writes its
+                // own folder, so if the folder were consulted first the empty world would win from the second boot on
+                // and the real lobby would never be reached.
+                if (w == null && (slime == null || !slime.has(override))
+                        && new File(Worlds.container(), override + "/level.dat").isFile()) {
+                    w = Bukkit.createWorld(new org.bukkit.WorldCreator(override));
+                }
+                // An explicitly configured lobby may live in the slime store: that is how a replacement lobby (the
+                // Swofty hub) is installed beside the generated one without overwriting it. spawnNamed is async, so
+                // this tick returns the generated fallback and the deferred sweep below moves everyone once the clone
+                // has materialised - the same pattern the default lobbies already use.
+                if (w == null && slime != null && slime.has(override)) {
+                    // The lobby lives in the slime store. spawnNamed cannot be trusted to pin a world name (CSWM hands
+                    // the clone an instanced name instead, so the world we asked for never appears), so instead:
+                    // stand up an empty void world under the configured name this tick, keep the server bootable, and
+                    // let the pool deliver the real lobby - the same path a game's world takes. When it arrives the
+                    // players are moved across and the lobby field is re-pointed.
+                    Worlds.delete(new File(Worlds.container(), override));
+                    w = Worlds.loadVoid(override, org.bukkit.block.Biome.PLAINS, 0.5, 64.5, 0.5);
+                    if (w != null) {
+                        Worlds.applyRules(w, false);
+                        log.info("[maps] lobby " + override + " standing up empty; the slime copy will replace it");
+                        scheduleLobbySwap(override);
+                    }
+                }
                 if (w != null) { Worlds.applyRules(w, false); return w; }
                 log.warning("[maps] configured lobby world '" + override + "' not found, using generated " + name);
             }
