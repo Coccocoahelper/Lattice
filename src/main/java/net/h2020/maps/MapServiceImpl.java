@@ -6,6 +6,7 @@ import net.h2020.api.map.MapService;
 import net.h2020.api.map.MapTemplate;
 import net.h2020.maps.gen.GeneratedMap;
 import net.h2020.maps.gen.LobbyGenerator;
+import net.h2020.maps.gen.SwoftyLobbies;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
@@ -39,7 +40,8 @@ import java.util.logging.Logger;
  * main-lobby-world / bedwars-lobby-world / skywars-lobby-world (use an existing world folder instead).
  */
 public final class MapServiceImpl implements MapService {
-    static final int LOBBY_VERSION = 1;
+    /** Bumped when the hub spawn/NPC table changes, so an old lobby-npcs.yml is rewritten. */
+    static final int LOBBY_VERSION = 2;
 
     final JavaPlugin plugin;
     private final Logger log;
@@ -537,18 +539,21 @@ public final class MapServiceImpl implements MapService {
         File f = new File(plugin.getDataFolder(), "lobby-npcs.yml");
         if (f.isFile() && YamlConfiguration.loadConfiguration(f).getInt("version", 0) >= LOBBY_VERSION) return;
         YamlConfiguration y = new YamlConfiguration();
-        y.options().header("NPC pads of the generated hubs (written by the maps module). Positions are feet\n"
-                + "positions (block centre); yaw faces the spawn at (0.5, 71, 0.5). Top-level bedwars/skywars are the\n"
-                + "main lobby game NPCs; *_lobby sections hold the per-mode NPCs of the family lobbies.");
+        y.options().header("Spawn and NPC pads of the hubs (written by the maps module). Positions are feet\n"
+                + "positions; yaw is degrees. The coordinates are Swofty's Hypixel recreation's own. Top-level\n"
+                + "bedwars/skywars are the main lobby game NPCs; *_lobby sections hold the per-mode NPCs of the\n"
+                + "family lobbies. Keys under extra.* are that hub's other NPCs, kept for holograms and later NPCs.");
         y.set("version", LOBBY_VERSION);
-        y.set("world", LobbyGenerator.MAIN);
-        y.set("spawn", pos(new double[]{0.5, LobbyGenerator.PY + 1, 0.5, 180}));
-        for (Map.Entry<String, double[]> e : LobbyGenerator.npcPads(LobbyGenerator.MAIN).entrySet()) {
-            String key = e.getKey().equals("bedwars") || e.getKey().equals("skywars") ? e.getKey() : "extra." + e.getKey();
-            y.set(key, pos(e.getValue()));
+        // The hubs are Swofty's maps now, so their spawn and NPC pads come from that project rather than from the
+        // generator. LobbyGenerator still builds a hub when no slime copy exists, and its numbers stay reachable
+        // through generated() below.
+        y.set("world", SwoftyLobbies.MAIN);
+        y.set("spawn", pos(SwoftyLobbies.spawn(SwoftyLobbies.MAIN)));
+        for (Map.Entry<String, double[]> e : SwoftyLobbies.pads(SwoftyLobbies.MAIN).entrySet()) {
+            y.set(e.getKey(), pos(e.getValue()));
         }
-        section(y, "bedwars_lobby", LobbyGenerator.BEDWARS);
-        section(y, "skywars_lobby", LobbyGenerator.SKYWARS);
+        section(y, "bedwars_lobby", SwoftyLobbies.BEDWARS, SwoftyLobbies.pads(SwoftyLobbies.BEDWARS));
+        section(y, "skywars_lobby", SwoftyLobbies.SKYWARS, SwoftyLobbies.pads(SwoftyLobbies.SKYWARS));
         try {
             y.save(f);
         } catch (IOException e) {
@@ -556,10 +561,10 @@ public final class MapServiceImpl implements MapService {
         }
     }
 
-    private static void section(YamlConfiguration y, String key, String world) {
+    private static void section(YamlConfiguration y, String key, String world, Map<String, double[]> pads) {
         y.set(key + ".world", world);
-        y.set(key + ".spawn", pos(new double[]{0.5, LobbyGenerator.PY + 1, 0.5, 180}));
-        for (Map.Entry<String, double[]> e : LobbyGenerator.npcPads(world).entrySet()) y.set(key + "." + e.getKey(), pos(e.getValue()));
+        y.set(key + ".spawn", pos(SwoftyLobbies.spawn(world)));
+        for (Map.Entry<String, double[]> e : pads.entrySet()) y.set(key + "." + e.getKey(), pos(e.getValue()));
     }
 
     private static Map<String, Object> pos(double[] p) {

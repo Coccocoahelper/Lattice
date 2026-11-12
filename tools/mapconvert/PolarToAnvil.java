@@ -67,6 +67,18 @@ public final class PolarToAnvil {
             System.exit(2);
         }
         Path in = Path.of(args[0]).toAbsolutePath();
+        // --probe x y z [x y z ...]: print the source blockstate at each coordinate, before any 1.8 mapping. Used to
+        // check a coordinate from a map's own config against the map file rather than against a conversion of it.
+        if (args[1].equals("--probe")) {
+            PolarWorld pw = PolarReader.read(Files.readAllBytes(in));
+            for (int i = 2; i + 2 < args.length; i += 3) {
+                int px = Integer.parseInt(args[i]);
+                int py = Integer.parseInt(args[i + 1]);
+                int pz = Integer.parseInt(args[i + 2]);
+                System.out.println("  probe " + px + "," + py + "," + pz + " = " + probeState(pw, px, py, pz));
+            }
+            return;
+        }
         boolean ram = args[1].equals("--ram");
         boolean force = false;
         boolean keepOnFailure = false;
@@ -162,6 +174,26 @@ public final class PolarToAnvil {
                     System.out.println("    at " + el);
             return false;
         }
+    }
+
+    /** The raw blockstate at a world coordinate in a polar map, or air when the chunk is absent. */
+    private static String probeState(PolarWorld world, int x, int y, int z) {
+        int cx = x >> 4, cz = z >> 4;
+        for (PolarChunk c : world.chunks()) {
+            if (c.x() != cx || c.z() != cz) continue;
+            int pi = (y >> 4) - world.minSection();
+            PolarSection[] secs = c.sections();
+            if (pi < 0 || pi >= secs.length || secs[pi] == null) return "air (no section)";
+            PolarSection ps = secs[pi];
+            String[] palette = ps.blockPalette();
+            int[] data = ps.blockData();
+            if (palette == null || palette.length == 0) return "air (empty palette)";
+            int idx = ((y & 15) << 8) | ((z & 15) << 4) | (x & 15);
+            int p = data == null ? 0 : data[idx];
+            if (p < 0 || p >= palette.length) p = 0;
+            return palette[p];
+        }
+        return "air (no chunk)";
     }
 
     private static void deleteRecursively(Path p) throws IOException {

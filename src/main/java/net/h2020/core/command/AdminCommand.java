@@ -42,8 +42,7 @@ public final class AdminCommand implements TabExecutor {
     private static final Pattern DATE = Pattern.compile("\\d{2}/\\d{2}/\\d{2}");
     private static final String[] TEAMSHIFT_KEYS = {"spawn", "bed", "generator", "shop", "upgrades", "base"};
     private static final String TEAM_COLOURS = "red, blue, green, yellow, aqua, white, pink, gray";
-    private static final List<String> SUBS = Arrays.asList("games", "create", "start", "fill", "bots", "watch", "end", "train", "replay", "reload", "date", "edit", "slimeimport", "maptag", "teamshift", "tags", "mapimportdir",            "rank", "level", "build", "setspawn", "npc", "cheaters", "fillspeed", "background", "npcprobe", "ping", "pingselftest", "settingsprobe",
-            "sidebar");
+    private static final List<String> SUBS = Arrays.asList("games", "create", "start", "fill", "bots", "watch", "end", "train", "replay", "reload", "date", "edit", "slimeimport", "lobbyprobe", "maptag", "teamshift", "tags", "mapimportdir",            "rank", "level", "build", "setspawn", "npc", "cheaters", "fillspeed", "background", "npcprobe", "ping", "pingselftest", "settingsprobe",            "sidebar");
     private final Core core;
 
     public AdminCommand(Core core) { this.core = core; }
@@ -179,6 +178,47 @@ public final class AdminCommand implements TabExecutor {
                         if (!line.trim().isEmpty()) s.sendMessage(g(line));
                 } finally {
                     net.h2020.api.map.SlimeWorlds.release(w);
+                }
+                return true;
+            }
+            case "lobbyprobe": {
+                // /h2020 lobbyprobe: where the lobby spawn and every NPC pad actually resolve to, against the numbers
+                // the hubs were built with. Prints the live world name too, since a slime hub is an instance.
+                net.h2020.core.lobby.LobbyManager lm = core.lobby;
+                net.h2020.api.map.MapService msL = net.h2020.api.H2020.find(net.h2020.api.map.MapService.class);
+                if (lm == null || msL == null) { s.sendMessage(r("No lobby service")); return true; }
+                String[][] worlds = {{net.h2020.maps.gen.SwoftyLobbies.MAIN, "main"},
+                        {net.h2020.maps.gen.SwoftyLobbies.BEDWARS, "bedwars"},
+                        {net.h2020.maps.gen.SwoftyLobbies.SKYWARS, "skywars"}};
+                for (java.util.Map.Entry<String, org.bukkit.Location> np
+                        : core.npcs.positions().entrySet()) {
+                    org.bukkit.Location npc = np.getValue();
+                    s.sendMessage("npc " + np.getKey() + " -> " + (npc == null ? "null"
+                            : npc.getWorld().getName() + " " + npc.getX() + "," + npc.getY() + "," + npc.getZ()
+                            + " yaw=" + npc.getYaw()));
+                }
+                for (String[] pair : worlds) {
+                    org.bukkit.World w = null;
+                    for (org.bukkit.World cand : org.bukkit.Bukkit.getWorlds())
+                        if (cand.getName().contains(pair[0])) w = cand;
+                    if (w == null) { s.sendMessage(r(pair[0] + ": not loaded")); continue; }
+                    org.bukkit.Location spawn = lm.spawn(w);
+                    double[] want = net.h2020.maps.gen.SwoftyLobbies.spawn(pair[0]);
+                    boolean spawnOk = spawn != null && Math.abs(spawn.getX() - want[0]) < 1e-6
+                            && Math.abs(spawn.getY() - want[1]) < 1e-6 && Math.abs(spawn.getZ() - want[2]) < 1e-6;
+                    s.sendMessage((spawnOk ? g("") : r("")) + pair[1] + " world=" + w.getName()
+                            + " spawn=" + (spawn == null ? "null" : spawn.getX() + "," + spawn.getY() + "," + spawn.getZ()
+                            + " yaw=" + spawn.getYaw()) + (spawnOk ? " ok" : " EXPECTED " + want[0] + "," + want[1] + "," + want[2]));
+                    for (java.util.Map.Entry<String, double[]> e : net.h2020.maps.gen.SwoftyLobbies.pads(pair[0]).entrySet()) {
+                        if (e.getKey().startsWith("extra.")) continue;
+                        org.bukkit.Location pad = lm.pads().pad(w, e.getKey());
+                        double[] q = e.getValue();
+                        boolean ok = pad != null && Math.abs(pad.getX() - q[0]) < 1e-6
+                                && Math.abs(pad.getY() - q[1]) < 1e-6 && Math.abs(pad.getZ() - q[2]) < 1e-6;
+                        s.sendMessage((ok ? g("") : r("")) + "  " + e.getKey() + " -> "
+                                + (pad == null ? "null" : pad.getX() + "," + pad.getY() + "," + pad.getZ())
+                                + (ok ? " ok" : " EXPECTED " + q[0] + "," + q[1] + "," + q[2]));
+                    }
                 }
                 return true;
             }

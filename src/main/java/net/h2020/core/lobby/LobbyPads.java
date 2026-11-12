@@ -40,12 +40,21 @@ public final class LobbyPads {
     private ConfigurationSection sectionFor(World w) {
         if (w == null) return null;
         YamlConfiguration y = yml();
-        if (w.getName().equals(y.getString("world"))) return y;
+        if (sameHub(w.getName(), y.getString("world"))) return y;
         for (String k : new String[]{"bedwars_lobby", "skywars_lobby"}) {
             ConfigurationSection s = y.getConfigurationSection(k);
-            if (s != null && w.getName().equals(s.getString("world"))) return s;
+            if (s != null && sameHub(w.getName(), s.getString("world"))) return s;
         }
         return null;
+    }
+
+    /**
+     * Does a live world belong to the hub this section describes? A hub that comes out of the world manager is an
+     * instance with a generated name ({@code instances/swm_swofty_lobby_main_7}), so an exact match is not enough.
+     */
+    private static boolean sameHub(String actual, String configured) {
+        if (actual == null || configured == null || configured.isEmpty()) return false;
+        return actual.equals(configured) || actual.contains(configured);
     }
 
     /** Hub spawn with its yaw, or null. */

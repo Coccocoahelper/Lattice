@@ -103,6 +103,15 @@ public final class NpcManager implements Listener, PacketHub.Listener {
 
     public NpcManager(Core core) { this.core = core; }
 
+    /** Where every NPC resolves to right now, by spec id. Read-only; for /h2020 lobbyprobe. */
+    public java.util.Map<String, org.bukkit.Location> positions() {
+        java.util.Map<String, org.bukkit.Location> m = new java.util.LinkedHashMap<String, org.bukkit.Location>();
+        for (Spec s : SPECS) {
+            try { m.put(s.id, position(s)); } catch (Throwable t) { m.put(s.id, null); }
+        }
+        return m;
+    }
+
     public static List<String> ids() {
         List<String> l = new ArrayList<>();
         for (Spec s : SPECS) l.add(s.id);
