@@ -52,6 +52,27 @@ public final class PositionSense {
     }
 
     /**
+     * Scareshow #54: knockback pushes off forward momentum, so a fight needs one to two blocks of flat ground in
+     * front of the bot to be worth starting. Standing against a wall or at the lip of a drop means the first hit has
+     * nowhere to send them and the trade is lost for free. True when there is no room in front.
+     */
+    public static boolean noRoomAhead(BotContext ctx, Location me, Player enemy) {
+        if (enemy == null) return false;
+        double dx = enemy.getLocation().getX() - me.getX(), dz = enemy.getLocation().getZ() - me.getZ();
+        double l = Math.sqrt(dx * dx + dz * dz);
+        if (l < 1e-3) return false;
+        dx /= l; dz /= l;
+        WorldView wv = ctx.world();
+        int y = floor(me.getY() + 0.01);
+        for (double r = 0.8; r <= 1.8; r += 0.5) {
+            int x = floor(me.getX() + dx * r), z = floor(me.getZ() + dz * r);
+            if (!wv.passable(x, y, z) || !wv.passable(x, y + 1, z)) return true;
+            if (!wv.standable(x, y - 1, z) && wv.voidBelow(x, y - 1, z, 8)) return true;
+        }
+        return false;
+    }
+
+    /**
      * Should this fight be avoided from where we stand? True when they are above us within drop range, or we are on an
      * exposed line and they are healthy enough to trade, or we are below them with no way up.
      */
@@ -62,6 +83,8 @@ public final class PositionSense {
         if (underTheirDrop(me, enemy) && pWin < 0.62) return true;
         if (up > 2.2 && pWin < 0.5) return true;
         if (onExposedLine(ctx, me) && pWin < 0.45) return true;
+        // Scareshow #54: a fight with no flat ground in front cannot deal knockback, so it is a trade on their terms.
+        if (noRoomAhead(ctx, me, enemy) && pWin < 0.55) return true;
         return false;
     }
 

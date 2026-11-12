@@ -141,7 +141,11 @@ public final class CollectTask extends BwTask {
         }
         sharing = false;
         if (ctx.tick >= nextShuffle) {
-            spot = gen.clone().add((ctx.rng.nextDouble() - 0.5) * 1.4, 0, (ctx.rng.nextDouble() - 0.5) * 1.4);
+            // Scareshow #48: dropping diamonds a couple of blocks away from the diamond generator lets more spawn -
+            // a pickup that falls on the generator block itself is lost to the next spawn cycle.
+            double radius = (kind == Kind.DIAMOND || kind == Kind.EMERALD) ? 2.2 : 0.7;
+            double a = ctx.rng.nextDouble() * Math.PI * 2;
+            spot = gen.clone().add(Math.cos(a) * radius, 0, Math.sin(a) * radius);
             nextShuffle = ctx.tick + AIMath.range(ctx.rng, 12, 32);   // keep shuffling: standing on a generator is how a bot looks switched off
         }
         ctx.nav.stop();

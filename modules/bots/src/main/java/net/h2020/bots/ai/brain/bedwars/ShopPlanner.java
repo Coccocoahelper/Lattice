@@ -231,14 +231,33 @@ public final class ShopPlanner {
         }
     }
 
-    /** Team upgrades worth buying now, in priority order. */
-    public static List<String> upgrades(Role role, boolean teams) {
+    /**
+     * Team upgrades worth buying now, in priority order.
+     *
+     * <p>Scareshow, "101 tips" #19 and #32: if the bed is <b>not</b> under threat, Sharpness first - it costs one
+     * diamond and leaves one for a trap or two for Protection. If the bed <b>is</b> in danger, Protection, a trap and
+     * heal pool come first, because a bed that falls ends the game however sharp the sword is. Forge and Haste are
+     * long-game purchases and never outrank the two that decide fights.
+     */
+    public static List<String> upgrades(Role role, boolean teams, boolean bedThreatened) {
         List<String> out = new ArrayList<>();
-        if (teams) {
-            out.add("sharpness"); out.add("protection"); out.add("forge"); out.add("heal_pool"); out.add("trap_it_is_a_trap");
+        if (bedThreatened) {
+            out.add("protection"); out.add("trap_it_is_a_trap");
+            if (teams) out.add("heal_pool");
+            out.add("sharpness"); out.add("forge");
+            if (!teams) out.add("haste");
+        } else if (teams) {
+            out.add("sharpness"); out.add("protection"); out.add("trap_it_is_a_trap");
+            out.add("heal_pool"); out.add("forge");
         } else {
-            out.add("sharpness"); out.add("protection"); out.add("forge"); out.add("trap_it_is_a_trap"); out.add("haste");
+            out.add("sharpness"); out.add("protection"); out.add("forge");
+            out.add("trap_it_is_a_trap"); out.add("haste");
         }
         return out;
+    }
+
+    /** Backwards-compatible overload: assume the bed is not under threat. */
+    public static List<String> upgrades(Role role, boolean teams) {
+        return upgrades(role, teams, false);
     }
 }

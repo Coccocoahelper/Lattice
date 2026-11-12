@@ -237,7 +237,7 @@ public final class BedwarsBrain extends GameBrain {
         // tell the pathfinder and the block tactics which blocks of this world are player-placed (the rest is map)
         net.h2020.api.game.PlacedRegistry.register(game.world(), view);
         registerGenerators();
-        travelBlocks = new TravelBlocks(ctx);
+        travelBlocks = new TravelBlocks(ctx, this);
         GameTeam t = myTeam();
         if (t != null) color = t.color();
         configureCombat();
@@ -768,7 +768,7 @@ public final class BedwarsBrain extends GameBrain {
 
     private String pick(String... s) { return s[ctx.rng.nextInt(s.length)]; }
 
-    private boolean enemyNearBed() {
+    public boolean enemyNearBed() {
         Location bed = view.bedLocation(color);
         if (bed == null) return false;
         // whoever is physically within 12 of the bed, whether or not the sighting meter has caught up

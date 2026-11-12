@@ -1,10 +1,13 @@
 package net.h2020.bots.ai.brain.bedwars;
 
 import net.h2020.bots.ai.BotContext;
+import net.h2020.bots.ai.brain.BedwarsBrain;
 import net.h2020.bots.ai.inv.Inv;
 import net.h2020.bots.ai.motor.BlockPlacer;
 import net.h2020.bots.ai.world.Shape;
 import net.h2020.bots.ai.world.WorldView;
+
+import java.util.List;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.util.Vector;
@@ -24,6 +27,7 @@ import org.bukkit.util.Vector;
 public final class TravelBlocks {
     private final BotContext ctx;
     private final BlockPlacer placer;
+    private final BedwarsBrain brain;
 
     private static final int NONE = 0, HEAD = 1, REPAIR = 2;
     private int mode = NONE;
@@ -31,9 +35,41 @@ public final class TravelBlocks {
     private long lastHead = -10000, lastRepair = -10000;
     private long jumpUntil = -1;
 
-    public TravelBlocks(BotContext ctx) {
+    public TravelBlocks(BotContext ctx) { this(ctx, null); }
+
+    public TravelBlocks(BotContext ctx, BedwarsBrain brain) {
         this.ctx = ctx;
+        this.brain = brain;
         this.placer = new BlockPlacer(ctx);
+    }
+
+    /**
+     * Scareshow #28: "place additional wool blocks on weak areas of your defence any time you pass by". Walks the
+     * defence layers for an open cell near the bot and fills it, so a partial defence is topped up on every trip home
+     * rather than only during a defence task.
+     */
+    private boolean repairDefence() {
+        if (brain == null || ctx.tick - lastRepair < 40) return false;
+        BedDefense d = brain.defense();
+        if (d == null || !brain.bedAliveNow()) return false;
+        Location me = ctx.pos();
+        WorldView wv = ctx.world();
+        if (me.distance(d.bed[0] == null ? me : new Location(me.getWorld(), d.bed[0][0], d.bed[0][1], d.bed[0][2])) > 9) return false;
+        for (List<int[]> layer : new List[]{d.layer1, d.layer2}) {
+            if (layer == null) continue;
+            for (int[] c : d.open(layer, wv)) {
+                if (me.distanceSquared(new Location(me.getWorld(), c[0] + 0.5, c[1], c[2] + 0.5)) > 36) continue;
+                if (BlockPlacer.findSupport(wv, c[0], c[1], c[2], ctx.eye(), 4.4, true) == null) continue;
+                lastRepair = ctx.tick;
+                started = ctx.tick;
+                placer.setNeedSight(true);
+                placer.start(c[0], c[1], c[2], Inv.BLOCK);
+                mode = REPAIR;
+                net.h2020.api.stats.CombatStats.inc("defence.topup");
+                return true;
+            }
+        }
+        return false;
     }
 
     public boolean busy() { return mode != NONE; }
@@ -70,6 +106,9 @@ public final class TravelBlocks {
         Location me = ctx.pos();
         WorldView wv = ctx.world();
         int x = floor(me.getX()), y = floor(me.getY() + 0.01), z = floor(me.getZ());
+        // Scareshow #28: top the bed defence up on any pass, not only when a defence task is running. Checked before
+        // the bridge-line cases because a hole in the defence is worth more than a hole in a bridge.
+        if (repairDefence()) return true;
         if (wv.voidSides(x, y, z) < 2) return false;          // only on a line over the void
         Vector v = ctx.c.velocity();
         double speed = Math.sqrt(v.getX() * v.getX() + v.getZ() * v.getZ());

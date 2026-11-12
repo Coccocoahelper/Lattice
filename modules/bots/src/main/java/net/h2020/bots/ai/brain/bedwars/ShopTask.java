@@ -131,7 +131,10 @@ public final class ShopTask extends BwTask {
     }
 
     private boolean buyUpgrade() {
-        List<String> ups = ShopPlanner.upgrades(brain.role(), game().type().teamSize() > 1);
+        // Scareshow #19/#32: a threatened bed buys protection and a trap before sharpness, because losing the bed
+        // ends the game however sharp the sword is.
+        boolean bedThreatened = brain.bedAliveNow() && brain.enemyNearBed();
+        List<String> ups = ShopPlanner.upgrades(brain.role(), game().type().teamSize() > 1, bedThreatened);
         while (upgradeIdx < ups.size()) {
             String id = ups.get(upgradeIdx);
             if (view.purchaseUpgrade(ctx.player, id)) {

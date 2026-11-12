@@ -258,6 +258,8 @@ public final class Combat {
         usingBowThisFight = ctx.rng.nextDouble() < ctx.persona.bowLiking;
         pearlUsed = false;
         retreating = false;
+        stickKilled = false;
+        stickSwingAt = -10000;
         nextStrafeSwitch = ctx.tick + AIMath.msToTicks(ctx.rng, ctx.persona.strafeSwitchMs);
         cpsNow = sampleCps();
         fightFeatures = null;
@@ -474,6 +476,7 @@ public final class Combat {
     public void noteVoidKill(Player victim) {
         if (victim == null) return;
         if (victim != target && victim != lastHitVictim) return;      // not our knockback
+        stickKilled = true;                                          // the stick/hit did its job
         // the fall itself takes time: from a high bridge it can be three seconds before the death lands
         if (ctx.tick - lastHitLanded > 100) return;
         net.h2020.bots.ai.ml.DuelPolicy.voidCredit();
@@ -936,6 +939,13 @@ public final class Combat {
      */
     private boolean useKnockbackStick(Location tl, double d) {
         if (d < 2.3 || d > 3.25) return false;
+        // Scareshow #33: a stick that fails to put them in the void is a lost fight in advance - it deals almost no
+        // damage, so the exchange is lost by default. Once the stick has been swung without a void kill, leave.
+        if (ctx.tick - stickSwingAt <= 40 && !stickKilled) {
+            CombatStats.inc("kbstick.leave");
+            disengage();
+            return true;
+        }
         Vector edge = voidDirection(tl);
         if (!clutchMode && edge == null) return false;
         int slot = Inv.findHotbar(ctx.player, Inv.KNOCKBACK_STICK);
@@ -943,9 +953,14 @@ public final class Combat {
         if (ctx.c.heldSlot() != slot) ctx.c.selectHotbar(slot);
         aimTarget(Motor.P_COMBAT, AimIntent.COMBAT);
         fire(cpsNow);
+        stickSwingAt = ctx.tick;
         CombatStats.inc("kbstick");
         return true;
     }
+
+    /** When the stick last swung, and whether that swing produced the void kill it was for. */
+    private long stickSwingAt = -10000;
+    private boolean stickKilled = false;
 
     /** Solid blocks right behind us within 2 blocks (the side a hit would push us to): no room to retreat. */
     private boolean wallBehind(Location me, Location tl) {
