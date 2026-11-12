@@ -311,6 +311,29 @@ public final class BedwarsBrain extends GameBrain {
         return hard && !Inv.has(ctx.player, Inv.PICKAXE);
     }
 
+    /**
+     * What the bed we are going for is actually wrapped in. Scareshow's own post-mortem: he bought a pickaxe against a
+     * one-layer wool bed and called it "a waste of 10 iron". The shop uses this to skip the pickaxe when wool is all
+     * that is in the way - shears already handle that, and 10 iron saved is a stone sword on the next respawn.
+     *
+     * @return 0 unknown (no raid target, or nothing scanned), 1 wool only, 2 hard material present
+     */
+    public int bedShell() {
+        TeamColor t = raidTarget;
+        if (t == null) return 0;
+        Location bed = view.bedLocation(t);
+        if (bed == null || !view.bedAlive(t)) return 0;
+        boolean wool = false, hard = false;
+        for (int dx = -1; dx <= 2; dx++) for (int dy = 0; dy <= 1; dy++) for (int dz = -1; dz <= 2; dz++) {
+            Material m = ctx.world().type(bed.getBlockX() + dx, bed.getBlockY() + dy, bed.getBlockZ() + dz);
+            if (m == Material.WOOL) wool = true;
+            else if (m == Material.ENDER_STONE || m == Material.STAINED_CLAY || m == Material.HARD_CLAY
+                    || m == Material.OBSIDIAN || m == Material.WOOD) hard = true;
+        }
+        if (hard) return 2;
+        return wool ? 1 : 0;
+    }
+
     @Override
     protected boolean canAct() {
         return super.canAct() && !view.isRespawning(ctx.player);
@@ -1033,7 +1056,7 @@ public final class BedwarsBrain extends GameBrain {
                 return new CollectTask(this, gen, CollectTask.Kind.IRON, opening ? openingIron : Math.max(iron + 8, 24), 20 * 25);
             case 3: return new DefendTask(this, secondLayer);
             case 4: return new RushTask(this, target);
-            case 5: return new CollectTask(this, nearest(dgens), CollectTask.Kind.DIAMOND, dia + AIMath.range(ctx.rng, 2, 4), 20 * 45);
+            case 5: return new CollectTask(this, diamondOnOurSide(dgens), CollectTask.Kind.DIAMOND, dia + AIMath.range(ctx.rng, 2, 4), 20 * 45);
             case 6: return new CollectTask(this, bestEmerald(), CollectTask.Kind.EMERALD,
                     ShopPlanner.emeralds(ctx.player) + 2, 20 * 50);
             case 7: return new GuardTask(this, 20 * AIMath.range(ctx.rng, 8, 25));
@@ -1123,9 +1146,29 @@ public final class BedwarsBrain extends GameBrain {
         Location e = best.estimate(ctx.tick);
         if (e == null) return false;
         Location me = ctx.pos();
-        if (ctx.health() >= 14) return false;
-        // out-geared and hurt: trading here is how a bot feeds a diamond sword
         Player threat = best.player;
+        // Scareshow #18 / #31 and his own play-by-play ("I don't have time pressure but blue does"): do not attack a
+        // team that is more stacked than you when there is nothing to gain. Getting stacked is worth more than a
+        // fight you are likely to lose, and a bot that trades at a gear deficit is how a team feeds a diamond sword.
+        // Full health used to be enough to walk into that; it is not.
+        if (threat != null && ctx.health() >= 14) {
+            int ge = gearEdge(threat);
+            // histogram the gap so the threshold is chosen from data, not guessed
+            if (ge <= -2) net.h2020.api.stats.CombatStats.inc("gear.gap.m2");
+            if (ge <= -4) net.h2020.api.stats.CombatStats.inc("gear.gap.m4");
+            if (ge <= -6) net.h2020.api.stats.CombatStats.inc("gear.gap.m6");
+            boolean outStacked = ge <= -4;
+            boolean noObjective = task == null || !(task instanceof RushTask)
+                    || !((RushTask) task).committed();
+            java.util.List<Location> dgens = view.diamondGenerators();
+            boolean resourcesAvailable = !dgens.isEmpty() && ShopPlanner.diamonds(ctx.player) < 8;
+            if (outStacked && noObjective && resourcesAvailable && !threatNearBed(threat)) {
+                net.h2020.api.stats.CombatStats.inc("fight.declined.stacked");
+                return true;
+            }
+            return false;
+        }
+        // out-geared and hurt: trading here is how a bot feeds a diamond sword
         if (threat != null && gearEdge(threat) <= -5 && ctx.health() < 12) {
             net.h2020.api.stats.CombatStats.inc("fight.declined.gear");
             return true;
@@ -1140,6 +1183,17 @@ public final class BedwarsBrain extends GameBrain {
             net.h2020.api.stats.CombatStats.inc("fight.declined");
         }
         return bad;
+    }
+
+    /**
+     * Is this threat close enough to our bed that fighting it is unavoidable? A stacked player standing on our island
+     * is not something to decline - that fight is happening whether the model likes it or not.
+     */
+    private boolean threatNearBed(Player threat) {
+        if (threat == null || color == null) return false;
+        Location bed = view.bedLocation(color);
+        if (bed == null || bed.getWorld() != threat.getWorld()) return false;
+        return threat.getLocation().distanceSquared(bed) < 14.0 * 14.0;
     }
 
     /** Is a known enemy standing within `r` blocks of us (as far as our client can tell)? */
@@ -1225,6 +1279,36 @@ public final class BedwarsBrain extends GameBrain {
             if (d < bd) { bd = d; best = l; }
         }
         return best;
+    }
+
+    /**
+     * Scareshow ("How I control every Bedwars game"): "only bridge to diamonds from your base - any bridge to your base
+     * lets opponents attack or stall you from there". So among the diamond generators, prefer ones on our own side of
+     * the map (same half as our spawn relative to mid), because reaching the far one means a second bridge into our
+     * base and a side-base stalling route for everyone else.
+     */
+    private Location diamondOnOurSide(List<Location> dgens) {
+        if (dgens == null || dgens.isEmpty()) return null;
+        Location me = ctx.pos();
+        Location home = color == null ? null : view.bedLocation(color);
+        Location mid = view.mid();
+        if (home == null || mid == null) return nearest(dgens);
+        double hx = home.getX() - mid.getX(), hz = home.getZ() - mid.getZ();
+        double hl = Math.sqrt(hx * hx + hz * hz);
+        if (hl < 1e-6) return nearest(dgens);
+        hx /= hl; hz /= hl;
+        Location best = null;
+        double bd = Double.MAX_VALUE;
+        for (Location l : dgens) {
+            if (l.getWorld() != me.getWorld()) continue;
+            double dx = l.getX() - mid.getX(), dz = l.getZ() - mid.getZ();
+            // our side: the generator is in the same half of the map as our base
+            if (dx * hx + dz * hz <= 0) continue;
+            double d = l.distanceSquared(me);
+            if (d < bd) { bd = d; best = l; }
+        }
+        // none on our side (small maps / odd geometry): fall back rather than refusing to collect
+        return best != null ? best : nearest(dgens);
     }
 
     /** Nearest enemy team with a bed (or players when all beds are gone). Team bots rush the same target. */

@@ -95,6 +95,16 @@ public final class ShopPlanner {
      */
     public static List<BedwarsShopItem> plan(Player p, Role role, boolean tryhard, int gameSeconds, boolean finalLife,
                                              boolean bedTools, Integer mlCategory) {
+        return plan(p, role, tryhard, gameSeconds, finalLife, bedTools, mlCategory, true, false);
+    }
+
+    /**
+     * @param bedMaterialUnknown the caller has not looked at the target bed, so a pickaxe is a reasonable default
+     * @param bedMaterialNeedsPickaxe the target bed is end stone, clay or obsidian, where a pickaxe is the only tool
+     */
+    public static List<BedwarsShopItem> plan(Player p, Role role, boolean tryhard, int gameSeconds, boolean finalLife,
+                                             boolean bedTools, Integer mlCategory,
+                                             boolean bedMaterialUnknown, boolean bedMaterialNeedsPickaxe) {
         Wallet w = new Wallet(p);
         List<BedwarsShopItem> out = new ArrayList<>();
         int blocks = Inv.count(p, Inv.BLOCK);
@@ -143,7 +153,12 @@ public final class ShopPlanner {
         }
         // 5) tools
         if (role == Role.RUSHER && !hasShears && w.take(BedwarsShopItem.SHEARS)) out.add(BedwarsShopItem.SHEARS);
-        if (!hasPick && (role != Role.DEFENDER || gameSeconds > 240) && w.iron >= 10 + (blocks < 16 ? 4 : 0) && w.take(BedwarsShopItem.PICKAXE)) out.add(BedwarsShopItem.PICKAXE);
+        // Scareshow's own review of his play ("How I make decisions ingame"): "there's no reason to buy a pickaxe -
+        // I knew that blue team just had a one layer wool bed defence. Buying a pickaxe here is just a waste of 10
+        // iron." A pickaxe only earns its 10 iron against end stone or clay; against wool it is worse than the shears
+        // already in hand. When the caller does not say what the target bed is made of, keep the old behaviour.
+        boolean pickUseful = bedMaterialUnknown || bedMaterialNeedsPickaxe;
+        if (!hasPick && pickUseful && (role != Role.DEFENDER || gameSeconds > 240) && w.iron >= 10 + (blocks < 16 ? 4 : 0) && w.take(BedwarsShopItem.PICKAXE)) out.add(BedwarsShopItem.PICKAXE);
         if (!hasAxe && tryhard && gameSeconds > 300 && w.take(BedwarsShopItem.AXE)) out.add(BedwarsShopItem.AXE);
         // 6) potions: emeralds that buy speed, jump and a bed run nobody sees coming
         if (role != Role.DEFENDER || gameSeconds > 300) {

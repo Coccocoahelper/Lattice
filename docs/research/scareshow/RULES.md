@@ -49,6 +49,23 @@ no bot equivalent; **not done** means it is implementable and is still open.
   the hotbar at all. It is now 60 seconds and three gold, which is affordable from the first rush.
   Verified: `gapple.pregap=2`, `gapple.calm=1` in one game.
 
+## Game sense from the decision-making videos — `6R8AazPGAU4`, `ykfS2JGBbBM`
+
+- **implemented** — *Only bridge to diamonds from your base.* Any second bridge into your base is a route opponents use
+  to stall you from a side base. `BedwarsBrain.diamondOnOurSide` picks the diamond generator in the same half of the
+  map as the bot's own base (measured against the map's mid point), falling back to nearest when no generator qualifies.
+  Diamond runs now use it instead of `nearest`.
+- **implemented** — *Do not buy a pickaxe against a wool bed.* Scareshow calls his own pickaxe purchase there "a waste
+  of 10 iron" and points out 10 iron in the chest is the difference between a stone sword and nothing on the next life.
+  `BedwarsBrain.bedShell()` reports whether the target bed is wool-only, hard, or unscanned, and `ShopPlanner.plan`
+  skips the pickaxe on a wool shell (shears already cover it). Unscanned keeps the old behaviour.
+- **implemented** — *Do not push a team that is more stacked than you when there is nothing to gain* (#18, #31, and his
+  own play-by-play: "I don't have time pressure but blue does"). `declineEngagement` used to decline only below 14
+  health; it now also declines at full health when the gear gap is 4+ against us, there is no committed rush, diamonds
+  are still available to collect, and the threat is not already at our bed. A threat on our island is never declined.
+- **already present** — Respawn time is for planning: buy decisions are computed on the walk, and the respawn cycle is
+  already chest → generator → shop (`CollectTask`/`ShopTask`).
+
 ## Resources — `MjuRRyE-cvo`, `3WTvilN3lKM` #46, #48
 
 - **already present** — Emerald forge before molten forge, then take an emerald, then buy the second.

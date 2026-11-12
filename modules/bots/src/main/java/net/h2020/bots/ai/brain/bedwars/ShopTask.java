@@ -117,8 +117,10 @@ public final class ShopTask extends BwTask {
         net.h2020.api.stats.CombatStats.inc("shop.plan");
         Integer mlPick = net.h2020.bots.ai.ml.ShopModel.preferred(ctx, brain.bedAliveNow(), brain.finalLife(),
                 brain.gameSeconds(), brain.roleIndexPublic());
+        // the pickaxe is only worth 10 iron when the bed we are going for is wrapped in something shears cannot cut
+        int shell = brain.bedShell();
         List<BedwarsShopItem> plan = ShopPlanner.plan(p, brain.role(), ctx.persona.tryhard, brain.gameSeconds(),
-                brain.finalLife(), brain.needsBedTools(), mlPick);
+                brain.finalLife(), brain.needsBedTools(), mlPick, shell == 0, shell == 2);
         for (BedwarsShopItem it : plan) {
             if (!view.canAfford(p, it)) continue;
             if (view.purchase(p, it)) {
