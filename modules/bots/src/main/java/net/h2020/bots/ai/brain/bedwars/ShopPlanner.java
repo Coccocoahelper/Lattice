@@ -176,9 +176,12 @@ public final class ShopPlanner {
                     && w.emerald >= 4 && w.take(BedwarsShopItem.ENDER_PEARL)) out.add(BedwarsShopItem.ENDER_PEARL);
             if (role == Role.RUSHER && gameSeconds > 300 && Inv.count(p, Inv.TNT) < 1 && w.take(BedwarsShopItem.TNT)) out.add(BedwarsShopItem.TNT);
         }
-        // hurt and at the shop: a golden apple is the cheapest way back into the game, no need to wait for late game
+        // A golden apple is the cheapest way back into a fight, and Scareshow's coaching is explicit: pre-gap before
+        // a fight rather than eating during it. Three gold is affordable from the first rush on, so the gate is the
+        // presence of gold, not the game clock - waiting 200 seconds meant bots entered every early fight with no
+        // apple in the hotbar at all.
         boolean lowHp = p.getHealth() <= 16;
-        if (Inv.count(p, Inv.GAPPLE) < (finalLife ? 2 : 1) && w.gold >= 3 && (gameSeconds > 200 || finalLife || lowHp)
+        if (Inv.count(p, Inv.GAPPLE) < (finalLife ? 2 : 1) && w.gold >= 3 && (gameSeconds > 60 || finalLife || lowHp)
                 && w.take(BedwarsShopItem.GOLDEN_APPLE)) {
             out.add(BedwarsShopItem.GOLDEN_APPLE);
         }

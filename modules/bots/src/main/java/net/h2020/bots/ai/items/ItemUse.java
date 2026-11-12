@@ -114,10 +114,22 @@ public final class ItemUse {
         if (allowPotions && hp <= 4 + 3 * o && hot(HEAL_DRINK) && ctx.tick - lastPot > 20) return startHold(HEAL_DRINK, 34, "pot.heal");
         // golden apple: low and not being hit right now (beginners panic-eat in melee)
         boolean regenOn = me.hasPotionEffect(PotionEffectType.REGENERATION);
+        // Scareshow live coaching ("I helped my friend to win"): "before fights always pre-gap, especially when you
+        // have worse armour" - and "don't eat during a fight, you don't have time". So an apple is eaten when a fight
+        // is about to start and nobody is on us yet, not once the health is already gone.
         if (allowGapple && hot(Inv.GAPPLE) && ctx.tick - lastEat > 60 && (!regenOn || hp <= 5)) {
             boolean calmEnough = sinceHurt > 20 + (int) (20 * o) || d > 5;
             boolean panic = hp <= 5 || (o < 0.35 && hp <= 8 && ctx.rng.nextDouble() < 0.02);
-            if ((hp <= 10 + 2 * o && calmEnough) || panic) { lastEat = ctx.tick; return startHold(Inv.GAPPLE, 34 + AIMath.range(ctx.rng, 0, 6), "gapple"); }
+            // pre-gap: a target is closing from just outside reach and our health is not full yet
+            // The window has to cover the approach, not just a sliver of it: engagement starts at 9-12 blocks and a
+            // sprinting bot covers 4.5 to 12 in under a second. Any distance at which nobody is on us and the apple
+            // can still be swallowed before contact counts.
+            boolean preGap = d > 3.6 && hp < 18 && sinceHurt > 30 && !regenOn;
+            if ((hp <= 10 + 2 * o && calmEnough) || panic || preGap) {
+                lastEat = ctx.tick;
+                return startHold(Inv.GAPPLE, 34 + AIMath.range(ctx.rng, 0, 6), preGap && !panic && hp > 10 + 2 * o
+                        ? "gapple.pregap" : "gapple");
+            }
         }
         if (allowPotions && style.potions && hp <= 12 && sinceHurt > 40 && d > 6 && !regenOn && hot(REGEN) && ctx.tick - lastPot > 40)
             return startHold(REGEN, 34, "pot.regen");

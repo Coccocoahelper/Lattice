@@ -1,6 +1,7 @@
 # Rules extracted from ScareshowMc, and what was actually implemented
 
-Source: `transcripts.md` (23 of 30 videos have captions; the seven without are in `INDEX.md`). Each item names the
+Source: `transcripts.md` — **21 of 30 videos have usable transcripts**. Seven have no captions at all and two more
+have captions that are only repeated ASR noise on music-heavy footage; all nine are listed in `INDEX.md`. Each item names the
 video it came from. Status is honest: **implemented** means code landed in this repo and is named; **already present**
 means the behaviour existed and the video corroborates it; **not applicable** means it is advice for a human that has
 no bot equivalent; **not done** means it is implementable and is still open.
@@ -39,6 +40,15 @@ no bot equivalent; **not done** means it is implementable and is still open.
   visit the chest → generator → shop → chest once, never twice (`CollectTask`/`ShopTask` sequence).
 - **not applicable** — Quick-buy layout, hotkey purchasing, butterfly clicking, senser height: human input devices.
 
+## Pre-gapping — `9yrDUimP5Wc` (live coaching)
+
+- **implemented** — *"Before fights always pre-gap, especially when you have worse armour"*, and *"don't eat during a
+  fight, you don't have time"*. `ItemUse.fightTick` now eats a golden apple on approach (`gapple.pregap`) when a
+  target is closing and health is not full, instead of only once health is already down. The shop gate that made this
+  unreachable also moved: gapples were gated on 200 seconds of game time, so early fights were fought with no apple in
+  the hotbar at all. It is now 60 seconds and three gold, which is affordable from the first rush.
+  Verified: `gapple.pregap=2`, `gapple.calm=1` in one game.
+
 ## Resources — `MjuRRyE-cvo`, `3WTvilN3lKM` #46, #48
 
 - **already present** — Emerald forge before molten forge, then take an emerald, then buy the second.
@@ -72,6 +82,11 @@ defence.topup=110      pos.correct.found=511      game created, ran to completio
 - **Sumo, SkyWars practice, "watch better players"** — training advice for a person.
 - **Bridging technique** (`LM4RjWdXSHU`) — "aim at the centre of the block, do not re-aim when stacking" is what
   `Bridger` already does; the practice-in-a-single-player-world advice has no bot analogue.
-- **The seven videos with no captions** are unknown in content beyond their titles. Two of them ("I played in the
-  $1,000 Solo Bedwars Tournament", "Clutching In Bedwars Against Cheaters") would likely be worth having; they would
-  need ASR (whisper) rather than captions.
+- **The nine uncovered videos are unknown in content beyond their titles.** Seven have no caption track at all
+  ("$1,000 Solo Bedwars Tournament", "doubles without a teammate", "keep opponents away from my base", "why getting
+  better becomes easy", "how to increase your stats", "movement trick", "the 2v2 ranked mode"), and two have
+  auto-captions that are only ASR noise over music ("sweatiest maps on a 700 star account", "beat snipers & cheaters").
+  Those would need speech recognition (whisper) on the audio, not captions.
+- **The first pass over-counted by two.** A 100-byte size threshold accepted the two music-noise files, which is why
+  the earlier summary said 23. `scripts/usable.py` is the check now: it requires 200+ alphabetic tokens and a
+  distinct-word ratio of at least 0.12, which separates prose (0.15-0.39) from noise (0.07).
