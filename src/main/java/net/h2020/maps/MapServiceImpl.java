@@ -35,7 +35,7 @@ import java.util.logging.Logger;
  * has no maps, then loads (or generates once) the three hub worlds. Everything happens synchronously during
  * module enable, so templates are ready before any game can be created.
  *
- * Optional config section "maps": always-generate-defaults (false), regenerate (false),
+ * Optional config section "maps":
  * main-lobby-world / bedwars-lobby-world / skywars-lobby-world (use an existing world folder instead).
  */
 public final class MapServiceImpl implements MapService {
@@ -69,7 +69,6 @@ public final class MapServiceImpl implements MapService {
         Slime slime = Slime.install(log);
         this.slime = slime;
         loadAll();
-        generateMissing();
         pruneWorldFolders();
         if (!lobbiesFromSlime()) finishBoot(t0);
         if (slime != null) {
@@ -309,28 +308,27 @@ public final class MapServiceImpl implements MapService {
         File[] dirs = mapsDir.listFiles();
         if (dirs == null) return;
         java.util.Arrays.sort(dirs);
-        boolean regenerate = config().getBoolean("regenerate", false);
         for (File dir : dirs) {
             if (!dir.isDirectory()) continue;
             if (dir.getName().equalsIgnoreCase("bedwars") || dir.getName().equalsIgnoreCase("skywars")) {
                 File[] inner = dir.listFiles();
                 if (inner == null) continue;
                 java.util.Arrays.sort(inner);
-                for (File m : inner) if (m.isDirectory()) loadOne(m, regenerate);
+                for (File m : inner) if (m.isDirectory()) loadOne(m);
                 continue;
             }
             if (new File(dir, MapFiles.MAP_YML).isFile()) {
                 // an old flat map: read it, put it where it belongs, and carry on from the new path
                 File moved = migrate(dir);
-                if (moved != null) { loadOne(moved, regenerate); continue; }
+                if (moved != null) { loadOne(moved); continue; }
             }
             if (new File(dir, "level.dat").isFile() || new File(dir, "world").isDirectory())
                 log.warning("[maps] " + dir.getName() + " has no map.yml - skipped (see maps/FORMAT.txt)");
         }
     }
 
-    /** Read one map folder, regenerating it if it is an outdated generated map. */
-    private void loadOne(File dir, boolean regenerate) {
+    /** Read one map folder. */
+    private void loadOne(File dir) {
             if (!new File(dir, MapFiles.MAP_YML).isFile()) {
                 if (new File(dir, "level.dat").isFile() || new File(dir, "world").isDirectory())
                     log.warning("[maps] " + dir.getName() + " has no map.yml - skipped (see maps/FORMAT.txt)");
@@ -338,11 +336,6 @@ public final class MapServiceImpl implements MapService {
             }
             try {
                 StoredMapTemplate t = MapFiles.read(this, dir);
-                if (t.generated && (t.generatorVersion < DefaultMaps.VERSION || regenerate) && DefaultMaps.byName(t.name) != null) {
-                    log.info("[maps] regenerating outdated generated map " + t.name);
-                    Worlds.delete(dir);
-                    return;
-                }
                 if (!new File(t.worldFolder(), "level.dat").isFile() && (slime == null || !slime.has(t.name))) {
                     log.warning("[maps] " + dir.getName() + ": no block data - neither world/level.dat nor "
                             + "slime_worlds/" + Slime.id(t.name) + ".swofty. Copy the shipped slime_worlds/ folder next to"
@@ -398,64 +391,6 @@ public final class MapServiceImpl implements MapService {
             return;
         }
         templates.put(key, t);
-    }
-
-    private void generateMissing() {
-        boolean always = config().getBoolean("always-generate-defaults", false);
-        for (DefaultMaps.Def d : DefaultMaps.all()) {
-            if (templates.containsKey(d.name.toLowerCase(Locale.ROOT))) continue;
-            if (!always && hasGroup(d.family, d.teams, d.name)) continue;
-            try {
-                StoredMapTemplate t = bake(d);
-                if (t != null) register(t);
-            } catch (Throwable e) {
-                log.log(Level.SEVERE, "[maps] failed to generate " + d.name, e);
-            }
-        }
-    }
-
-    /** True if a non-default map (or an already present default) serves this family/team-count group. */
-    private boolean hasGroup(GameFamily family, int teams, String excluding) {
-        for (StoredMapTemplate t : templates.values()) {
-            if (t.family != family || !t.teamCounts.contains(teams)) continue;
-            if (t.generated && DefaultMaps.byName(t.name) != null) continue; // defaults never block other defaults
-            if (!t.name.equalsIgnoreCase(excluding)) return true;
-        }
-        return false;
-    }
-
-    /** Generate one default map: paint, write into a scratch world, save, move into maps/<folder>/world. */
-    private StoredMapTemplate bake(DefaultMaps.Def d) throws IOException {
-        long t0 = System.currentTimeMillis();
-        log.info("[maps] generating " + d.family + " map '" + d.name + "' (" + d.teams + " teams, " + d.theme + ")...");
-        GeneratedMap gm = d.generate();
-        File target = new File(familyDir(d.family), d.folder());
-        Worlds.delete(target);
-        if (!target.mkdirs() && !target.isDirectory()) throw new IOException("cannot create " + target);
-        String scratch = Worlds.GEN_PREFIX + d.folder();
-        File scratchDir = new File(Worlds.container(), scratch);
-        Worlds.delete(scratchDir);
-        writeWorld(gm, scratch);
-        Worlds.copyWorld(scratchDir, new File(target, "world"));
-        Worlds.delete(scratchDir);
-        MapFiles.write(gm, target, DefaultMaps.VERSION, d.seed());
-        log.info("[maps] generated '" + d.name + "' (" + gm.canvas.size() + " blocks) in " + (System.currentTimeMillis() - t0) + "ms");
-        return MapFiles.read(this, target);
-    }
-
-    /** Create a void world, flush the canvas into it, save fully and unload. */
-    private void writeWorld(GeneratedMap gm, String worldName) {
-        World w = Worlds.loadVoid(worldName, gm.biome, gm.spawn[0], gm.spawn[1], gm.spawn[2]);
-        if (w == null) throw new IllegalStateException("could not create scratch world " + worldName);
-        try {
-            Worlds.applyRules(w, true);
-            w.setAutoSave(true);
-            gm.canvas.flush(w, log);
-            w.setSpawnLocation((int) Math.floor(gm.spawn[0]), (int) Math.floor(gm.spawn[1]), (int) Math.floor(gm.spawn[2]));
-            Worlds.saveFully(w, log);
-        } finally {
-            if (!WorldUnloader.unload(w)) log.warning("[maps] could not unload scratch world " + worldName);
-        }
     }
 
     // ============================================================================================ lobbies

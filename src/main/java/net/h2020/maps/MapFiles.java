@@ -1,7 +1,6 @@
 package net.h2020.maps;
 
 import net.h2020.api.game.GameFamily;
-import net.h2020.maps.gen.GeneratedMap;
 import org.bukkit.block.Biome;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -191,37 +190,6 @@ public final class MapFiles {
     private static int toInt(Object o) {
         if (o instanceof Number) return ((Number) o).intValue();
         return Integer.parseInt(String.valueOf(o).trim());
-    }
-
-    // ------------------------------------------------------------------------------------------ writing
-    public static void write(GeneratedMap m, File dir, int version, long seed) throws IOException {
-        YamlConfiguration y = newYaml();
-        y.options().header("Hypixel2020 map template. Generated procedurally (" + m.theme + "); delete this folder to regenerate.\n"
-                + "Points: spawns/NPCs/generators are standing positions (block centre, feet y), beds/chests/bounds\n"
-                + "are block coordinates. Two-point keys (*.bounds, *.base) are min then max corners.");
-        y.set("name", m.name);
-        y.set("family", m.family.name());
-        y.set("teams", m.teamCounts);
-        y.set("build-limit", m.buildLimitY);
-        y.set("biome", m.biome.name());
-        y.set("bounds/min", xyz(m.boundsMin[0], m.boundsMin[1], m.boundsMin[2]));
-        y.set("bounds/max", xyz(m.boundsMax[0], m.boundsMax[1], m.boundsMax[2]));
-        y.set("generator/generated", true);
-        y.set("generator/version", version);
-        y.set("generator/theme", m.theme);
-        y.set("generator/seed", seed);
-        for (Map.Entry<String, Object> e : m.meta.entrySet()) y.set("generator/" + e.getKey(), e.getValue());
-        for (Map.Entry<String, List<double[]>> e : m.points.entrySet()) {
-            List<Map<String, Object>> list = new ArrayList<Map<String, Object>>();
-            for (double[] p : e.getValue()) {
-                Map<String, Object> pm = new LinkedHashMap<String, Object>();
-                pm.put("x", num(p[0])); pm.put("y", num(p[1])); pm.put("z", num(p[2]));
-                if (p[3] != 0) pm.put("yaw", num(p[3]));
-                list.add(pm);
-            }
-            y.set("points/" + e.getKey(), list);
-        }
-        y.save(new File(dir, MAP_YML));
     }
 
     private static Map<String, Object> xyz(double x, double y, double z) {
