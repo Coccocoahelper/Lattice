@@ -19,6 +19,13 @@ public final class BridgeTuning {
      */
     public static volatile boolean shiftSpeedEnabled = false;
 
+    /**
+     * Forces one technique for every bridge until it is cleared, or null to let the persona choose. This exists to
+     * measure a method on its own (/h2020 bridgetech ninja2): a technique that only appears in a fifth of bridges is
+     * impossible to judge from mixed statistics.
+     */
+    public static volatile Bridger.Tech forceTech = null;
+
     /** While a diagonal stance keeps failing, diagonals go back to the straight bridge instead of retrying forever. */
     private static volatile long diagonalBlockedUntil = 0;
     private static volatile int diagonalFails = 0;

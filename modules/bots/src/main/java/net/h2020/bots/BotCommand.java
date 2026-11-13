@@ -197,6 +197,34 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                     if (args.length > 1 && args[1].equalsIgnoreCase("reset")) net.h2020.bots.ai.stats.DeathStats.reset();
                     break;
                 }
+                case "bridgetech": {
+                    // force one bridging method for every bridge, so a single technique can be measured on its own
+                    if (args.length > 1 && args[1].equalsIgnoreCase("auto")) {
+                        net.h2020.bots.ai.motor.BridgeTuning.forceTech = null;
+                    } else if (args.length > 1) {
+                        try {
+                            net.h2020.bots.ai.motor.BridgeTuning.forceTech =
+                                    net.h2020.bots.ai.motor.Bridger.Tech.valueOf(args[1].toUpperCase(java.util.Locale.ROOT));
+                        } catch (IllegalArgumentException e) {
+                            sender.sendMessage(P + "\u00a7cunknown technique " + args[1]
+                                    + " (noob, shift, speed, ninja, ninja2, moonwalk, breezily)");
+                            break;
+                        }
+                    }
+                    sender.sendMessage(P + "bridging technique "
+                            + (net.h2020.bots.ai.motor.BridgeTuning.forceTech == null ? "auto (persona's own)"
+                            : net.h2020.bots.ai.motor.BridgeTuning.forceTech.name()));
+                    // starts / finished / fell, per method: a technique is only better if it crosses and stays up
+                    for (net.h2020.bots.ai.motor.Bridger.Tech t : net.h2020.bots.ai.motor.Bridger.Tech.values()) {
+                        String k = t.name().toLowerCase(java.util.Locale.ROOT);
+                        double start = net.h2020.api.stats.CombatStats.total("bridge.tech." + k);
+                        if (start <= 0) continue;
+                        sender.sendMessage(P + "  " + k + ": " + (int) start + " bridges, "
+                                + (int) net.h2020.api.stats.CombatStats.total("bridge.done." + k) + " finished, "
+                                + (int) net.h2020.api.stats.CombatStats.total("bridge.fell." + k) + " fell");
+                    }
+                    break;
+                }
                 case "diag": {
                     // live switch for the dedicated diagonal stance; saved with the rest of the bot settings
                     if (args.length > 1) {

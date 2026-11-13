@@ -41,15 +41,21 @@ public final class Bridger {
     public enum Result { RUNNING, DONE, FAILED }
 
     /** Concrete technique for one bridge. */
-    public enum Tech { NOOB, SHIFT, SPEED, NINJA, MOONWALK, BREEZILY }
-
-    private enum Crouch { HOLD, TAP, NONE }
+    public enum Tech { NOOB, SHIFT, SPEED, NINJA, NINJA2, MOONWALK, BREEZILY }
 
     private enum Phase { TURN, MOVE, GLANCE, PAUSE, STEPBACK, RECOVER }
 
-    private final BotContext ctx;
+    /** Read by the bridge methods; they are in this package and drive the same body. */
+    final BotContext ctx;
     private Tech tech;
-    private Crouch crouch;
+    /** The technique for this bridge. Every method lives in its own file; the engine only drives it. */
+    private BridgeMethod method;
+    private BridgeMethod.Crouch crouch;
+    /** Body-centre distance past the support's travel-side edge, and the lateral error, as of this tick. */
+    float curH;
+    /** Did the client's ray sit on a face that fills the next cell last tick? */
+    boolean lastRayOn;
+    private double curLat;
     private int dx, dz;               // the axis this block is placed along (alternates on a diagonal bridge)
     private int vx, vz;               // the direction we are travelling (both non-zero = diagonal staircase)
     private boolean diag;
@@ -69,9 +75,8 @@ public final class Bridger {
     private Phase phase;
     private int phaseTicks, ticks, ticksOnBlock;
     private float travelYaw, offset, pitch, basePitch;
-    /** The one diagonal a ninja bridge is allowed to look down: 45, -45, 135 or -135, nothing in between. */
-    private float ninjaYaw;
-    private double hTarget, latTarget, lastProg;
+    private double hTarget, latTarget;
+    double lastProg;
     private int unsneakDelay;
     /** Tick the crouch comes up after a tap click; set from skill at each placement. */
     private long unsneakAt = -100;
@@ -80,19 +85,16 @@ public final class Bridger {
     private int blocksUntilGlance;
     private boolean forgetSneak;
     private boolean active;
-    private int offsetSign = 1;
+    int offsetSign = 1;
     private int pauseLen;
     private Location glancePoint;
     private float glanceYaw, glancePitch;
     private boolean peek;              // shift bridgers keep walking while looking up
     private boolean pressured;
     private double sloppy;
-    private float wobbleAmp, wobbleFreq, wobblePhase;
     private float lastF = -1, lastS = 0;
-    private int breezyDir = 1;
-    private double breezyAmp;
     private boolean hesitated;
-    private int lateTicks;
+    int lateTicks;
     private long lastGlanceTick = -1000;
     private boolean unconfirmed;       // support is our client's predicted block, not yet confirmed by the server
     private int invOpenTicks, swapWait;
@@ -115,7 +117,7 @@ public final class Bridger {
     /** After a step up the bot lands on the new block before it walks anywhere. */
     private int settleTicks;
     /** Sneak is held for 80 ms after leaving the edge (the realistic un-sneak delay), not for the whole bridge. */
-    private static final int UNSNEAK_TICKS = 4;
+    static final int UNSNEAK_TICKS = 4;
     private int sneakHold;
     /** Clicked without sneaking at an edge: sneak right after the click (place-then-sneak). */
     private boolean pendingSneak;
@@ -173,8 +175,10 @@ public final class Bridger {
         }
         this.pressured = underPressure();
         this.tech = chosenTech(count, pressured);
-        if (diag && this.tech != Tech.NINJA && ctx.persona.skill.overall > 0.35
-                && ctx.rng.nextDouble() < 0.6) {
+        // a diagonal wants a tap rather than a held shift - but only when the persona is choosing. A forced technique
+        // (or one that already taps) is left alone, otherwise /bot bridgetech cannot measure anything.
+        if (diag && BridgeTuning.forceTech == null && this.tech != Tech.NINJA && this.tech != Tech.NINJA2
+                && ctx.persona.skill.overall > 0.35 && ctx.rng.nextDouble() < 0.6) {
             this.tech = Tech.NINJA;          // a diagonal wants the tap, not a held shift
             CombatStats.inc("bridge.ninja");
         }
@@ -184,6 +188,10 @@ public final class Bridger {
         this.offsetSign = ctx.rng.nextBoolean() ? 1 : -1;
         double o = ctx.persona.skill.overall;
         this.sloppy = 0.03 + 0.2 * (1 - o) + (pressured ? 0.08 : 0);
+        // the technique is a file now: it fills its own tuning, then the engine copies what it needs to walk the line
+        this.method = BridgeMethod.of(this.tech);
+        this.method.begin(this);
+        CombatStats.inc("bridge.tech." + this.tech.name().toLowerCase(java.util.Locale.ROOT));
         configure();
         // eyes back down the bridge early when somebody is already on it (guide: turn around while bridging)
         this.blocksUntilGlance = enemyBehind() != null ? AIMath.range(ctx.rng, 1, 3) : nextGlanceBlocks();
@@ -193,7 +201,6 @@ public final class Bridger {
         this.unconfirmed = false;
         this.swapWait = 0; this.invOpenTicks = 0;
         this.lastF = -1; this.lastS = 0;
-        this.breezyDir = ctx.rng.nextBoolean() ? 1 : -1;
         this.peek = false;
         this.stacking = false;
         this.stackTicks = 0;
@@ -253,9 +260,10 @@ public final class Bridger {
                 return Tech.SHIFT;
             case SPEED:
                 if (count >= 14 && !pressure && r < 0.25) return Tech.SHIFT; // long bridge: play it safe
-                if (pressure && o > 0.6 && r < 0.2) return Tech.NINJA;
+                if (pressure && o > 0.6 && r < 0.2) return Tech.NINJA2;      // god-bridge head under pressure
                 return Tech.SPEED;
             case NINJA:
+            case NINJA2:
             case MOONWALK:
                 if (count <= 2 && r < 0.35) return Tech.SPEED;               // not worth setting up the diagonal
                 if (count >= 16 && !pressure && r < 0.2) return Tech.SPEED;
@@ -270,8 +278,9 @@ public final class Bridger {
         }
     }
 
-    /** The persona's technique after the disabled ones have been mapped away. */
+    /** The persona's technique after the disabled ones have been mapped away, or the forced one when measuring. */
     private Tech chosenTech(int count, boolean pressure) {
+        if (BridgeTuning.forceTech != null) return BridgeTuning.forceTech;
         return sanction(chooseTech(count, pressure));
     }
 
@@ -292,78 +301,22 @@ public final class Bridger {
                 firstTurn / (double) launchCount, firstWalk / (double) launchCount, firstWait / (double) launchCount);
     }
 
+    /**
+     * Copy the method's tuning. The technique decided what its pitch, offset and crouch style are when it was begun;
+     * the engine only needs the numbers to walk the line and to know when the ray lands.
+     */
     private void configure() {
-        double eyeH, depth;
-        switch (tech) {
-            case NOOB:
-                crouch = Crouch.HOLD;
-                offset = offsetSign * (float) AIMath.range(ctx.rng, 50, 62);
-                hTarget = 0.26; depth = 0.45; eyeH = 1.54;
-                break;
-            case SHIFT:
-                crouch = Crouch.HOLD;
-                offset = (float) AIMath.range(ctx.rng, -4, 4);
-                hTarget = 0.25; depth = 0.28; eyeH = 1.54;
-                break;
-            case SPEED:
-                crouch = Crouch.TAP;
-                offset = (float) AIMath.range(ctx.rng, -3, 3);
-                hTarget = 0.21; depth = 0.22; eyeH = 1.62;
-                break;
-            case NINJA:
-                crouch = Crouch.TAP;
-                // ninja bridging only ever looks down one of four diagonals: 45, -45, 135, -135. The travel is already
-                // one of them, so the head takes the canonical angle nearest the back-down-the-bridge direction and
-                // the placement gate refuses a click until the head is actually there.
-                float back = AIMath.wrap(travelYaw + 180f);
-                float[] ninjaAngles = {45f, -45f, 135f, -135f};
-                float bestAngle = ninjaAngles[0];
-                float bestDiff = Math.abs(AIMath.angleDiff(back, bestAngle));
-                for (int k = 1; k < ninjaAngles.length; k++) {
-                    float d = Math.abs(AIMath.angleDiff(back, ninjaAngles[k]));
-                    if (d < bestDiff) { bestDiff = d; bestAngle = ninjaAngles[k]; }
-                }
-                ninjaYaw = bestAngle;
-                offset = 0f;
-                hTarget = 0.22; depth = 0.25; eyeH = 1.62;
-                break;
-            case MOONWALK:
-                crouch = Crouch.NONE;
-                offset = offsetSign * (float) AIMath.range(ctx.rng, 40, 50);
-                hTarget = 0.2; depth = 0.22; eyeH = 1.62;
-                break;
-            case BREEZILY:
-            default:
-                crouch = Crouch.NONE;
-                offset = offsetSign * (float) AIMath.range(ctx.rng, 10, 22);
-                hTarget = 0.2; depth = 0.2; eyeH = 1.62;
-                break;
-        }
-        double off = Math.toRadians(offset);
-        // stand off-centre so the sideways-drifting ray still lands on the face (see class doc)
-        latTarget = AIMath.clamp(hTarget * Math.tan(off) * 0.75, -0.28, 0.28);
-        double p = Math.toDegrees(Math.atan((eyeH + depth) * Math.abs(Math.cos(off)) / hTarget));
-        p += ctx.rng.nextGaussian() * 0.4;
-        // crouching beginners start a bit too flat and nudge down at the edge (the clamp keeps them on the block)
-        if (crouch == Crouch.HOLD) p -= Math.abs(ctx.rng.nextGaussian()) * 2.5 * (1 - ctx.persona.skill.overall);
-        if (p < 79.0) { CombatStats.inc("bridge.pitch.floor"); p = 79.0; }   // flatter than this and the ray misses
-        pitch = (float) AIMath.clamp(p, 79, 89);
-        if (tech == Tech.NINJA) {
-            // 79 degrees is the angle that lands the ray on the face at the ninja technique's edge distance; a few
-            // tenths of jitter keeps it human without losing the click
-            pitch = (float) (79.0 + ctx.rng.nextGaussian() * 0.25);
-        }
-        basePitch = pitch;
-        wobbleAmp = tech == Tech.SPEED ? (float) AIMath.range(ctx.rng, 1.0, 2.6) : (tech == Tech.SHIFT ? 0.6f : 0f);
-        wobbleFreq = (float) AIMath.range(ctx.rng, 0.12, 0.28);
-        wobblePhase = (float) (ctx.rng.nextDouble() * Math.PI * 2);
-        breezyAmp = AIMath.range(ctx.rng, 0.1, 0.2);
+        crouch = method.crouch;
+        offset = method.offset;
+        hTarget = method.hTarget;
+        pitch = method.pitch;
+        basePitch = method.pitch;
     }
 
     private int nextGlanceBlocks() {
         double aw = ctx.persona.skill.awareness;
         double o = ctx.persona.skill.overall;
-        if (tech == Tech.NOOB) return AIMath.range(ctx.rng, 2, 4);
+        if (method.glancesOften()) return AIMath.range(ctx.rng, 2, 4);
         // good players do not stop mid-bridge to sightsee: glances are rare, and only when somebody is actually
         // behind them (the look-back that matters) or when they are being pressured
         int lo = (int) (18 + (1 - aw) * 14), hi = (int) (30 + (1 - aw) * 25);
@@ -372,19 +325,7 @@ public final class Bridger {
         return AIMath.range(ctx.rng, lo, hi);
     }
 
-    private float lookYaw() {
-        float w = wobbleAmp == 0 ? 0 : wobbleAmp * (float) Math.sin(ticks * wobbleFreq + wobblePhase);
-        if (tech == Tech.NINJA) {
-            // a ninja head sits on the diagonal: half the usual wobble, and never off the four angles
-            return AIMath.wrap(ninjaYaw + Math.max(-3f, Math.min(3f, w * 0.5f)));
-        }
-        return AIMath.wrap(travelYaw + 180f + offset + w);
-    }
-
-    /** Ninja placement is gated on the head actually being on one of the four diagonal angles (within ~10 degrees). */
-    private boolean ninjaAngleOk() {
-        return tech != Tech.NINJA || Math.abs(AIMath.angleDiff(ctx.c.yaw(), ninjaYaw)) <= 10f;
-    }
+    private float lookYaw() { return method.lookYaw(this); }
 
     /** Signed distance of the body centre past the support's travel-side edge (negative = still on the block). */
     private double pastEdge(Location p) {
@@ -409,6 +350,7 @@ public final class Bridger {
         // fell off?
         if (pos.getY() < sy + 1 - 0.7) {
             if (ctx.tick - lastStackTick < 40) CombatStats.inc("bridge.stack.fell");
+            CombatStats.inc("bridge.fell." + tech.name().toLowerCase(java.util.Locale.ROOT));
             active = false;
             return Result.FAILED;
         }
@@ -431,6 +373,8 @@ public final class Bridger {
             lastStepDx = dx; lastStepDz = dz;
             sx = nx; sz = nz;
             placed++;
+            CombatStats.inc("bridge.block." + tech.name().toLowerCase(java.util.Locale.ROOT));
+            method.afterPlacement(this, wasSneaking);
             if (!wasSneaking) pendingSneak = true;                 // ninja timing: sneak after this click
             if (freePlacements > 0) freePlacements--;
             if (!Shape.floor(wv.shape(nx + dx, sy - 1, nz + dz))) sneakHold = UNSNEAK_TICKS;   // still on the lip
@@ -460,7 +404,7 @@ public final class Bridger {
             // crouch-tap bridgers let go of shift a beat after the click; shift bridgers never do
             // how long shift stays down after the click: 1 tick for a clean hand, more for a sloppier one, plus the
             // occasional extra beat. Release-on-the-click is instant and reads as a machine.
-            if (crouch == Crouch.TAP) {
+            if (crouch == BridgeMethod.Crouch.TAP) {
                 double skill = ctx.persona.skill.overall;
                 int base = skill >= 0.70 ? 1 : skill >= 0.40 ? 2 : 3;
                 unsneakDelay = base + (ctx.rng.nextDouble() < 0.25 ? 1 : 0);
@@ -472,25 +416,32 @@ public final class Bridger {
             if (placed >= needed && !unconfirmed) {
                 if (riseCheck) { riseCheck = false; CombatStats.inc("bridge.stack.stalled"); }
                 active = false;
+                CombatStats.inc("bridge.done." + tech.name().toLowerCase(java.util.Locale.ROOT));
                 return Result.DONE;
             }
             blocksUntilGlance--;
-            if (tech == Tech.NOOB) {
+            if (method.pausesAfterBlock()) {
                 phase = Phase.PAUSE; phaseTicks = 0;
                 pauseLen = AIMath.range(ctx.rng, pressured ? 2 : 4, pressured ? 8 : 16);
             }
-            forgetSneak = tech == Tech.NOOB && ctx.rng.nextDouble() < 0.025 * (1.0 - ctx.persona.skill.overall);
+            forgetSneak = method.pausesAfterBlock() && ctx.rng.nextDouble() < 0.025 * (1.0 - ctx.persona.skill.overall);
             nx = sx + dx; nz = sz + dz;
         }
-        if (placed >= needed && !unconfirmed) { active = false; return Result.DONE; }
+        if (placed >= needed && !unconfirmed) {
+            active = false;
+            CombatStats.inc("bridge.done." + tech.name().toLowerCase(java.util.Locale.ROOT));
+            return Result.DONE;
+        }
         if (phase == Phase.RECOVER) return recover(pos);
-        if (ticksOnBlock > (tech == Tech.NOOB ? 240 : 120)) return giveUp();
+        if (ticksOnBlock > method.giveUpTicks()) return giveUp();
         double h = pastEdge(pos);
+        curH = (float) h;
         if (!launched && phase == Phase.MOVE) {
             preWalk++;
             if (h > -0.3) preWait++;                 // already at the edge: any extra tick here is the ray/pitch
         }
         double lat = lateral(pos);
+        curLat = lat;
         if (!Inv.holding(ctx.player, Inv.BLOCK)) {
             if (!Inv.has(ctx.player, Inv.BLOCK)) return giveUp();
             // stack ran out. Refilling the hotbar means opening the inventory, which lets go of shift: first crouch-step
@@ -520,7 +471,7 @@ public final class Bridger {
                 if (!launched) preTurn++;
                 float flick = phaseTicks < 3 ? 0.95f : 0.6f;
                 ctx.motor.aimRotation(Motor.P_TASK, lookYaw(), pitch, AimIntent.PRECISE, flick);
-                ctx.motor.sneak(crouch == Crouch.HOLD || h > -0.35);
+                ctx.motor.sneak(crouch == BridgeMethod.Crouch.HOLD || h > -0.35);
                 if ((phaseTicks >= 1 && aimError() < 70) || phaseTicks >= 2) { phase = Phase.MOVE; phaseTicks = 0; }
                 return Result.RUNNING;
             }
@@ -545,7 +496,7 @@ public final class Bridger {
                 return Result.RUNNING;
             }
             case GLANCE: {
-                boolean safeStand = crouch == Crouch.HOLD || h > -0.15;
+                boolean safeStand = crouch == BridgeMethod.Crouch.HOLD || h > -0.15;
                 ctx.motor.sneak(safeStand);
                 if (glancePoint != null) ctx.motor.aimPoint(Motor.P_TASK, glancePoint, AimIntent.GLANCE, 1.0);
                 else {
@@ -557,7 +508,7 @@ public final class Bridger {
                 }
                 // a shift bridger keeps backing up while looking: the crouch holds it on the edge
                 if (peek) steer(lat - latTarget, h);
-                int len = peek ? 8 : 10 + (tech == Tech.NOOB ? 10 : 0);
+                int len = peek ? 8 : 10 + method.glanceExtraTicks();
                 if (phaseTicks > len) {
                     phase = Phase.TURN; phaseTicks = 0; blocksUntilGlance = nextGlanceBlocks(); peek = false;
                 }
@@ -578,11 +529,11 @@ public final class Bridger {
         if (blocksUntilGlance <= 0 && h < -0.25 && mayGlance && (enemyBehind() != null || ctx.persona.skill.overall < 0.55)) {
             CombatStats.inc("bridge.glance");
             glancePoint = enemyBehind(); phase = Phase.GLANCE; phaseTicks = 0; lastGlanceTick = ctx.tick;
-            peek = tech == Tech.SHIFT && ctx.rng.nextDouble() < 0.7;
+            peek = method.peeksWhileGlancing() && ctx.rng.nextDouble() < 0.7;
             return Result.RUNNING;
         }
         // beginners stop at the edge to think about it
-        if (tech == Tech.NOOB && !hesitated && h > -0.05) {
+        if (method.hesitatesAtEdge() && !hesitated && h > -0.05) {
             hesitated = true;
             double r = ctx.rng.nextDouble();
             if (r < 0.12) { phase = Phase.STEPBACK; phaseTicks = 0; pauseLen = AIMath.range(ctx.rng, 3, 6); return Result.RUNNING; }
@@ -590,11 +541,18 @@ public final class Bridger {
         }
         // crouch only once the eye is nearly past the edge: sneaking for the whole approach is a third of the walking
         // speed, and the approach is the entire remaining delay (measured: 13 ticks of "walk" vs 2 of "turn")
-        ctx.motor.sneak(h > -0.12 || crouch == Crouch.HOLD);
+        ctx.motor.sneak(h > -0.12 || crouch == BridgeMethod.Crouch.HOLD);
         // pre-aim the pitch the eye will need once it is past the edge (the mouse converges in a few ticks; aiming
         // at "the pitch for where I am right now" means arriving at the edge with the wrong angle and waiting there)
         float wantPitch = h < -0.22 ? placePitch(pos, 0.06) : placePitch(pos, h);
-        ctx.motor.aimRotation(Motor.P_TASK, lookYaw(), wantPitch, AimIntent.PRECISE, h < -0.22 ? 0.6 : 0.35);
+        wantPitch = method.walkPitch(this, wantPitch, h);
+        org.bukkit.Location aimAt = method.aimTarget(this);
+        if (aimAt != null) {
+            // scaffold-style: look at the face that fills the cell, not at a direction that happens to reach it
+            ctx.motor.aimPoint(Motor.P_TASK, aimAt, AimIntent.PRECISE, h < -0.22 ? 0.6 : 0.5);
+        } else {
+            ctx.motor.aimRotation(Motor.P_TASK, lookYaw(), wantPitch, AimIntent.PRECISE, h < -0.22 ? 0.6 : 0.35);
+        }
         if (Math.abs(AIMath.angleDiff(ctx.c.yaw(), lookYaw())) > 50) {
             // the mouse is somewhere else (flicked to a hit, looking at someone): don't walk blind over the void
             ctx.motor.move(0, 0);
@@ -606,7 +564,16 @@ public final class Bridger {
         Block tb = ctx.c.targetedBlock();
         BlockFace tf = ctx.c.targetedFace();
         BlockFace want = faceOf(dx, dz);
-        boolean rayOn = tb != null && tf == want && tb.getX() == sx && tb.getY() == sy && tb.getZ() == sz;
+        // A square stance needs the travel-side face of the support. A method that places off the block corner
+        // (ninja 2, following a scaffold's "whichever face reaches the cell") accepts any face that fills the next
+        // cell, because that is the face a real crosshair on the corner would give.
+        boolean rayOn;
+        if (method.anyFace) {
+            rayOn = tb != null && tb.getX() + tf.getModX() == nx
+                    && tb.getY() + tf.getModY() == sy && tb.getZ() + tf.getModZ() == nz;
+        } else {
+            rayOn = tb != null && tf == want && tb.getX() == sx && tb.getY() == sy && tb.getZ() == sz;
+        }
 
         if (settleTicks > 0) {
             settleTicks--;
@@ -698,14 +665,15 @@ public final class Bridger {
         // on a diagonal the body has to be on the line before the click: a block placed from a drifted position leaves
         // a hole in the staircase
         boolean onLine = !diag || Math.abs(lat - latTarget) < (duoTicks > 0 ? 0.30 : 0.18);
-        if (rayOn && onLine && !ninjaAngleOk()) CombatStats.inc("bridge.ninja.offangle");
-        if (rayOn && onLine && ninjaAngleOk() && wv.passable(nx, sy, nz)) {
+        lastRayOn = rayOn && onLine;
+        boolean mayPlace = method.placementAllowed(this, h, lat, nx, nz);
+        if (rayOn && onLine && mayPlace && method.angleHeld(this) && wv.passable(nx, sy, nz)) {
             if (!rayWasOn) {
                 rayWasOn = true;
                 // reaction: usually on the beat, sometimes a tick or two late (then the last-instant crouch saves it)
                 // (sneakless bridgers live on that timing: only their sloppiness shows, as a save-crouch)
                 clickWait = ctx.rng.nextDouble() < sloppy ? AIMath.range(ctx.rng, 1, 3)
-                        : (crouch != Crouch.NONE && ctx.rng.nextDouble() < 0.25 ? 1 : 0);
+                        : (crouch != BridgeMethod.Crouch.NONE && ctx.rng.nextDouble() < 0.25 ? 1 : 0);
             }
             if (clickWait > 0) clickWait--;
             else if (clickCooldown == 0) {
@@ -836,6 +804,7 @@ public final class Bridger {
 
     /** Giving up mid-bridge: first crouch-walk back onto the support, never just let go of shift over the void. */
     private Result giveUp() {
+        CombatStats.inc("bridge.giveup." + tech.name().toLowerCase(java.util.Locale.ROOT));
         if (riseCheck) { riseCheck = false; CombatStats.inc("bridge.stack.stalled"); }
         phase = Phase.RECOVER;
         phaseTicks = 0;
@@ -862,31 +831,23 @@ public final class Bridger {
         return Result.RUNNING;
     }
 
+    /** Movement keys: the technique's own habit, unless it overrides this. */
+    private void steer(double err, double h) { method.steer(this, err, h); }
+
+    private double habit(float f, float s) { return method.habit(f, s); }
+
     /**
-     * Key choice. Candidates are S, S+A, S+D, A, D, W+A, W+D; each technique has its habitual keys (S for straight
-     * back, S + one strafe for diagonals, strafing for half-sideways beginners) and only corrects with another
-     * combo when the body has drifted off the line, holding a choice for a few ticks like fingers do. Breezily
-     * alternates A and D on purpose.
+     * The engine's line keeping, used by every method that does not steer its own way. Candidates are S, S+A, S+D, A,
+     * D, W+A, W+D; each technique scores them with its habitual keys (S for straight back, S + one strafe for
+     * diagonals) and only corrects with another combo when the body has drifted off the line, holding a choice for a
+     * few ticks like fingers do.
      */
-    private void steer(double err, double h) {
+    void lineKeep(double err, double h) {
         float yaw = ctx.c.yaw();
         double rad = Math.toRadians(yaw);
         double fx = -Math.sin(rad), fz = Math.cos(rad);       // look dir
         double lx = Math.cos(rad), lz = Math.sin(rad);        // left (A)
         double latX = -vz, latZ = vx;
-
-        if (tech == Tech.BREEZILY) {
-            // S held, A/D swapped whenever the body has swung past its amplitude on the current side
-            double latA = ((-fx + lx) * latX + (-fz + lz) * latZ), latD = ((-fx - lx) * latX + (-fz - lz) * latZ);
-            if (latA * latD < 0) {                       // the two diagonals drift to opposite sides, as they should
-                int toPlus = latA > 0 ? 1 : -1;          // key that drifts toward +lateral
-                if (err > breezyAmp) breezyDir = -toPlus;
-                else if (err < -breezyAmp) breezyDir = toPlus;
-                setKeys(-1, breezyDir);
-                return;
-            }
-            // mouse not where it should be (both diagonals drift the same way): plain line keeping below
-        }
 
         float[][] opts = {{-1, 0}, {-1, 1}, {-1, -1}, {0, 1}, {0, -1}, {1, 1}, {1, -1}};
         float bf = -1, bs = 0;
@@ -903,20 +864,7 @@ public final class Bridger {
             if (o[0] != lastF || o[1] != lastS) score += 0.45; // fingers stay on the keys they hold
             if (score < best) { best = score; bf = o[0]; bs = o[1]; }
         }
-        // beginners creep the last stretch before the edge
-        if (tech == Tech.NOOB && h > -0.15 && ctx.tick % 2 == 0) { ctx.motor.move(0, 0); return; }
         setKeys(bf, bs);
-    }
-
-    private double habit(float f, float s) {
-        switch (tech) {
-            case SHIFT: case SPEED:
-                return f == -1 && s == 0 ? 0 : (f == -1 ? 0.35 : 0.9);
-            case NINJA: case MOONWALK:
-                return f == -1 && s != 0 ? 0 : 0.3;
-            default:
-                return 0;
-        }
     }
 
     private boolean clientPredicted(int x, int y, int z) {
@@ -939,57 +887,34 @@ public final class Bridger {
     }
 
     /**
-     * Sneak discipline, modelled on a client bridge assist (IllusionClient's BridgeAssist): sneak only while the next
-     * cell is an open edge, hold the sneak for 80 ms after leaving that edge, sneak again right after a click that was
-     * made without sneaking, and allow a free placement (the diagonal case) before sneak is required at all.
-     * <p>
-     * The persona's crouch style still decides the *feel*: a SHIFT bridger holds shift for the whole bridge, a TAP
-     * bridger only around the edge, and the sneakless styles (MOONWALK/BREEZILY) keep their stutter and save-crouch.
+     * Crouch for this tick comes from the technique. Every method shares the assist-derived state machine (sneak at
+     * the edge, hold it past the edge, sneak straight after an uncrouched click, one free diagonal placement); what
+     * differs is the style - held, tapped, or never - and, for ninja 2, the fuller assist with withheld clicks.
      */
     private void sneakPolicy(double h, boolean clicked, int nx, int nz) {
-        boolean edge = !Shape.floor(ctx.world().shape(nx, sy - 1, nz));
-        if (edge) sneakHold = Math.max(sneakHold, UNSNEAK_TICKS);
-        if (pendingSneak) { sneakHold = Math.max(sneakHold, UNSNEAK_TICKS); pendingSneak = false; }
-        boolean sneak;
-        if (crouch == Crouch.NONE) {
-            // sneakless: never crouch on purpose; short the step when the ray would pass the face, and keep the
-            // last-instant save-crouch for a real miss
-            org.bukkit.util.Vector v = ctx.c.velocity();
-            double vAlong = Math.max(0, v.getX() * vx + v.getZ() * vz);
-            double dKeys = vAlong + 0.1 * Math.max(0, lastProg);
-            if (h + dKeys <= 0.28) sneak = false;
-            else if (clicked || h + vAlong <= 0.28) { ctx.motor.move(0, 0); sneak = false; }
-            else sneak = true;
-            if (freePlacements > 0 && edge) sneak = false;
-        } else if (crouch == Crouch.TAP) {
-            // ninja timing: the tap exists to stop the slide for the tick the click happens, not to hold the body still.
-            // Once the block is down the key comes straight back up, so the next stretch is walked at full speed.
-            org.bukkit.util.Vector v = ctx.c.velocity();
-            double vAlong = Math.max(0, v.getX() * vx + v.getZ() * vz);
-            if (clicked) {
-                unsneakAt = ctx.tick + 1 + unsneakDelay;
-                sneakHold = 0;
-                net.h2020.api.stats.CombatStats.inc("bridge.unsneak." + (1 + unsneakDelay));
-            }
-            if (ctx.tick < unsneakAt) sneak = true;                       // the tap is still held
-            else sneak = (h > -0.02) || (h + vAlong * 2.0 > 0.12);
-            // if the head is off the diagonal the click is on hold, so the body has to be on hold too: this is the
-            // tick where a tap bridger slides off the lip waiting for the aim to come back
-            if (!ninjaAngleOk()) sneak = true;
-            if (freePlacements > 0 && edge) sneak = false;
-        } else {
-            sneak = sneakHold > 0;
-            if (crouch == Crouch.HOLD && (!forgetSneak || h < -0.3)) sneak = true;
-            if (freePlacements > 0 && edge) sneak = false;           // the one free diagonal placement
-            org.bukkit.util.Vector v = ctx.c.velocity();
-            double vAlong = Math.max(0, v.getX() * vx + v.getZ() * vz);
-            double hNext = h + vAlong * 1.2 + 0.03;
-            if (!sneak && (h > 0.16 || hNext > 0.22) && !(tech == Tech.NOOB && forgetSneak)) sneak = true;
-        }
-        if (sneakHold > 0) sneakHold--;
+        boolean sneak = method.sneak(this, h, clicked, nx, nz);
         ctx.motor.sneak(sneak);
         wasSneaking = sneak;
     }
+
+    // ---- seams the bridge methods use ----
+
+    int supportX() { return sx; }
+    int supportY() { return sy; }
+    int supportZ() { return sz; }
+    int ticks() { return ticks; }
+    int ticksOnBlock() { return ticksOnBlock; }
+    int freePlacements() { return freePlacements; }
+    int sneakHold() { return sneakHold; }
+    void raiseSneakHold(int n) { sneakHold = Math.max(sneakHold, n); }
+    void tickSneakHold() { if (sneakHold > 0) sneakHold--; }
+    boolean pendingSneak() { return pendingSneak; }
+    void pendingSneak(boolean v) { pendingSneak = v; }
+    long unsneakAt() { return unsneakAt; }
+    void unsneakAt(long t) { unsneakAt = t; }
+    int unsneakDelay() { return unsneakDelay; }
+    boolean forgetSneak() { return forgetSneak; }
+    void keys(float f, float s) { setKeys(f, s); }
 
     public static BlockFace faceOf(int dx, int dz) {
         if (dx > 0) return BlockFace.EAST;

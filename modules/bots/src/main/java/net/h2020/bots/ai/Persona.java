@@ -93,7 +93,8 @@ public final class Persona {
         switch (s) {
             case NOOB: return net.h2020.bots.ai.motor.Bridger.Tech.NOOB;
             case SPEED: return net.h2020.bots.ai.motor.Bridger.Tech.SPEED;
-            case NINJA: return r.nextDouble() < 0.6 ? net.h2020.bots.ai.motor.Bridger.Tech.NINJA : net.h2020.bots.ai.motor.Bridger.Tech.MOONWALK;
+            case NINJA: return r.nextDouble() < 0.6 ? net.h2020.bots.ai.motor.Bridger.Tech.NINJA : net.h2020.bots.ai.motor.Bridger.Tech.NINJA2;
+            case NINJA2: return net.h2020.bots.ai.motor.Bridger.Tech.NINJA2;
             case BREEZILY: return r.nextDouble() < 0.8 ? net.h2020.bots.ai.motor.Bridger.Tech.BREEZILY : net.h2020.bots.ai.motor.Bridger.Tech.MOONWALK;
             case SHIFT:
             default: return net.h2020.bots.ai.motor.Bridger.Tech.SHIFT;

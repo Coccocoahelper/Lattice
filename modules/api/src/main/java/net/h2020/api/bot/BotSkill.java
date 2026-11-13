@@ -36,6 +36,8 @@ public final class BotSkill {
         SPEED,
         /** Ninja bridge: diagonal-ish, unshift mid-block. */
         NINJA,
+        /** God-bridge head with a bridge-assist crouch, placing off the block corner. */
+        NINJA2,
         /** Breezily / moonwalk diagonal (sweats). */
         BREEZILY,
         /** Beginner: looks down, walks forward placing slowly, often falls. */
