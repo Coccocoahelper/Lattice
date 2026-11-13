@@ -9,3 +9,5 @@ include 'bedwars'
 project(':bedwars').projectDir = file('modules/bedwars')
 include 'replay'
 project(':replay').projectDir = file('modules/replay')
+include 'practice'
+project(':practice').projectDir = file('modules/practice')

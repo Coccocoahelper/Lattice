@@ -6,7 +6,7 @@
 #   ./start-server.sh --clean    drop run/plugins/*.jar before installing, so no stale jar can load
 #   ./start-server.sh --fifo     run headless: console input is run/cmd.fifo, output goes to run/server.log
 #
-# The plugin is five jars now: core, bots, Bed Wars, SkyWars and replay. They are copied into
+# The plugin is six jars now: core, bots, Bed Wars, SkyWars and replay. They are copied into
 # run/plugins, and the server data lives in run/plugins/Lattice (an old Hypixel2020 folder is
 # migrated by the plugin on first boot).
 #
@@ -60,7 +60,7 @@ echo "Java: $JAVA ($(java_major "$JAVA"))"
 if [ "$BUILD" = "1" ]; then
   echo "Building..."
   ( cd "$ROOT" && JAVA_HOME="$(dirname "$(dirname "$JAVA")")" \
-      bash gradlew --no-daemon jar :bots:jar :bedwars:jar :skywars:jar :replay:jar )
+      bash gradlew --no-daemon jar :bots:jar :bedwars:jar :skywars:jar :replay:jar :practice:jar )
 fi
 
 # --- the five plugin jars -------------------------------------------------------------------------
@@ -84,7 +84,7 @@ for stale in "$RUN/plugins/Hypixel2020.jar" "$RUN/plugins"/h2020-*.jar; do
   echo "Moved stale $(basename "$stale") to plugins/disabled/"
 done
 
-for name in Lattice bots bedwars skywars replay; do
+for name in Lattice bots bedwars skywars replay practice; do
   jar="$name.jar"
   [ "$name" = "Lattice" ] || jar="lattice-$name.jar"
   src=""

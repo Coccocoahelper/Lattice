@@ -139,6 +139,8 @@ public final class GameManagerImpl implements GameManager, Listener {
         for (int attempt = 0; attempt < 1000; attempt++) {
             String id = family == GameFamily.BEDWARS
                     ? HypixelFormat.bedwarsId(1 + r.nextInt(399), HypixelFormat.randomLetter())
+                    : family == GameFamily.PRACTICE
+                    ? "prac" + (1 + r.nextInt(98)) + HypixelFormat.randomLetter()
                     : HypixelFormat.skywarsId(1 + r.nextInt(249), HypixelFormat.randomLetter());
             if (usedIds.add(id)) return id;
         }
@@ -397,6 +399,8 @@ public final class GameManagerImpl implements GameManager, Listener {
 
     /** Requeue / lobby / disconnect with human-like delays. */
     private void churnBot(final Player p, final Bot bot, final net.h2020.api.game.GameMode type, boolean inGameWorld) {
+        // a practice drill is not a match: its bots are a test subject and are dropped, never requeued into a game
+        if (type.family() == GameFamily.PRACTICE) { removeBot(p, bot); return; }
         double roll = ThreadLocalRandom.current().nextDouble();
         if (roll < config.requeueChance) {
             if (inGameWorld || !isInLobby(p)) sendToLobby(p, type.family());

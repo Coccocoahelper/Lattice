@@ -1,0 +1,10 @@
+name: LatticePractice
+version: 1.0.0
+main: net.h2020.practice.PracticePlugin
+api-version: 1.8
+depend: [Lattice]
+commands:
+  practice:
+    description: Practise Bed Wars mechanics
+    usage: /practice <fireball|bow|gamesense|bridge> [bots <n>]
+    aliases: [prac, drill]
