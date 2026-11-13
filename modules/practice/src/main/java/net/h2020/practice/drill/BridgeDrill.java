@@ -102,15 +102,6 @@ public final class BridgeDrill implements Drill {
             if (g.isFollowing(p)) continue;      // watching a bot is not a run
             long[] r = row(p);
             Location l = p.getLocation();
-            // out of the world is a fall. A bot dropped into the void does not die - it keeps falling, and nothing
-            // resets it, which is how one ended up at y=-3506 with eighteen falls on the clock.
-            if (l.getY() < 40) {
-                if (r[0] > 0) r[4]++;
-                r[0] = 0;
-                r[1] = 0;
-                g.reset(p);
-                continue;
-            }
             boolean onStart = l.getBlockX() <= startX + 2;
             boolean onFinish = nearFinish(l);
             if (r[0] == 0 && !onStart && p.getGameMode() == org.bukkit.GameMode.SURVIVAL) {

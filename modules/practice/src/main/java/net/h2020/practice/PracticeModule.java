@@ -285,6 +285,10 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
                 if (bot == null || bot.player() == null) continue;
                 g.addPlayer(bot.player());
                 byPlayer.put(bot.player().getUniqueId(), g);
+                // Outside the bridging drill a bot has nothing to do but stand where the drill put it: a lobby brain
+                // wanders, walks off the rim and spends the session falling, which is what the fireball lane showed
+                // the first time these were spawned (health 2 at y=49, thirteen fireballs taken in twenty seconds).
+                if (!(g.drill() instanceof BridgeDrill)) bot.setBrain(null);
                 // a bridging drill is only a benchmark if the bot actually bridges: give it the brain that does
                 if (g.drill() instanceof BridgeDrill) {
                     BridgeDrill bd = (BridgeDrill) g.drill();
@@ -325,7 +329,8 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
             }
             to.sendMessage("  entities: " + counts);
             for (Player p : g.players()) for (String line : g.drill().stats(g, p)) to.sendMessage("  [" + p.getName() + "] " + line);
-            for (Player p : g.players()) to.sendMessage("  " + p.getName() + " at "
+            for (Player p : g.players()) to.sendMessage("  " + p.getName() + " dead=" + p.isDead()
+                    + " hp=" + Math.round(p.getHealth()) + " gm=" + p.getGameMode() + " at "
                     + p.getLocation().getBlockX() + "," + p.getLocation().getBlockY() + ","
                     + p.getLocation().getBlockZ() + "  " + g.drill().hud(g, p));
         }

@@ -118,6 +118,9 @@ public final class PracticeGame implements Game {
             p.setGameMode(org.bukkit.GameMode.SPECTATOR);
             return;
         }
+        // A dead body has to be respawned, not revived: setHealth on a dead player does nothing and the entity keeps
+        // showing the fall-over animation to everyone else for as long as it is in the world.
+        if (p.isDead()) p.spigot().respawn();
         p.teleport(drill.spawn());
         p.setGameMode(org.bukkit.GameMode.SURVIVAL);
         p.setHealth(p.getMaxHealth());
@@ -136,6 +139,14 @@ public final class PracticeGame implements Game {
     void tick() {
         if (state != GameState.PLAYING) return;
         drill.tick(this);
+        for (Player p : new ArrayList<Player>(players)) {
+            if (!p.isOnline() || following.containsKey(p.getUniqueId())) continue;
+            if (p.getLocation().getY() > 40) continue;
+            // out of the world: count it as a fall, put the body back. Doing this per drill meant a drill without the
+            // check (the fireball lane has an open rim) left its bots falling to the void and dying there forever.
+            drill.onFall(this, p);
+            reset(p);
+        }
         if (++hudTick % 4 == 0) {
             for (Player p : new ArrayList<Player>(players)) {
                 if (!p.isOnline()) continue;
