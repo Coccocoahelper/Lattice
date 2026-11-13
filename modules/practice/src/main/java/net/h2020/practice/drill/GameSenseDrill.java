@@ -148,10 +148,8 @@ public final class GameSenseDrill implements Drill {
                 Object[] sc = SCENARIOS[idx];
                 s[1]++;
                 s[2] = 0;
-                p.sendMessage(ChatColor.RED + "" + ChatColor.BOLD + "Time." + ChatColor.RESET + ChatColor.GRAY
-                        + " The call was " + ChatColor.WHITE + "[" + ((int) sc[2] + 1) + "] "
-                        + ((String[]) sc[1])[(int) sc[2]]);
-                p.sendMessage(ChatColor.DARK_GRAY + "  " + sc[3]);
+                p.sendMessage(net.h2020.api.core.Messages.get("practice.gamesensedrill.time-the-call-was","p1",((int) sc[2] + 1),"p2",((String[]) sc[1])[(int) sc[2]]));
+                p.sendMessage(net.h2020.api.core.Messages.get("practice.sense.explanation", "why", sc[3]));
                 p.playSound(p.getLocation(), Sound.ITEM_BREAK, 0.5f, 0.8f);
                 ask(p, g);
             }
@@ -166,8 +164,7 @@ public final class GameSenseDrill implements Drill {
         asked.put(p.getUniqueId(), clock);
         Object[] sc = SCENARIOS[idx];
         p.sendMessage("");
-        p.sendMessage(ChatColor.AQUA + "" + ChatColor.BOLD + "Scenario" + ChatColor.DARK_GRAY
-                + " (12 s)");
+        p.sendMessage(net.h2020.api.core.Messages.get("practice.sense.scenario"));
         for (String line : ((String) sc[0]).split("\n")) p.sendMessage(ChatColor.GRAY + line);
         String[] opts = (String[]) sc[1];
         for (int i = 0; i < opts.length; i++) sendClickable(p, " [" + (i + 1) + "] ", opts[i], "/practice answer " + (i + 1));
@@ -210,15 +207,12 @@ public final class GameSenseDrill implements Drill {
             s[0]++;
             s[2]++;
             if (s[2] > s[3]) s[3] = s[2];
-            p.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "Right." + ChatColor.RESET + ChatColor.GRAY
-                    + " " + sc[3]);
+            p.sendMessage(net.h2020.api.core.Messages.get("practice.gamesensedrill.right","p1",sc[3]));
             p.playSound(p.getLocation(), Sound.LEVEL_UP, 0.6f, 1.6f);
         } else {
             s[1]++;
             s[2] = 0;
-            p.sendMessage(ChatColor.RED + "" + ChatColor.BOLD + "Not this one." + ChatColor.RESET + ChatColor.GRAY
-                    + " The call was " + ChatColor.WHITE + "[" + (correct + 1) + "] "
-                    + ((String[]) sc[1])[correct]);
+            p.sendMessage(net.h2020.api.core.Messages.get("practice.gamesensedrill.not-this-one-the","p1",(correct + 1),"p2",((String[]) sc[1])[correct]));
             p.sendMessage(ChatColor.DARK_GRAY + "  " + sc[3]);
             p.playSound(p.getLocation(), Sound.ITEM_BREAK, 0.5f, 0.8f);
         }

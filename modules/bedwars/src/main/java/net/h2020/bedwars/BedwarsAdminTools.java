@@ -38,9 +38,11 @@ public final class BedwarsAdminTools implements BedwarsTools {
                 java.util.Collections.sort(names);
                 labels.append(" labels=").append(names);
             }
-            s.sendMessage(ChatColor.GRAY + "  " + t.color.displayName + ": " + (t.chest == null ? "none"
-                    : t.chest.getBlockX() + "," + t.chest.getBlockY() + "," + t.chest.getBlockZ()
-                    + " " + t.chest.getBlock().getType() + labels));
+            s.sendMessage(net.h2020.api.core.Messages.get("bedwars.admin.team-line",
+                    "team", t.color.displayName,
+                    "chest", t.chest == null ? net.h2020.api.core.Messages.raw("bedwars.admin.no-chest")
+                            : t.chest.getBlockX() + "," + t.chest.getBlockY() + "," + t.chest.getBlockZ()
+                            + " " + t.chest.getBlock().getType() + labels));
         }
     }
 
@@ -48,7 +50,8 @@ public final class BedwarsAdminTools implements BedwarsTools {
         BedwarsGame g = game(s instanceof Player ? (Player) s : null);
         if (g == null) { net.h2020.api.core.Messages.send(s, "bedwars.bedwarsadmintools.no-bedwars-game-in"); return; }
         String deny = g.placeDenial(b);
-        s.sendMessage(deny == null ? ChatColor.GREEN + "placement allowed" : ChatColor.RED + "denied: " + deny);
+        s.sendMessage(deny == null ? net.h2020.api.core.Messages.get("bedwars.admin.placement-allowed")
+                : net.h2020.api.core.Messages.get("bedwars.admin.placement-denied", "reason", deny));
     }
 
     @Override public void testDeposit(CommandSender s, Player tp, boolean ender) {
@@ -81,9 +84,13 @@ public final class BedwarsAdminTools implements BedwarsTools {
         org.bukkit.inventory.Inventory dest = ender ? tp.getEnderChest()
                 : ((org.bukkit.block.Chest) target.getState()).getInventory();
         for (org.bukkit.inventory.ItemStack it : dest.getContents()) if (it != null) stored += it.getAmount();
-        s.sendMessage(ChatColor.GREEN + "hand=" + (hand == null ? "empty" : hand.getType() + "x" + hand.getAmount())
-                + " slot1=" + (tp.getInventory().getItem(1) == null ? "empty" : tp.getInventory().getItem(1).getAmount() + "x iron")
-                + " stored=" + stored + " (" + (ender ? "ender" : "team") + " chest)");
+        s.sendMessage(net.h2020.api.core.Messages.get("bedwars.admin.chest-state",
+                "hand", hand == null ? net.h2020.api.core.Messages.raw("bedwars.admin.empty")
+                        : hand.getType() + "x" + hand.getAmount(),
+                "slot1", tp.getInventory().getItem(1) == null
+                        ? net.h2020.api.core.Messages.raw("bedwars.admin.empty")
+                        : tp.getInventory().getItem(1).getAmount() + "x iron",
+                "stored", stored, "chest", ender ? "ender" : "team"));
         if (ender) target.setType(org.bukkit.Material.AIR);
     }
 
@@ -109,12 +116,9 @@ public final class BedwarsAdminTools implements BedwarsTools {
     @Override public void generators(CommandSender s, Player asPlayerOrNull) {
         BedwarsGame g = game(asPlayerOrNull);
         if (g == null) { net.h2020.api.core.Messages.send(s, "bedwars.bedwarsadmintools.no-game-running"); return; }
-        s.sendMessage(ChatColor.GREEN + "  map=" + g.mapName() + " type=" + g.type().id());
-        s.sendMessage(ChatColor.GREEN + "  diamond=" + g.diamondGenerators().size()
-                + " emerald=" + g.emeraldGenerators().size()
-                + " registry diamond=" + net.h2020.api.game.GeneratorRegistry.points(g.world(),
-                net.h2020.api.game.GeneratorRegistry.DIAMOND_GEN).size()
-                + " emerald=" + net.h2020.api.game.GeneratorRegistry.points(g.world(),
-                net.h2020.api.game.GeneratorRegistry.EMERALD_GEN).size());
+        s.sendMessage(net.h2020.api.core.Messages.get("bedwars.bedwarsadmintools.map-type","p1",g.mapName(),"p2",g.type().id()));
+        s.sendMessage(net.h2020.api.core.Messages.get("bedwars.bedwarsadmintools.diamond-emerald-registry-diamond","p1",g.diamondGenerators().size(),"p2",g.emeraldGenerators().size(),"p3",net.h2020.api.game.GeneratorRegistry.points(g.world(),
+                net.h2020.api.game.GeneratorRegistry.DIAMOND_GEN).size(),"p4",net.h2020.api.game.GeneratorRegistry.points(g.world(),
+                net.h2020.api.game.GeneratorRegistry.EMERALD_GEN).size()));
     }
 }

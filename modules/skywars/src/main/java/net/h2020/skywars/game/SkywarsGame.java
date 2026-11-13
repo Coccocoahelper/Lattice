@@ -484,7 +484,7 @@ public final class SkywarsGame implements SkywarsView {
 
     public void selectKit(Player p, Kit k) {
         module.selectKit(p, k);
-        p.sendMessage(ChatColor.GREEN + "You have selected the " + ChatColor.YELLOW + k.displayName + ChatColor.GREEN + " kit!");
+        p.sendMessage(net.h2020.api.core.Messages.get("skywars.skywarsgame.you-have-selected-the","p1",k.displayName));
         p.playSound(p.getLocation(), Sound.NOTE_PLING, 1f, 2f);
     }
 
@@ -497,7 +497,7 @@ public final class SkywarsGame implements SkywarsView {
             return;
         }
         spectator.teleport(t.getLocation());
-        spectator.sendMessage(ChatColor.GRAY + "Teleported to " + coloredName(t));
+        spectator.sendMessage(net.h2020.api.core.Messages.get("skywars.skywarsgame.teleported-to","p1",coloredName(t)));
     }
 
     /** Player clicked "Leave" / "Return to Lobby". */
@@ -684,7 +684,7 @@ public final class SkywarsGame implements SkywarsView {
         block.add(Chat.BAR);
         for (Player p : players()) {
             for (String l : block) p.sendMessage(l);
-            if (type.teamSize() <= 1) p.sendMessage(ChatColor.RED + "" + ChatColor.BOLD + "Teaming is not allowed on Solo mode!");
+            if (type.teamSize() <= 1) p.sendMessage(net.h2020.api.core.Messages.get("skywars.game.teaming-solo"));
             Titles.title(p, ChatColor.YELLOW + "Cages opened! " + ChatColor.RED + "FIGHT!", "", 5, 30, 10);
             p.playSound(p.getLocation(), Sound.ENDERDRAGON_GROWL, 0.6f, 1.4f);
         }
@@ -699,14 +699,14 @@ public final class SkywarsGame implements SkywarsView {
             case REFILL:
                 refillAll();
                 for (Player p : players()) {
-                    p.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "All chests have been refilled!");
+                    p.sendMessage(net.h2020.api.core.Messages.get("skywars.game.chests-refilled"));
                     Titles.title(p, "", ChatColor.YELLOW + "Chests refilled!", 5, 40, 10);
                     p.playSound(p.getLocation(), Sound.CHEST_OPEN, 1f, 1f);
                 }
                 break;
             case DOOM:
                 for (Player p : players()) {
-                    p.sendMessage(ChatColor.RED + "" + ChatColor.BOLD + "DOOM! " + ChatColor.RED + "The Ender Dragon has been released!");
+                    p.sendMessage(net.h2020.api.core.Messages.get("skywars.game.doom"));
                     Titles.title(p, ChatColor.RED + "" + ChatColor.BOLD + "DOOM!", ChatColor.YELLOW + "The Ender Dragon has spawned!", 5, 50, 10);
                     p.playSound(p.getLocation(), Sound.ENDERDRAGON_GROWL, 1f, 1f);
                 }
@@ -717,7 +717,7 @@ public final class SkywarsGame implements SkywarsView {
                 }
                 break;
             case END:
-                for (Player p : players()) p.sendMessage(ChatColor.RED + "" + ChatColor.BOLD + "Time's up! " + ChatColor.YELLOW + "The game has ended in a draw.");
+                for (Player p : players()) p.sendMessage(net.h2020.api.core.Messages.get("skywars.game.time-up"));
                 end(null);
                 break;
         }
@@ -778,7 +778,7 @@ public final class SkywarsGame implements SkywarsView {
         if (killer != null) {
             UUID k = killer.getUniqueId();
             kills.put(k, kills(killer) + 1);
-            killer.sendMessage(ChatColor.GOLD + "+" + (insane() ? 15 : 10) + " coins! (Kill)");
+            killer.sendMessage(net.h2020.api.core.Messages.get("skywars.game.coins-kill", "amount", insane() ? 15 : 10));
             net.h2020.api.core.Messages.send(killer, "skywars.skywarsgame.1-soul");
             killer.playSound(killer.getLocation(), Sound.SUCCESSFUL_HIT, 1f, 1f);
         }
@@ -943,7 +943,7 @@ public final class SkywarsGame implements SkywarsView {
             if (isWinner) {
                 Titles.title(p, ChatColor.GOLD + "" + ChatColor.BOLD + "VICTORY!",
                         ChatColor.GRAY + (type.teamSize() > 1 ? "Your team was the last one standing!" : "You were the last man standing!"), 5, 80, 20);
-                p.sendMessage(ChatColor.GOLD + "+" + (insane() ? 50 : 20) + " coins! (Win)");
+                p.sendMessage(net.h2020.api.core.Messages.get("skywars.game.coins-win", "amount", insane() ? 50 : 20));
                 p.playSound(p.getLocation(), Sound.LEVEL_UP, 1f, 1f);
             } else {
                 Titles.title(p, ChatColor.RED + "" + ChatColor.BOLD + "GAME OVER!",

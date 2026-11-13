@@ -60,7 +60,7 @@ public final class PlayAgain {
             CombatStats.inc("playagain.prompt");
             if (win) CombatStats.inc("playagain.prompt.win"); else CombatStats.inc("playagain.prompt.loss");
         } catch (Throwable t) {
-            p.sendMessage(legacyPrompt(win, bedWars) + ChatColor.GRAY + " (/playagain)");
+            p.sendMessage(net.h2020.api.core.Messages.get("api.playagain.playagain","p1",legacyPrompt(win, bedWars)));
         }
     }
 

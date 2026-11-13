@@ -118,7 +118,7 @@ public final class FireballDrill implements Drill {
         s[2]++;
         if (s[2] > s[3]) s[3] = s[2];
         p.playSound(p.getLocation(), Sound.ITEM_BREAK, 0.6f, 1.6f);
-        p.sendMessage(ChatColor.AQUA + "Deflected" + ChatColor.GRAY + "  streak " + ChatColor.WHITE + s[2]);
+        p.sendMessage(net.h2020.api.core.Messages.get("practice.fireballdrill.deflected-streak","p1",s[2]));
     }
 
     /** A fireball that reaches the player is a miss, but it costs health and a fall, not the session. */
@@ -127,8 +127,7 @@ public final class FireballDrill implements Drill {
         int[] s = row(p);
         s[1]++;
         s[2] = 0;
-        p.sendMessage(ChatColor.RED + "Hit" + ChatColor.GRAY + "  " + ChatColor.WHITE + s[1]
-                + ChatColor.GRAY + " taken this session");
+        p.sendMessage(net.h2020.api.core.Messages.get("practice.fireballdrill.hit-taken-this-session","p1",s[1]));
         if (p.getHealth() - e.getDamage() <= 0) {
             // never let the drill kill: the point is the timing, not surviving a bad roll
             e.setCancelled(true);

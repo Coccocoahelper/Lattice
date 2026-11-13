@@ -87,9 +87,8 @@ public final class TeamChest {
             ItemStack rest = left.values().iterator().next();
             p.setItemInHand(rest);
             CombatStats.inc("deposit.stacks");
-            p.sendMessage(line(moving, moving.getAmount() - rest.getAmount(),
-                    totalIn(target, moving.getType()), ender)
-                    + ChatColor.GRAY + " (" + rest.getAmount() + " left in hand)");
+            p.sendMessage(net.h2020.api.core.Messages.get("bedwars.teamchest.left-in-hand","p1",line(moving, moving.getAmount() - rest.getAmount(),
+                    totalIn(target, moving.getType()), ender),"p2",rest.getAmount()));
         } else {
             p.sendMessage(ChatColor.RED + net.h2020.api.core.Messages.raw("bedwars.chest.full", "chest", ender ? "ender chest" : "team chest"));
         }

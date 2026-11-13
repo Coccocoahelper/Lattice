@@ -51,7 +51,7 @@ final class BotCommand implements CommandExecutor, TabCompleter {
         try {
             for (String l : lines) sender.sendMessage(l);
         } catch (Throwable t) {
-            sender.sendMessage("§c[ml] report failed: " + t);
+            sender.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.c-ml-report-failed","p1",t));
         }
     }
 
@@ -67,11 +67,11 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                 case "cheat": cheat(sender, args); break;
                 case "look": look(sender, args); break;
                 case "navstats":
-                    if (args.length > 1 && args[1].equalsIgnoreCase("reset")) { net.h2020.bots.ai.nav.NavStats.reset(); sender.sendMessage(P + "navstats reset"); }
+                    if (args.length > 1 && args[1].equalsIgnoreCase("reset")) { net.h2020.bots.ai.nav.NavStats.reset(); sender.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.navstats-reset","p1",P)); }
                     for (String l : net.h2020.bots.ai.nav.NavStats.report()) sender.sendMessage(l);
                     break;
                 case "swstats":
-                    if (args.length > 1 && args[1].equalsIgnoreCase("reset")) { net.h2020.bots.ai.brain.SwStats.reset(); sender.sendMessage(P + "swstats reset"); }
+                    if (args.length > 1 && args[1].equalsIgnoreCase("reset")) { net.h2020.bots.ai.brain.SwStats.reset(); sender.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.swstats-reset","p1",P)); }
                     if (args.length > 1 && args[1].equalsIgnoreCase("debug")) {
                         net.h2020.bots.ai.brain.SwStats.debug = args.length > 2 ? args[2].equalsIgnoreCase("on") : !net.h2020.bots.ai.brain.SwStats.debug;
                         sender.sendMessage(P + "swstats debug " + (net.h2020.bots.ai.brain.SwStats.debug ? "on" : "off"));
@@ -122,9 +122,9 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                         if (b.context() == null || b.context().player == null) continue;
                         try {
                             menu.open(b.context().player);
-                            sender.sendMessage("§6[menu] §frendered for " + b.context().player.getName());
+                            sender.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.6-menu-frendered-for","p1",b.context().player.getName()));
                         } catch (Throwable t) {
-                            sender.sendMessage("§c[menu] failed: " + t);
+                            sender.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.c-menu-failed","p1",t));
                             t.printStackTrace();
                         }
                         break;
@@ -149,7 +149,7 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                         net.h2020.bots.ai.ml.HumanPlacements.observe(me, foe, at);
                         n++;
                     }
-                    sender.sendMessage("§6[pl] §fwatched " + n + " placements");
+                    sender.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.6-pl-fwatched-placements","p1",n));
                     break;
                 }
                 case "shoptest": {
@@ -158,7 +158,7 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                         if (b.context() == null || b.context().player == null) continue;
                         if (nm != null && !b.context().player.getName().equalsIgnoreCase(nm)) continue;
                         net.h2020.bots.ai.ml.ShopWatch.observed(b.context().player);
-                        sender.sendMessage("§6[shop] §fwatched " + b.context().player.getName());
+                        sender.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.6-shop-fwatched","p1",b.context().player.getName()));
                     }
                     break;
                 }
@@ -169,7 +169,7 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                         net.h2020.bots.ai.brain.BedwarsBrain bw = (net.h2020.bots.ai.brain.BedwarsBrain) b;
                         if (bw.context() == null || bw.context().player == null) continue;
                         if (nm != null && !bw.context().player.getName().equalsIgnoreCase(nm)) continue;
-                        sender.sendMessage("§6[why] §f" + bw.context().player.getName() + " §7" + bw.whyString());
+                        sender.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.6-why-f-7","p1",bw.context().player.getName(),"p2",bw.whyString()));
                     }
                     break;
                 }
@@ -206,8 +206,7 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                             net.h2020.bots.ai.motor.BridgeTuning.forceTech =
                                     net.h2020.bots.ai.motor.Bridger.Tech.valueOf(args[1].toUpperCase(java.util.Locale.ROOT));
                         } catch (IllegalArgumentException e) {
-                            sender.sendMessage(P + "\u00a7cunknown technique " + args[1]
-                                    + " (noob, shift, speed, ninja, ninja2, moonwalk, breezily)");
+                            sender.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.u00a7cunknown-technique-noob-shift","p1",P,"p2",args[1]));
                             break;
                         }
                     }
@@ -219,9 +218,7 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                         String k = t.name().toLowerCase(java.util.Locale.ROOT);
                         double start = net.h2020.api.stats.CombatStats.total("bridge.tech." + k);
                         if (start <= 0) continue;
-                        sender.sendMessage(P + "  " + k + ": " + (int) start + " bridges, "
-                                + (int) net.h2020.api.stats.CombatStats.total("bridge.done." + k) + " finished, "
-                                + (int) net.h2020.api.stats.CombatStats.total("bridge.fell." + k) + " fell");
+                        sender.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.bridges-finished-fell","p1",P,"p2",k,"p3",(int) start,"p4",(int) net.h2020.api.stats.CombatStats.total("bridge.done." + k),"p5",(int) net.h2020.api.stats.CombatStats.total("bridge.fell." + k)));
                     }
                     break;
                 }
@@ -245,8 +242,7 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                         if (n < 1 || n > 20) throw new IllegalArgumentException("fps is frames per tick, between 1 and 20");
                         HumanMouse.setFramesPerTick(n);
                     }
-                    sender.sendMessage(P + "mouse frames " + HumanMouse.FRAMES_PER_TICK + "/tick ("
-                            + (HumanMouse.FRAMES_PER_TICK * 20) + " fps)");
+                    sender.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.mouse-frames-tick-fps","p1",P,"p2",HumanMouse.FRAMES_PER_TICK,"p3",(HumanMouse.FRAMES_PER_TICK * 20)));
                     break;
                 }
                 case "resist": {
@@ -270,7 +266,7 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                             case "strafe": net.h2020.bots.ai.combat.ZestTap.strafeTicks = v; break;
                             case "every": net.h2020.bots.ai.combat.ZestTap.every = v; break;
                             case "immunity": net.h2020.bots.ai.combat.ZestTap.immunityTicks = v; break;
-                            default: sender.sendMessage("§cunknown zest key " + zsub); return true;
+                            default: sender.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.cunknown-zest-key","p1",zsub)); return true;
                         }
                     }
                     sender.sendMessage("§7" + net.h2020.bots.ai.combat.ZestTap.describe());
@@ -312,7 +308,7 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                         net.h2020.bots.ai.ml.HumanPlacements.reset();
                         net.h2020.bots.ai.ml.ShopModel.reset();
                         net.h2020.bots.ai.ml.RoleModel.reset();
-                        sender.sendMessage(P + "fight models reset (all four)");
+                        sender.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.fight-models-reset-all","p1",P));
                     }
                     safe(sender, net.h2020.bots.ai.ml.FightModel.report());
                     safe(sender, net.h2020.bots.ai.ml.PlacementPolicy.report());
@@ -370,14 +366,14 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                 }
                 case "navtrace":
                     net.h2020.bots.ai.nav.NavStats.trace = args.length > 1 && !args[1].equalsIgnoreCase("off") ? args[1] : null;
-                    sender.sendMessage(P + "navtrace " + net.h2020.bots.ai.nav.NavStats.trace);
+                    sender.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.navtrace","p1",P,"p2",net.h2020.bots.ai.nav.NavStats.trace));
                     break;
                 case "navfix":
                     if (args.length > 1) {
                         try { net.h2020.bots.ai.nav.NavStats.fix = Integer.decode(args[1]); }
                         catch (NumberFormatException e) { throw new IllegalArgumentException("navfix <mask>: 1 start, 2 headroom, 4 boxes, 8 stairs, 16 gui, 32 lookahead, 64 water"); }
                     }
-                    sender.sendMessage(P + "navfix mask " + net.h2020.bots.ai.nav.NavStats.fix);
+                    sender.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.navfix-mask","p1",P,"p2",net.h2020.bots.ai.nav.NavStats.fix));
                     break;
                 case "navdebug":
                     net.h2020.bots.ai.nav.NavStats.debug = args.length > 1 ? args[1].equalsIgnoreCase("on") : !net.h2020.bots.ai.nav.NavStats.debug;
@@ -424,22 +420,22 @@ final class BotCommand implements CommandExecutor, TabCompleter {
     }
 
     private void help(CommandSender s, String label) {
-        s.sendMessage(P + ChatColor.YELLOW + "/" + label + " spawn [name|#count] [cheat]" + ChatColor.GRAY + " - spawn at you");
-        s.sendMessage(P + ChatColor.YELLOW + "/" + label + " remove <name|all>" + ChatColor.GRAY + " - disconnect bot(s)");
-        s.sendMessage(P + ChatColor.YELLOW + "/" + label + " list" + ChatColor.GRAY + " - online bots");
-        s.sendMessage(P + ChatColor.YELLOW + "/" + label + " cheat <name|all> <" + cheatNames() + ">");
-        s.sendMessage(P + ChatColor.YELLOW + "/" + label + " look <name>" + ChatColor.GRAY + " - aim/physics debug");
-        s.sendMessage(P + ChatColor.YELLOW + "/" + label + " ml [reset]" + ChatColor.GRAY + " - the learned fight model (samples, accuracy, weights)");
-        s.sendMessage(P + ChatColor.YELLOW + "/" + label + " settings" + ChatColor.GRAY + " - bot settings menu (average skill, behaviours)");
-        s.sendMessage(P + ChatColor.YELLOW + "/" + label + " skill <0-1|default>" + ChatColor.GRAY + " - average skill of newly spawned bots");
-        s.sendMessage(P + ChatColor.YELLOW + "/" + label + " navstats [reset] | navdebug [on|off]" + ChatColor.GRAY + " - stuck/path-failure counters per map");
-        s.sendMessage(P + ChatColor.YELLOW + "/" + label + " swstats [reset|debug [on|off]]" + ChatColor.GRAY + " - SkyWars plans, fight origins, cage-drop confusion per map");
-        s.sendMessage(P + ChatColor.YELLOW + "/" + label + " tp <name|all> [player]" + ChatColor.GRAY + " - bring bot(s)");
-        s.sendMessage(P + ChatColor.YELLOW + "/" + label + " goto <name>" + ChatColor.GRAY + " - teleport to bot");
-        s.sendMessage(P + ChatColor.YELLOW + "/" + label + " say <name> <message>");
-        s.sendMessage(P + ChatColor.YELLOW + "/" + label + " walk <name> <fwd> <strafe> [sprint] | stop | jump | sneak <name>");
-        s.sendMessage(P + ChatColor.YELLOW + "/" + label + " aim|attack <name> <player>");
-        s.sendMessage(P + ChatColor.YELLOW + "/" + label + " aimpos <name> <x> <y> <z> | left <name> [hold|cps|click|off] | right <name> [click|hold|off] | slot <name> <0-8>");
+        s.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.spawn-name-count-cheat","p1",P,"p2",label));
+        s.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.remove-name-all-disconnect","p1",P,"p2",label));
+        s.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.list-online-bots","p1",P,"p2",label));
+        s.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.cheat-name-all","p1",P,"p2",label,"p3",cheatNames()));
+        s.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.look-name-aim-physics","p1",P,"p2",label));
+        s.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.ml-reset-the-learned","p1",P,"p2",label));
+        s.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.settings-bot-settings-menu","p1",P,"p2",label));
+        s.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.skill-0-1-default","p1",P,"p2",label));
+        s.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.navstats-reset-navdebug-on","p1",P,"p2",label));
+        s.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.swstats-reset-debug-on","p1",P,"p2",label));
+        s.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.tp-name-all-player","p1",P,"p2",label));
+        s.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.goto-name-teleport-to","p1",P,"p2",label));
+        s.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.say-name-message","p1",P,"p2",label));
+        s.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.walk-name-fwd-strafe","p1",P,"p2",label));
+        s.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.aim-attack-name-player","p1",P,"p2",label));
+        s.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.aimpos-name-x-y","p1",P,"p2",label));
     }
 
     private static String cheatNames() {
@@ -483,7 +479,7 @@ final class BotCommand implements CommandExecutor, TabCompleter {
             final int count;
             try { count = Math.max(1, Math.min(200, Integer.parseInt(nameArg.substring(1)))); }
             catch (NumberFormatException e) { throw new IllegalArgumentException("Bad count " + nameArg); }
-            s.sendMessage(P + ChatColor.GREEN + "Spawning " + count + " bots...");
+            s.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.spawning-bots","p1",P,"p2",count));
             new BukkitRunnable() {
                 int left = count;
                 @Override public void run() {
@@ -493,7 +489,7 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                     at.setYaw((float) (rnd.nextDouble() * 360.0D - 180.0D));
                     at.setPitch(0.0F);
                     try { bots.spawn(bots.randomProfile(cheat), at); }
-                    catch (RuntimeException e) { s.sendMessage(P + ChatColor.RED + "Spawn failed: " + e.getMessage()); }
+                    catch (RuntimeException e) { s.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.spawn-failed","p1",P,"p2",e.getMessage())); }
                 }
             }.runTaskTimer(plugin, 1L, 3L);
             return;
@@ -516,12 +512,12 @@ final class BotCommand implements CommandExecutor, TabCompleter {
         if (args.length < 2) throw new IllegalArgumentException("Usage: /bot remove <name|all>");
         List<FakeBot> list = targets(args[1]);
         for (FakeBot b : list) b.remove();
-        s.sendMessage(P + ChatColor.GREEN + "Removed " + list.size() + " bot(s).");
+        s.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.removed-bot-s","p1",P,"p2",list.size()));
     }
 
     private void list(CommandSender s) {
         List<FakeBot> all = bots.all();
-        s.sendMessage(P + ChatColor.YELLOW + all.size() + " bot(s) online" + ChatColor.GRAY + " (skins in pool: " + bots.skins().size() + ")");
+        s.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.bot-s-online-skins","p1",P,"p2",all.size(),"p3",bots.skins().size()));
         StringBuilder line = new StringBuilder();
         for (FakeBot b : all) {
             BotProfile p = b.profile();
@@ -539,7 +535,7 @@ final class BotCommand implements CommandExecutor, TabCompleter {
         CheatProfile c = parseCheat(args[2]);
         List<FakeBot> list = targets(args[1]);
         for (FakeBot b : list) b.setCheat(c);
-        s.sendMessage(P + ChatColor.GREEN + "Cheat profile " + ChatColor.RED + c + ChatColor.GREEN + " set on " + list.size() + " bot(s).");
+        s.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.cheat-profile-set-on","p1",P,"p2",c,"p3",list.size()));
     }
 
     private void look(CommandSender s, String[] args) {
@@ -564,7 +560,7 @@ final class BotCommand implements CommandExecutor, TabCompleter {
         }
         List<FakeBot> list = targets(args[1]);
         for (FakeBot b : list) b.player().teleport(to);
-        s.sendMessage(P + ChatColor.GREEN + "Teleported " + list.size() + " bot(s).");
+        s.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.teleported-bot-s","p1",P,"p2",list.size()));
     }
 
     private void goTo(CommandSender s, String[] args) {

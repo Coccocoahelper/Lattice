@@ -76,10 +76,9 @@ public final class PracticeGame implements Game {
         }
         reset(p);
         drill.onJoin(this, p);
-        p.sendMessage(ChatColor.AQUA + "" + ChatColor.BOLD + drill.display() + ChatColor.RESET
-                + ChatColor.GRAY + " - " + drill.hint());
-        p.sendMessage(ChatColor.GRAY + "Leave with " + ChatColor.WHITE + "/practice leave"
-                + ChatColor.GRAY + ", change drill with " + ChatColor.WHITE + "/practice <drill>");
+        p.sendMessage(net.h2020.api.core.Messages.get("practice.game.joined",
+                "drill", drill.display(), "hint", drill.hint()));
+        p.sendMessage(net.h2020.api.core.Messages.get("practice.game.leave-hint"));
         return true;
     }
 
@@ -103,9 +102,7 @@ public final class PracticeGame implements Game {
         watcher.setAllowFlight(true);
         watcher.setFlying(true);
         watcher.teleport(target.getLocation().clone().add(0, 1.2, 0));
-        watcher.sendMessage(ChatColor.GRAY + "Spectating " + ChatColor.WHITE + target.getName()
-                + ChatColor.GRAY + " - fly to look around, " + ChatColor.WHITE + "/practice leave"
-                + ChatColor.GRAY + " to stop");
+        watcher.sendMessage(net.h2020.api.core.Messages.get("practice.practicegame.spectating-fly-to-look","p1",target.getName()));
     }
 
     public boolean isFollowing(Player p) { return following.containsKey(p.getUniqueId()); }

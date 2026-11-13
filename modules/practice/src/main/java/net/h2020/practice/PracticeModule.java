@@ -150,7 +150,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
                 return true;
             }
             PracticeMode m = modeFor(args[0].toLowerCase(java.util.Locale.ROOT));
-            if (m == null) { sender.sendMessage("Unknown drill " + args[0]); return true; }
+            if (m == null) { sender.sendMessage(net.h2020.api.core.Messages.get("practice.practicemodule.unknown-drill","p1",args[0])); return true; }
             int n = 0;
             for (int i = 1; i + 1 < args.length; i++)
                 if (args[i].equalsIgnoreCase("bots")) {
@@ -161,7 +161,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
             if (g == null) { sender.sendMessage("Could not start the drill (bots module missing?)"); return true; }
             track(g);
             spawnBots(g, n, tech);
-            sender.sendMessage("Started " + m.displayName() + " with " + n + " bot(s) as " + g.id());
+            sender.sendMessage(net.h2020.api.core.Messages.get("practice.practicemodule.started-with-bot-s","p1",m.displayName(),"p2",n,"p3",g.id()));
             return true;
         }
 
@@ -190,7 +190,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
 
         PracticeMode mode = modeFor(sub);
         if (mode == null) {
-            p.sendMessage(ChatColor.RED + "Unknown drill " + args[0] + ". Try fireball, bow, gamesense, bridge, bridge-diagonal.");
+            p.sendMessage(net.h2020.api.core.Messages.get("practice.practicemodule.unknown-drill-try-fireball","p1",args[0]));
             return true;
         }
 
@@ -303,36 +303,22 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
     }
 
     private void menu(Player p) {
-        p.sendMessage(ChatColor.AQUA + "" + ChatColor.BOLD + "Bed Wars practice");
-        p.sendMessage(ChatColor.GRAY + "/practice fireball " + ChatColor.DARK_GRAY + "- deflect incoming fireballs");
-        p.sendMessage(ChatColor.GRAY + "/practice bow " + ChatColor.DARK_GRAY + "- targets at 10 to 34 blocks");
-        p.sendMessage(ChatColor.GRAY + "/practice gamesense " + ChatColor.DARK_GRAY + "- situations, graded");
-        p.sendMessage(ChatColor.GRAY + "/practice bridge " + ChatColor.DARK_GRAY + "- straight, growing gap");
-        p.sendMessage(ChatColor.GRAY + "/practice bridge-diagonal " + ChatColor.DARK_GRAY + "- the same on the diagonal");
-        p.sendMessage(ChatColor.DARK_GRAY + "add " + ChatColor.WHITE + "bots <n>" + ChatColor.DARK_GRAY
-                + " to any of them to bring bots in; " + ChatColor.WHITE + "/practice leave" + ChatColor.DARK_GRAY + " to stop");
-        p.sendMessage(ChatColor.DARK_GRAY + "the bridge drill also takes a method: "
-                + ChatColor.WHITE + "/practice bridge bots 2 ninja2" + ChatColor.DARK_GRAY
-                + " - and you watch the bot it puts in the arena");
+        for (String line : net.h2020.api.core.Messages.lines("practice.menu.lines")) p.sendMessage(line);
     }
 
     /** Everything a drill can be checked on from the console: the world, who is in it, and what is ticking in it. */
     private void debug(CommandSender to) {
         if (games.isEmpty()) { to.sendMessage("no practice sessions running"); return; }
         for (PracticeGame g : games.values()) {
-            to.sendMessage(g.id() + " " + g.drill().display() + " state=" + g.state()
-                    + " world=" + g.world().getName() + " players=" + g.players().size());
+            to.sendMessage(net.h2020.api.core.Messages.get("practice.practicemodule.state-world-players","p1",g.id(),"p2",g.drill().display(),"p3",g.state(),"p4",g.world().getName(),"p5",g.players().size()));
             java.util.Map<String, Integer> counts = new java.util.TreeMap<String, Integer>();
             for (Entity e : g.world().getEntities()) {
                 String n = e.getType().name();
                 counts.put(n, counts.containsKey(n) ? counts.get(n) + 1 : 1);
             }
-            to.sendMessage("  entities: " + counts);
+            to.sendMessage(net.h2020.api.core.Messages.get("practice.practicemodule.entities","p1",counts));
             for (Player p : g.players()) for (String line : g.drill().stats(g, p)) to.sendMessage("  [" + p.getName() + "] " + line);
-            for (Player p : g.players()) to.sendMessage("  " + p.getName() + " dead=" + p.isDead()
-                    + " hp=" + Math.round(p.getHealth()) + " gm=" + p.getGameMode() + " at "
-                    + p.getLocation().getBlockX() + "," + p.getLocation().getBlockY() + ","
-                    + p.getLocation().getBlockZ() + "  " + g.drill().hud(g, p));
+            for (Player p : g.players()) to.sendMessage(net.h2020.api.core.Messages.get("practice.practicemodule.dead-hp-gm-at","p1",p.getName(),"p2",p.isDead(),"p3",Math.round(p.getHealth()),"p4",p.getGameMode(),"p5",p.getLocation().getBlockX(),"p6",p.getLocation().getBlockY(),"p7",p.getLocation().getBlockZ(),"p8",g.drill().hud(g, p)));
         }
     }
 

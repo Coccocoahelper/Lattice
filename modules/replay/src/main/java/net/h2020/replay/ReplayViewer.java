@@ -126,7 +126,7 @@ public final class ReplayViewer {
             int slot = p.getInventory().getHeldItemSlot();
             e.setCancelled(true);
             try { handle(p, ses, it, mt, slot, left); } catch (Throwable t) {
-                p.sendMessage(ChatColor.RED + "Replay control failed: " + t);
+                p.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.replay-control-failed","p1",t));
                 plugin.getLogger().warning("[replay] control " + mt + " failed: " + t);
             }
         }
@@ -144,15 +144,14 @@ public final class ReplayViewer {
                     for (int i = 0; i < speeds.length; i++) if (Math.abs(speeds[i] - ses.speed) < 1e-6) cur = i;
                     ses.speed = speeds[(cur + 1) % speeds.length];
                     giveControls(p, ses);
-                    p.sendMessage(ChatColor.GRAY + "Speed " + ChatColor.WHITE + ses.speed + "x");
+                    p.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.speed-x","p1",ses.speed));
                     return;
                 }
                 case PAPER: {
                     long now = System.currentTimeMillis();
                     long cur = (long) ((now - ses.startedAt) * ses.speed);
                     seek(ses, Math.max(0, cur + (slot == 3 ? -10_000 : 10_000)));
-                    p.sendMessage(ChatColor.GRAY + "At " + ((long) ((System.currentTimeMillis() - ses.startedAt) * ses.speed) / 1000)
-                            + "s of " + (ses.times.get(ses.times.size() - 1)[0] / 1000) + "s");
+                    p.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.at-s-of-s","p1",((long) ((System.currentTimeMillis() - ses.startedAt) * ses.speed) / 1000),"p2",(ses.times.get(ses.times.size() - 1)[0] / 1000)));
                     return;
                 }
                 case SLIME_BALL:
@@ -183,14 +182,14 @@ public final class ReplayViewer {
             verify(s, a[2]);
             if (a.length > 3) {                       // optional: drive a real session with that player as the viewer
                 Player v = Bukkit.getPlayerExact(a[3]);
-                if (v == null) { s.sendMessage(ChatColor.RED + "No player " + a[3]); return; }
+                if (v == null) { s.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.no-player","p1",a[3])); return; }
                 start(v, a[2], 4.0);
                 Session ses = SESSIONS.get(v.getUniqueId());
                 if (ses != null && a.length > 4 && a[4].equalsIgnoreCase("menu")) {
                     openPlayers(v, ses);          // exercise the player picker without a human hand
-                    s.sendMessage(ChatColor.GRAY + "player menu opened for " + v.getName());
+                    s.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.player-menu-opened-for","p1",v.getName()));
                 }
-                s.sendMessage(ChatColor.GRAY + "session started for " + v.getName());
+                s.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.session-started-for","p1",v.getName()));
             }
             return;
         }
@@ -203,7 +202,7 @@ public final class ReplayViewer {
         // from here on the "player" is whoever the command is about: the sender, or the named target for the console
         Player p = s instanceof Player ? (Player) s : (a.length > 4 ? Bukkit.getPlayerExact(a[4]) : null);
         if (p == null && sub.equals("board")) p = a.length > 2 ? Bukkit.getPlayerExact(a[2]) : null;
-        if (p == null) { s.sendMessage(ChatColor.RED + "Name a player: /h2020 replay " + sub + " ... <player>"); return; }
+        if (p == null) { s.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.name-a-player-h2020","p1",sub)); return; }
         if (sub.equals("stop")) { stop(p); return; }
         if (sub.equals("pause") || sub.equals("resume")) {
             Session ses = SESSIONS.get(p.getUniqueId());
@@ -221,7 +220,7 @@ public final class ReplayViewer {
             if (ses == null) { net.h2020.api.core.Messages.send(p, "replay.replayviewer.you-are-not-watching"); return; }
             double secs = a.length > 2 ? parse(a[2], 0) : 0;
             seek(ses, (long) (secs * 1000));
-            p.sendMessage(ChatColor.GRAY + "Replay at " + (int) (secs) + "s.");
+            p.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.replay-at-s","p1",(int) (secs)));
             return;
         }
         if (sub.equals("board")) {
@@ -229,8 +228,8 @@ public final class ReplayViewer {
             if (who == null) { net.h2020.api.core.Messages.send(s, "replay.replayviewer.no-such-player"); return; }
             org.bukkit.scoreboard.Objective o =
                     who.getScoreboard().getObjective(org.bukkit.scoreboard.DisplaySlot.SIDEBAR);
-            if (o == null) { s.sendMessage(ChatColor.GRAY + "No sidebar for " + who.getName() + "."); return; }
-            s.sendMessage(ChatColor.GRAY + "Sidebar of " + who.getName() + ": " + o.getDisplayName());
+            if (o == null) { s.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.no-sidebar-for","p1",who.getName())); return; }
+            s.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.sidebar-of","p1",who.getName(),"p2",o.getDisplayName()));
             for (String e : o.getScoreboard().getEntries()) {
                 org.bukkit.scoreboard.Score s2 = o.getScore(e);
                 if (s2 != null) s.sendMessage(ChatColor.DARK_GRAY + "  " + e + ChatColor.GRAY + " -> " + s2.getScore());
@@ -241,7 +240,7 @@ public final class ReplayViewer {
             if (a.length < 3) { net.h2020.api.core.Messages.send(p, "replay.replayviewer.h2020-replay-start-gameid"); return; }
             double speed = a.length > 3 ? Math.max(0.25, Math.min(8, parse(a[3], 1))) : 1.0;
             Player who = a.length > 4 ? Bukkit.getPlayerExact(a[4]) : p;
-            if (who == null) { p.sendMessage(ChatColor.RED + "No such player " + a[4] + "."); return; }
+            if (who == null) { p.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.no-such-player","p1",a[4])); return; }
             start(who, a[2], speed);
             return;
         }
@@ -251,7 +250,7 @@ public final class ReplayViewer {
     /** Read a recording end to end and build its cinema world, reporting what it contains. */
     private static void verify(CommandSender s, String gameId) {
         File f = new File(Recorder.dir(), gameId + ".jsonl");
-        if (!f.isFile()) { s.sendMessage(ChatColor.RED + "No recording called " + gameId + "."); return; }
+        if (!f.isFile()) { s.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.no-recording-called","p1",gameId)); return; }
         String map = null;
         int frames = 0, rows = 0;
         long last = 0;
@@ -267,7 +266,7 @@ public final class ReplayViewer {
                 if (rows == 0) rows = line.split(java.util.regex.Pattern.quote("],[")).length;
             }
         } catch (Throwable e) {
-            s.sendMessage(ChatColor.RED + "Unreadable: " + e);
+            s.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.unreadable","p1",e));
             return;
         } finally {
             try { if (r != null) r.close(); } catch (Throwable ignored) { }
@@ -282,9 +281,7 @@ public final class ReplayViewer {
         } finally {
             try { if (r2 != null) r2.close(); } catch (Throwable ignored) { }
         }
-        s.sendMessage(ChatColor.GRAY + "replay " + gameId + ": map " + map + ", " + frames + " frames, "
-                + rows + " players per frame, " + blockEvents + " block events, " + (last / 1000)
-                + "s. Plays in a game world of that map.");
+        s.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.replay-map-frames-players","p1",gameId,"p2",map,"p3",frames,"p4",rows,"p5",blockEvents,"p6",(last / 1000)));
     }
 
     private static void list(CommandSender s) {
@@ -296,7 +293,7 @@ public final class ReplayViewer {
         list.sort(new java.util.Comparator<File>() {
             @Override public int compare(File x, File y) { return Long.compare(y.lastModified(), x.lastModified()); }
         });
-        s.sendMessage(ChatColor.GOLD + "Recorded games (" + list.size() + "):");
+        s.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.recorded-games","p1",list.size()));
         int shown = 0;
         for (File f : list) {
             if (shown++ >= 12) break;
@@ -305,9 +302,7 @@ public final class ReplayViewer {
                 BufferedReader r = new BufferedReader(new FileReader(f));
                 try { mode = modeName(field(r.readLine(), "type")); } finally { r.close(); }
             } catch (Throwable ignored) { }
-            s.sendMessage(ChatColor.GRAY + " - " + ChatColor.WHITE + f.getName().replace(".jsonl", "")
-                    + ChatColor.GRAY + "  " + mode + ", " + (f.length() / 1024) + " KB, "
-                    + new java.text.SimpleDateFormat("dd MMM HH:mm").format(new java.util.Date(f.lastModified())));
+            s.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.kb","p1",f.getName().replace(".jsonl", ""),"p2",mode,"p3",(f.length() / 1024),"p4",new java.text.SimpleDateFormat("dd MMM HH:mm").format(new java.util.Date(f.lastModified()))));
         }
         net.h2020.api.core.Messages.send(s, "replay.replayviewer.watch-one-with-h2020");
     }
@@ -316,7 +311,7 @@ public final class ReplayViewer {
 
     private static void start(Player p, String gameId, double speed) {
         File f = new File(Recorder.dir(), gameId + ".jsonl");
-        if (!f.isFile()) { p.sendMessage(ChatColor.RED + "No recording called " + gameId + "."); return; }
+        if (!f.isFile()) { p.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.no-recording-called","p1",gameId)); return; }
         stop(p);
         String mapName = null;
         List<long[]> times = new ArrayList<long[]>();
@@ -398,7 +393,7 @@ public final class ReplayViewer {
                 frames.add(fr);
             }
         } catch (Throwable e) {
-            p.sendMessage(ChatColor.RED + "Could not read that recording: " + e);
+            p.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.could-not-read-that","p1",e));
             return;
         } finally {
             try { if (r != null) r.close(); } catch (Throwable ignored) { }
@@ -410,7 +405,7 @@ public final class ReplayViewer {
         // replay borrows a live game on that map, or creates a host game (never filled, never started) and keeps it.
         World world = hostWorld(mapName);
         if (world == null) {
-            p.sendMessage(ChatColor.RED + "No map called " + mapName + " to play it in.");
+            p.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.no-map-called-to","p1",mapName));
             return;
         }
         double lift = 0;
@@ -481,9 +476,7 @@ public final class ReplayViewer {
         for (Puppet pu : ses.puppets) { pu.npc.show(p); pu.visible = true; }
         replayBoard(p, ses);
 
-        p.sendMessage(ChatColor.GREEN + "Replaying " + gameId + " on " + mapName + " at " + speed + "x ("
-                + ses.puppets.size() + " players, " + (times.get(times.size() - 1)[0] / 1000) + "s). "
-                + "/h2020 replay stop to end.");
+        p.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.replaying-on-at-x","p1",gameId,"p2",mapName,"p3",speed,"p4",ses.puppets.size(),"p5",(times.get(times.size() - 1)[0] / 1000)));
     }
 
     private static int indexOfPuppet(double[][] frame, String[] order, String name) {
@@ -663,7 +656,7 @@ public final class ReplayViewer {
                     Session s2 = SESSIONS.get(who.getUniqueId());
                     if (s2 != null) s2.follow = pu.name;
                     who.closeInventory();
-                    who.sendMessage(ChatColor.GRAY + "Following " + ChatColor.WHITE + pu.name);
+                    who.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.following","p1",pu.name));
                 }
             });
         }

@@ -120,8 +120,7 @@ final class Combat {
                 @Override public void run() {
                     if (!target.playing() || !shooter.isOnline()) return;
                     String hp = new BigDecimal(target.player.getHealth()).setScale(1, RoundingMode.HALF_UP).toPlainString();
-                    shooter.sendMessage(g.feedName(target.player) + ChatColor.GRAY + " is on " + ChatColor.RED + hp
-                            + ChatColor.GRAY + " HP!");
+                    shooter.sendMessage(net.h2020.api.core.Messages.get("bedwars.combat.is-on-hp","p1",g.feedName(target.player),"p2",hp));
                 }
             });
         }

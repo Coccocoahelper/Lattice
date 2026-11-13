@@ -1,24 +1,41 @@
 # Every message the plugins send. Edit freely: the file is read on boot and on /h2020 reload.
 # Colours are the usual & codes. {placeholders} are filled by the plugin.
-# A key you delete is restored from the defaults on the next boot, so nothing can leave a message missing.
+# A value starting with & must be quoted, or YAML reads it as an anchor.
 
 api:
   playagain:
+    playagain: "{p1}&7 (/playagain)"
     you-are-already-in: "&cYou are already in a game."
     you-have-not-finished: "&cYou have not finished a game yet."
 bedwars:
+  admin:
+    chest-state: "&ahand={hand} slot1={slot1} stored={stored} ({chest} chest)"
+    empty: "empty"
+    no-chest: "none"
+    placement-allowed: "&aplacement allowed"
+    placement-denied: "&cdenied: {reason}"
+    team-line: "&7  {team}&7: {chest}"
   bedwarsadmintools:
+    diamond-emerald-registry-diamond: "&a  diamond={p1} emerald={p2} registry diamond={p3} emerald={p4}"
+    map-type: "&a  map={p1} type={p2}"
     no-bedwars-game: "&cNo bedwars game."
     no-bedwars-game-in: "&cNo bedwars game in this world."
     no-game-running: "&cNo game running."
     no-team-chest-for: "&cNo team chest for that player."
     that-player-is-not: "&cThat player is not in a bedwars game."
   bedwarsgame:
+    alarm-from-team-has: "&c&lAlarm! {p1}&7 from {p2} Team &7has entered your base!"
+    bed: "{p1}{p2} Bed{p3}"
+    coins-beds-broken: "&6+{p1} coins! (Beds Broken)"
+    coins-final-kills: "&6+{p1} coins! (Final Kills)"
+    coins-kills: "&6+{p1} coins! (Kills)"
     usage-shout-message: "&cUsage: /shout <message>"
     you-can-only-use: "&cYou can only use /shout during a game!"
     you-can-t-use: "&cYou can't use /shout in Solo mode!"
     you-can-t-use-2: "&cYou can't use /shout while spectating!"
     you-have-respawned: "&eYou have respawned!"
+    you-must-wait-seconds: "&cYou must wait &e{p1}&c seconds until you can use /shout again!"
+    your-bed: "{p1}&7Your Bed{p2}"
   bedwarsmodule:
     players-only: "&cPlayers only."
     you-can-only-use: "&cYou can only use /shout in a Bed Wars game!"
@@ -26,15 +43,22 @@ bedwars:
     deposited: "&7Deposited {colour}x{amount} {item}{plural} &7into {chest}&7! &8({total} Total)"
     full: "&cNo room in the {chest}."
     not-yours: "&cThat chest belongs to {colour}{team} Team&c."
+  combat:
+    is-on-hp: "{p1}&7 is on &c{p2}&7 HP!"
   game:
+    coins-win: "&6+{amount} coins! (Win)"
+    resource-returned: "{colour}+{amount} {item}"
     respawn-in: "&eYou will respawn in &c{seconds} &eseconds!"
     trap-triggered: "&c&lYour {trap} &7has been triggered!"
+    xp-line: "&b+{amount} Bed Wars Experience (Time Played)"
   gamelistener:
     the-first-tier-tool: "&cThe first-tier tool stays in your inventory."
     you-can-only-break: "&cYou can only break blocks placed by a player!"
     you-can-t-destroy: "&cYou can't destroy your own bed!"
+    you-cannot-open-this: "&cYou cannot open this chest as the {p1} Team &cis not eliminated!"
   itemshop:
     you-already-have-this: "&cYou already have this item!"
+    you-don-t-have: "&cYou don't have enough {p1}! Need {p2} more!"
   shop:
     cannot-afford: "&cYou don't have enough {currency}!"
     purchased: "&aYou purchased {item}"
@@ -43,14 +67,56 @@ bedwars:
     that-player-is-no: "&cThat player is no longer alive!"
   teamchest:
     hold-the-stack-you: "&7Hold the stack you want to deposit."
+    left-in-hand: "{p1}&7 ({p2} left in hand)"
     you-keep-your-tools: "&cYou keep your tools and armour."
   upgradeshop:
     trap-queue-full: "&cTrap queue full!"
     you-already-unlocked-this: "&cYou already unlocked this upgrade!"
+    you-don-t-have: "&cYou don't have enough Diamonds! Need {p1} more!"
 bots:
   answerscommand:
+    answer-with-the-number: "&7Answer with the number, e.g. /{p1} <id> 2"
     that-is-not-an: "&7That is not an answer for the current question."
+  botcommand:
+    6-menu-frendered-for: "§6[menu] §frendered for {p1}"
+    6-pl-fwatched-placements: "§6[pl] §fwatched {p1} placements"
+    6-shop-fwatched: "§6[shop] §fwatched {p1}"
+    6-why-f-7: "§6[why] §f{p1} §7{p2}"
+    aim-attack-name-player: "{p1}&e/{p2} aim|attack <name> <player>"
+    aimpos-name-x-y: "{p1}&e/{p2} aimpos <name> <x> <y> <z> | left <name> [hold|cps|click|off] | right <name> [click|hold|off] | slot <name> <0-8>"
+    bot-s-online-skins: "{p1}&e{p2} bot(s) online&7 (skins in pool: {p3})"
+    bridges-finished-fell: "{p1}  {p2}: {p3} bridges, {p4} finished, {p5} fell"
+    c-menu-failed: "§c[menu] failed: {p1}"
+    c-ml-report-failed: "§c[ml] report failed: {p1}"
+    cheat-name-all: "{p1}&e/{p2} cheat <name|all> <{p3}>"
+    cheat-profile-set-on: "{p1}&aCheat profile &c{p2}&a set on {p3} bot(s)."
+    cunknown-zest-key: "§cunknown zest key {p1}"
+    fight-models-reset-all: "{p1}fight models reset (all four)"
+    goto-name-teleport-to: "{p1}&e/{p2} goto <name>&7 - teleport to bot"
+    list-online-bots: "{p1}&e/{p2} list&7 - online bots"
+    look-name-aim-physics: "{p1}&e/{p2} look <name>&7 - aim/physics debug"
+    ml-reset-the-learned: "{p1}&e/{p2} ml [reset]&7 - the learned fight model (samples, accuracy, weights)"
+    mouse-frames-tick-fps: "{p1}mouse frames {p2}/tick ({p3} fps)"
+    navfix-mask: "{p1}navfix mask {p2}"
+    navstats-reset: "{p1}navstats reset"
+    navstats-reset-navdebug-on: "{p1}&e/{p2} navstats [reset] | navdebug [on|off]&7 - stuck/path-failure counters per map"
+    navtrace: "{p1}navtrace {p2}"
+    remove-name-all-disconnect: "{p1}&e/{p2} remove <name|all>&7 - disconnect bot(s)"
+    removed-bot-s: "{p1}&aRemoved {p2} bot(s)."
+    say-name-message: "{p1}&e/{p2} say <name> <message>"
+    settings-bot-settings-menu: "{p1}&e/{p2} settings&7 - bot settings menu (average skill, behaviours)"
+    skill-0-1-default: "{p1}&e/{p2} skill <0-1|default>&7 - average skill of newly spawned bots"
+    spawn-failed: "{p1}&cSpawn failed: {p2}"
+    spawn-name-count-cheat: "{p1}&e/{p2} spawn [name|#count] [cheat]&7 - spawn at you"
+    spawning-bots: "{p1}&aSpawning {p2} bots..."
+    swstats-reset: "{p1}swstats reset"
+    swstats-reset-debug-on: "{p1}&e/{p2} swstats [reset|debug [on|off]]&7 - SkyWars plans, fight origins, cage-drop confusion per map"
+    teleported-bot-s: "{p1}&aTeleported {p2} bot(s)."
+    tp-name-all-player: "{p1}&e/{p2} tp <name|all> [player]&7 - bring bot(s)"
+    u00a7cunknown-technique-noob-shift: "{p1}\\u00a7cunknown technique {p2} (noob, shift, speed, ninja, ninja2, moonwalk, breezily)"
+    walk-name-fwd-strafe: "{p1}&e/{p2} walk <name> <fwd> <strafe> [sprint] | stop | jump | sneak <name>"
   serverquestions:
+    server-recorded-i-had: "&7[Server] Recorded: &f{p1}&8 (i had you as: {p2})"
     server-that-question-is: "&7[Server] That question is no longer open."
 core:
   admincommand:
@@ -65,22 +131,42 @@ core:
     running-games: "&6Running games:"
     training-self-play-arena: "&7 training (self-play arena)"
   gamemanagerimpl:
+    sending-you-to: "&aSending you to {p1}!"
     that-game-is-currently: "&cThat game is currently unavailable!"
   lobbycommand:
     are-you-sure-type: "&eAre you sure? Type /lobby again if you really want to quit."
   lobbymenus:
+    is-not-available-on: "&c{p1} is not available on this server!"
     that-mode-has-no: "&cThat mode has no game provider yet."
     you-are-already-connected: "&cYou are already connected to this server!"
   mapeditservice:
+    armed-a-new-left: "&eArmed a new {p1} - left-click the block with the wand."
+    armed-left-click-the: "&eArmed &f{p1}&e - left-click the block with the wand (or shift-click the item to use where you stand)."
+    build-limit-set-to: "&aBuild limit set to y={p1}."
+    could-not-write-into: "&cCould not write {p1} into map.yml."
+    editing-right-click-the: "&bEditing &f{p1}&b. Right-click the book for the menu, arm a point, then left-click the block with the wand."
+    fast-setup-for-complete: "&bFast setup for {p1} complete: spawn, bed, shop, upgrades, generator, base ({p2}, {p3}..{p4}, {p5})"
+    fast-setup-for-could: "&cFast setup for {p1} could not write the base box into map.yml."
+    fast-setup-for-could-2: "&cFast setup for {p1} could not read the points back from map.yml."
+    fast-setup-for-left: "&bFast setup for {p1}: left-click the SPAWN block with the wand (1/5)"
+    left-the-editor-for: "&7Left the editor for {p1}."
     nothing-armed-open-the: "&cNothing armed - open the book and pick a point first."
+    removed: "&aRemoved {p1} {p2}."
+    set-to-on-map: "&aSet {p1} to {p2},{p3},{p4} on {p5}&8 (map.yml written)"
   playagaincommand:
     players-only: "&cPlayers only."
   playcommand:
+    games: "&7Games: {p1}"
+    unknown-game-available: "&cUnknown game! Available: {p1}"
     usage-play-game: "&cUsage: /play <game>"
   pvparena:
     could-not-create-the: "&cCould not create the arena world."
   spectatecommand:
+    is-not-in-a: "&c{p1} is not in a game."
     no-longer-spectating: "&7No longer spectating."
+    no-player-or-game: "&cNo player or game called {p1}."
+    spectating-in-spectate-to: "&aSpectating {p1}&7 in {p2} ({p3}). /spectate to stop, /lobby to leave."
+    spectating-lobby-to-leave: "&aSpectating {p1}&7 ({p2}). /lobby to leave."
     you-are-already-looking: "&cYou are already looking at yourself."
 end:
   click-here: "Click here!"
@@ -92,29 +178,96 @@ end:
   requeue-wait: "Wait {seconds}s before playing again."
   won: "You won!"
 practice:
+  bowdrill:
+    hit-at-m-hits: "&aHit&7 at &f{p1}m&7  ({p2} hits, {p3}% of shots)"
+  bridgedrill:
+    crossed-ms-with-blocks: "&a&lCrossed&r&7  &f{p1} ms&7 with &f{p2}&7 blocks&8  (gap {p3})"
+  fireballdrill:
+    deflected-streak: "&bDeflected&7  streak &f{p1}"
+    hit-taken-this-session: "&cHit&7  &f{p1}&7 taken this session"
+  game:
+    joined: "&b&l{drill}&r&7 - {hint}"
+    leave-hint: "&7Leave with &f/practice leave&7, change drill with &f/practice <drill>"
+  gamesensedrill:
+    not-this-one-the: "&c&lNot this one.&r&7 The call was &f[{p1}] {p2}"
+    right: "&a&lRight.&r&7 {p1}"
+    time-the-call-was: "&c&lTime.&r&7 The call was &f[{p1}] {p2}"
+  menu:
+    lines:
+      - "&b&lBed Wars practice"
+      - "&7/practice fireball &8- deflect incoming fireballs"
+      - "&7/practice bow &8- targets at 10 to 34 blocks"
+      - "&7/practice gamesense &8- situations, graded"
+      - "&7/practice bridge &8- straight, growing gap"
+      - "&7/practice bridge-diagonal &8- the same on the diagonal"
+      - "&8add &fbots <n>&8 to any of them to bring bots in; &f/practice leave&8 to stop"
+      - "&8the bridge drill also takes a method: &f/practice bridge bots 2 ninja2&8 - and you watch the bot it puts in the arena"
+  practicegame:
+    spectating-fly-to-look: "&7Spectating &f{p1}&7 - fly to look around, &f/practice leave&7 to stop"
   practicemodule:
     bots-are-not-available: "&7Bots are not available on this server."
     could-not-start-the: "&cCould not start the drill - see the console."
+    dead-hp-gm-at: "  {p1} dead={p2} hp={p3} gm={p4} at {p5},{p6},{p7}  {p8}"
+    entities: "  entities: {p1}"
     not-the-game-sense: "&7Not the game sense drill."
     practice-answer-1-3: "&c/practice answer <1-3>"
+    started-with-bot-s: "Started {p1} with {p2} bot(s) as {p3}"
+    state-world-players: "{p1} {p2} state={p3} world={p4} players={p5}"
+    unknown-drill: "Unknown drill {p1}"
+    unknown-drill-try-fireball: "&cUnknown drill {p1}. Try fireball, bow, gamesense, bridge, bridge-diagonal."
     you-are-not-in: "&7You are not in a drill."
+  sense:
+    explanation: "&8  {why}"
+    scenario: "&b&lScenario&8 (12 s)"
 replay:
   replayviewer:
+    at-s-of-s: "&7At {p1}s of {p2}s"
+    could-not-read-that: "&cCould not read that recording: {p1}"
+    following: "&7Following &f{p1}"
     free-camera: "&7Free camera."
     h2020-replay-list-start: "&c/h2020 replay list|start <id> [speed]|pause|resume|seek <s>|stop"
     h2020-replay-start-gameid: "&c/h2020 replay start <gameId> [speed]"
     h2020-replay-verify-gameid: "&c/h2020 replay verify <gameId> [viewer]"
+    kb: "&7 - &f{p1}&7  {p2}, {p3} KB, {p4}"
+    name-a-player-h2020: "&cName a player: /h2020 replay {p1} ... <player>"
+    no-map-called-to: "&cNo map called {p1} to play it in."
+    no-player: "&cNo player {p1}"
+    no-recording-called: "&cNo recording called {p1}."
     no-recordings-yet: "&7No recordings yet."
+    no-sidebar-for: "&7No sidebar for {p1}."
     no-such-player: "&cNo such player."
+    player-menu-opened-for: "&7player menu opened for {p1}"
+    recorded-games: "&6Recorded games ({p1}):"
+    replay-at-s: "&7Replay at {p1}s."
+    replay-control-failed: "&cReplay control failed: {p1}"
+    replay-map-frames-players: "&7replay {p1}: map {p2}, {p3} frames, {p4} players per frame, {p5} block events, {p6}s. Plays in a game world of that map."
     replay-stopped: "&7Replay stopped."
+    replaying-on-at-x: "&aReplaying {p1} on {p2} at {p3}x ({p4} players, {p5}s). /h2020 replay stop to end."
     replays-are-watched-in: "&cReplays are watched in game."
+    session-started-for: "&7session started for {p1}"
+    sidebar-of: "&7Sidebar of {p1}: {p2}"
+    speed-x: "&7Speed &f{p1}x"
     that-recording-is-empty: "&cThat recording is empty."
+    unreadable: "&cUnreadable: {p1}"
     watch-one-with-h2020: "&7Watch one with /h2020 replay start <id> [speed]"
     you-are-not-watching: "&cYou are not watching a replay."
+  traincommand:
+    6-train-e: "§6[train] §e{p1}"
+    6-train-ehindsight-pass: "§6[train] §ehindsight pass done: {p1}"
+    6-trainer-e: "§6[trainer] §e{p1}"
 skywars:
+  game:
+    chests-refilled: "&a&lAll chests have been refilled!"
+    coins-kill: "&6+{amount} coins! (Kill)"
+    coins-win: "&6+{amount} coins! (Win)"
+    doom: "&c&lDOOM! &cThe Ender Dragon has been released!"
+    teaming-solo: "&c&lTeaming is not allowed on Solo mode!"
+    time-up: "&c&lTime's up! &eThe game has ended in a draw."
   skywarsgame:
     1-soul: "&b+1 Soul"
     sending-you-to-a: "&aSending you to a new game..."
+    teleported-to: "&7Teleported to {p1}"
     that-player-is-no: "&cThat player is no longer alive!"
+    you-have-selected-the: "&aYou have selected the &e{p1}&a kit!"
   skywarslistener:
     you-can-t-place: "&cYou can't place blocks here!"

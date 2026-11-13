@@ -81,7 +81,7 @@ public final class UpgradeShop {
     private static boolean pay(Player p, int cost) {
         int have = ItemShop.count(p, Currency.DIAMOND);
         if (have < cost) {
-            p.sendMessage(ChatColor.RED + "You don't have enough Diamonds! Need " + (cost - have) + " more!");
+            p.sendMessage(net.h2020.api.core.Messages.get("bedwars.upgradeshop.you-don-t-have","p1",(cost - have)));
             p.playSound(p.getLocation(), Sound.ENDERMAN_TELEPORT, 1f, 0.5f);
             return false;
         }

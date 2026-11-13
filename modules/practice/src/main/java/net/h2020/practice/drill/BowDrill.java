@@ -131,9 +131,7 @@ public final class BowDrill implements Drill {
         int band = bandOf(arrow.getLocation());
         if (band >= 0) s[3 + band]++;
         shooter.playSound(shooter.getLocation(), Sound.SUCCESSFUL_HIT, 0.7f, 1.4f);
-        shooter.sendMessage(ChatColor.GREEN + "Hit" + ChatColor.GRAY + " at " + ChatColor.WHITE
-                + Math.round(dist) + "m" + ChatColor.GRAY + "  (" + s[0] + " hits, "
-                + Math.round(100.0 * s[0] / Math.max(1, s[1])) + "% of shots)");
+        shooter.sendMessage(net.h2020.api.core.Messages.get("practice.bowdrill.hit-at-m-hits","p1",Math.round(dist),"p2",s[0],"p3",Math.round(100.0 * s[0] / Math.max(1, s[1]))));
         // the target steps back: an armour stand that stays put turns into a memorised angle
         if (hit instanceof Zombie) { targets.remove(hit); ((Zombie) hit).remove(); }
     }

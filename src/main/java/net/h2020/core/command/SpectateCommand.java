@@ -39,8 +39,7 @@ public final class SpectateCommand implements CommandExecutor, TabCompleter {
         Location to = game.spectatorSpawn();
         if (to != null) p.teleport(to);
         else if (game.world() != null) p.teleport(game.world().getSpawnLocation());
-        p.sendMessage(ChatColor.GREEN + "Spectating " + game.id() + ChatColor.GRAY + " (" + game.mapName()
-                + "). /lobby to leave.");
+        p.sendMessage(net.h2020.api.core.Messages.get("core.spectatecommand.spectating-lobby-to-leave","p1",game.id(),"p2",game.mapName()));
     }
 
     @Override
@@ -57,11 +56,11 @@ public final class SpectateCommand implements CommandExecutor, TabCompleter {
                 .filter(g -> g.id().equalsIgnoreCase(args[0])).findFirst().orElse(null); } catch (Throwable ignored) { }
         if (byId != null) { spectate(p, byId); return true; }
         Player target = find(args[0]);
-        if (target == null) { p.sendMessage(ChatColor.RED + "No player or game called " + args[0] + "."); return true; }
+        if (target == null) { p.sendMessage(net.h2020.api.core.Messages.get("core.spectatecommand.no-player-or-game","p1",args[0])); return true; }
         if (target == p) { net.h2020.api.core.Messages.send(p, "core.spectatecommand.you-are-already-looking"); return true; }
         Game game = core.games.gameOf(target);
         if (game == null) {
-            p.sendMessage(ChatColor.RED + target.getName() + " is not in a game.");
+            p.sendMessage(net.h2020.api.core.Messages.get("core.spectatecommand.is-not-in-a","p1",target.getName()));
             return true;
         }
         Game cur = core.games.gameOf(p);
@@ -77,8 +76,7 @@ public final class SpectateCommand implements CommandExecutor, TabCompleter {
         }
         p.teleport(target.getLocation());
         try { p.setSpectatorTarget(target); } catch (Throwable ignored) { }   // camera locks on (1.8 API)
-        p.sendMessage(ChatColor.GREEN + "Spectating " + target.getName() + ChatColor.GRAY + " in " + game.id()
-                + " (" + game.mapName() + "). /spectate to stop, /lobby to leave.");
+        p.sendMessage(net.h2020.api.core.Messages.get("core.spectatecommand.spectating-in-spectate-to","p1",target.getName(),"p2",game.id(),"p3",game.mapName()));
         return true;
     }
 

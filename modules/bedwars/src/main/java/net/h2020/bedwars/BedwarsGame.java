@@ -1155,8 +1155,7 @@ public final class BedwarsGame implements BedwarsView {
             Text.title(m, ChatColor.RED + "" + ChatColor.BOLD + "TRAP TRIGGERED!",
                     ChatColor.WHITE + "Your " + trap.displayName + " has been triggered!", 0, 50, 10);
             if (trap == Trap.ALARM) {
-                m.sendMessage(ChatColor.RED + "" + ChatColor.BOLD + "Alarm! " + feedName(ip) + ChatColor.GRAY + " from "
-                        + intruder.team.coloredName() + " Team " + ChatColor.GRAY + "has entered your base!");
+                m.sendMessage(net.h2020.api.core.Messages.get("bedwars.bedwarsgame.alarm-from-team-has","p1",feedName(ip),"p2",intruder.team.coloredName()));
             } else {
                 m.sendMessage(net.h2020.api.core.Messages.get("bedwars.game.trap-triggered", "trap", trap.displayName));
             }
@@ -1268,7 +1267,8 @@ public final class BedwarsGame implements BedwarsView {
             Map<Integer, ItemStack> left = to.getInventory().addItem(new ItemStack(mats[i], amounts[i]));
             for (ItemStack s : left.values()) to.getWorld().dropItem(to.getLocation(), s);
             String n = names[i] + (i >= 2 && amounts[i] > 1 ? "s" : "");
-            to.sendMessage(cols[i] + "+" + amounts[i] + " " + n);
+            to.sendMessage(net.h2020.api.core.Messages.get("bedwars.game.resource-returned",
+                    "colour", cols[i], "amount", amounts[i], "item", n));
         }
     }
 
@@ -1379,11 +1379,11 @@ public final class BedwarsGame implements BedwarsView {
             Player p = bp.player;
             p.sendMessage("");
             if (bp.team == t) {
-                p.sendMessage(head + ChatColor.GRAY + "Your Bed" + by);
+                p.sendMessage(net.h2020.api.core.Messages.get("bedwars.bedwarsgame.your-bed","p1",head,"p2",by));
                 Text.title(p, ChatColor.RED + "" + ChatColor.BOLD + "BED DESTROYED!", ChatColor.WHITE + "You will no longer respawn!", 0, 60, 20);
                 p.playSound(p.getLocation(), Sound.WITHER_DEATH, 1f, 1f);
             } else {
-                p.sendMessage(head + t.coloredName() + " Bed" + by);
+                p.sendMessage(net.h2020.api.core.Messages.get("bedwars.bedwarsgame.bed","p1",head,"p2",t.coloredName(),"p3",by));
                 p.playSound(p.getLocation(), Sound.ENDERDRAGON_GROWL, 1f, 1f);
             }
             p.sendMessage("");
@@ -1578,12 +1578,14 @@ public final class BedwarsGame implements BedwarsView {
     private void sendRewards(BwPlayer bp) {
         Player p = bp.player;
         p.sendMessage("");
-        if (winner != null && bp.team == winner) p.sendMessage(ChatColor.GOLD + "+" + (soloMode() ? 50 : 100) + " coins! (Win)");
-        if (bp.kills > 0) p.sendMessage(ChatColor.GOLD + "+" + (bp.kills * 10) + " coins! (Kills)");
-        if (bp.finalKills > 0) p.sendMessage(ChatColor.GOLD + "+" + (bp.finalKills * 20) + " coins! (Final Kills)");
-        if (bp.bedsBroken > 0) p.sendMessage(ChatColor.GOLD + "+" + (bp.bedsBroken * 20) + " coins! (Beds Broken)");
+        if (winner != null && bp.team == winner) p.sendMessage(net.h2020.api.core.Messages.get(
+                "bedwars.game.coins-win", "amount", soloMode() ? 50 : 100));
+        if (bp.kills > 0) p.sendMessage(net.h2020.api.core.Messages.get("bedwars.bedwarsgame.coins-kills","p1",(bp.kills * 10)));
+        if (bp.finalKills > 0) p.sendMessage(net.h2020.api.core.Messages.get("bedwars.bedwarsgame.coins-final-kills","p1",(bp.finalKills * 20)));
+        if (bp.bedsBroken > 0) p.sendMessage(net.h2020.api.core.Messages.get("bedwars.bedwarsgame.coins-beds-broken","p1",(bp.bedsBroken * 20)));
         int minutes = Math.max(1, elapsedSeconds() / 60);
-        p.sendMessage(ChatColor.AQUA + "+" + (minutes * 5 + (winner != null && bp.team == winner ? 50 : 0)) + " Bed Wars Experience (Time Played)");
+        p.sendMessage(net.h2020.api.core.Messages.get("bedwars.game.xp-line",
+                "amount", minutes * 5 + (winner != null && bp.team == winner ? 50 : 0)));
     }
 
     private void endingTick() {
@@ -1736,8 +1738,7 @@ public final class BedwarsGame implements BedwarsView {
         long now = System.currentTimeMillis();
         long left = SHOUT_COOLDOWN_MS - (now - bp.lastShout);
         if (left > 0) {
-            p.sendMessage(ChatColor.RED + "You must wait " + ChatColor.YELLOW + ((left + 999) / 1000) + ChatColor.RED
-                    + " seconds until you can use /shout again!");
+            p.sendMessage(net.h2020.api.core.Messages.get("bedwars.bedwarsgame.you-must-wait-seconds","p1",((left + 999) / 1000)));
             return;
         }
         bp.lastShout = now;

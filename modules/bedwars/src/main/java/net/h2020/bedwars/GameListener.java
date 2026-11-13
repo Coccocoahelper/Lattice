@@ -419,8 +419,7 @@ final class GameListener implements Listener {
                     BwTeam owner = chestOwner(g, b.getLocation());
                     if (owner != null && owner != bp.team && owner.alive()) {
                         e.setCancelled(true);
-                        p.sendMessage(ChatColor.RED + "You cannot open this chest as the " + owner.coloredName()
-                                + " Team " + ChatColor.RED + "is not eliminated!");
+                        p.sendMessage(net.h2020.api.core.Messages.get("bedwars.gamelistener.you-cannot-open-this","p1",owner.coloredName()));
                     }
                     break;
                 }

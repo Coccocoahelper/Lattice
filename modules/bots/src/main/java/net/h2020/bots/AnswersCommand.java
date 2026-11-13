@@ -14,7 +14,7 @@ final class AnswersCommand implements CommandExecutor {
         if (!(sender instanceof Player)) return true;
         Player p = (Player) sender;
         if (args.length < 2) {
-            p.sendMessage(ChatColor.GRAY + "Answer with the number, e.g. /" + label + " <id> 2");
+            p.sendMessage(net.h2020.api.core.Messages.get("bots.answerscommand.answer-with-the-number","p1",label));
             return true;
         }
         try {

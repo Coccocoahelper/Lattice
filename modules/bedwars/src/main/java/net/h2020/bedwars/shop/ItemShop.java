@@ -84,8 +84,7 @@ public final class ItemShop {
         }
         int have = count(p, pr.currency);
         if (have < pr.cost) {
-            p.sendMessage(ChatColor.RED + "You don't have enough " + ShopCatalog.name(pr.currency, 2) + "! Need "
-                    + (pr.cost - have) + " more!");
+            p.sendMessage(net.h2020.api.core.Messages.get("bedwars.itemshop.you-don-t-have","p1",ShopCatalog.name(pr.currency, 2),"p2",(pr.cost - have)));
             p.playSound(p.getLocation(), Sound.ENDERMAN_TELEPORT, 1f, 0.5f);
             return false;
         }

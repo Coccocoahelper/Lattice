@@ -15,13 +15,13 @@ public final class TrainCommand {
             int total = a.length > 2 ? parseInt(a[2], 40) : 40;
             int train = a.length > 3 ? parseInt(a[3], 6) : 6;
             int eval = a.length > 4 ? parseInt(a[4], 4) : 4;
-            s.sendMessage("§6[train] §e" + Arena.start(total, train, eval));
+            s.sendMessage(net.h2020.api.core.Messages.get("replay.traincommand.6-train-e","p1",Arena.start(total, train, eval)));
             return true;
         }
-        if (sub.equals("stop")) { s.sendMessage("§6[train] §e" + Arena.stop()); return true; }
+        if (sub.equals("stop")) { s.sendMessage(net.h2020.api.core.Messages.get("replay.traincommand.6-train-e","p1",Arena.stop())); return true; }
         if (sub.equals("sprint")) {
             String what = a.length > 2 ? a[2].toLowerCase() : "";
-            if (what.equals("stop")) { s.sendMessage("§6[trainer] §e" + Trainer.stop()); return true; }
+            if (what.equals("stop")) { s.sendMessage(net.h2020.api.core.Messages.get("replay.traincommand.6-trainer-e","p1",Trainer.stop())); return true; }
             if (what.equals("status")) {
                 for (String l : Trainer.report()) s.sendMessage(l);
                 return true;
@@ -29,19 +29,19 @@ public final class TrainCommand {
             int max = a.length > 2 ? parseInt(a[2], 8) : 8;
             // default cap matches Trainer's: the fastest measured setting, 201 games/hour on this host
             int gameSeconds = a.length > 3 ? parseInt(a[3], 60) : 60;
-            s.sendMessage("§6[trainer] §e" + Trainer.start(max, gameSeconds));
+            s.sendMessage(net.h2020.api.core.Messages.get("replay.traincommand.6-trainer-e","p1",Trainer.start(max, gameSeconds)));
             return true;
         }
         if (sub.equals("duels")) {
             String what = a.length > 2 ? a[2].toLowerCase() : "";
-            if (what.equals("stop")) { s.sendMessage("§6[trainer] §e" + Trainer.stop()); return true; }
+            if (what.equals("stop")) { s.sendMessage(net.h2020.api.core.Messages.get("replay.traincommand.6-trainer-e","p1",Trainer.stop())); return true; }
             if (what.equals("status")) {
                 for (String l : Trainer.report()) s.sendMessage(l);
                 return true;
             }
             int duels = a.length > 2 ? parseInt(a[2], 4) : 4;
             int seconds = a.length > 3 ? parseInt(a[3], 60) : 60;
-            s.sendMessage("§6[trainer] §e" + Trainer.startDuels(duels, seconds));
+            s.sendMessage(net.h2020.api.core.Messages.get("replay.traincommand.6-trainer-e","p1",Trainer.startDuels(duels, seconds)));
             return true;
         }
         if (sub.equals("human")) {
@@ -53,7 +53,7 @@ public final class TrainCommand {
         if (sub.equals("hindsight")) {
             int rows = a.length > 2 ? parseInt(a[2], 4000) : 4000;
             Hindsight.pass(rows, true);
-            s.sendMessage("§6[train] §ehindsight pass done: " + Hindsight.reportLine());
+            s.sendMessage(net.h2020.api.core.Messages.get("replay.traincommand.6-train-ehindsight-pass","p1",Hindsight.reportLine()));
             return true;
         }
         if (sub.equals("promote")) {

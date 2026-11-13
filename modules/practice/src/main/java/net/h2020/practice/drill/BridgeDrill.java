@@ -113,10 +113,7 @@ public final class BridgeDrill implements Drill {
                 r[3]++;
                 if (r[2] == 0 || ms < r[2]) r[2] = ms;
                 p.playSound(p.getLocation(), Sound.LEVEL_UP, 0.7f, 1.5f);
-                p.sendMessage(ChatColor.GREEN + "" + ChatColor.BOLD + "Crossed" + ChatColor.RESET
-                        + ChatColor.GRAY + "  " + ChatColor.WHITE + ms + " ms"
-                        + ChatColor.GRAY + " with " + ChatColor.WHITE + r[1] + ChatColor.GRAY + " blocks"
-                        + ChatColor.DARK_GRAY + "  (gap " + length + ")");
+                p.sendMessage(net.h2020.api.core.Messages.get("practice.bridgedrill.crossed-ms-with-blocks","p1",ms,"p2",r[1],"p3",length));
                 // the gap grows: the next crossing is the one that tests the technique
                 length = Math.min(22, length + 2);
                 rebuild(arena);

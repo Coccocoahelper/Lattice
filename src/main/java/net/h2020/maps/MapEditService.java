@@ -168,8 +168,7 @@ public final class MapEditService implements Listener {
                 ChatColor.GRAY + "Right-click to leave; nothing is lost."));
         p.updateInventory();
         spawnHolograms(s);
-        p.sendMessage(ChatColor.AQUA + "Editing " + ChatColor.WHITE + st.name + ChatColor.AQUA
-                + ". Right-click the book for the menu, arm a point, then left-click the block with the wand.");
+        p.sendMessage(net.h2020.api.core.Messages.get("core.mapeditservice.editing-right-click-the","p1",st.name));
         return null;
     }
 
@@ -199,7 +198,7 @@ public final class MapEditService implements Listener {
                 World lobby = ms == null ? null : ms.mainLobby();
                 if (lobby != null) p.teleport(lobby.getSpawnLocation());
             }
-            p.sendMessage(ChatColor.GRAY + "Left the editor for " + s.map + ".");
+            p.sendMessage(net.h2020.api.core.Messages.get("core.mapeditservice.left-the-editor-for","p1",s.map));
         }
         MapTemplate t = H2020.find(MapService.class) == null ? null : H2020.find(MapService.class).byName(s.map);
         if (t instanceof StoredMapTemplate) {
@@ -445,8 +444,7 @@ public final class MapEditService implements Listener {
             s.armedBed = false;
             s.armedIndex = -1;
             p.closeInventory();
-            p.sendMessage(ChatColor.AQUA + "Fast setup for " + capitalise(c)
-                    + ": left-click the SPAWN block with the wand (1/5)");
+            p.sendMessage(net.h2020.api.core.Messages.get("core.mapeditservice.fast-setup-for-left","p1",capitalise(c)));
             return;
         }
         if (a.equals("holograms")) {
@@ -460,7 +458,7 @@ public final class MapEditService implements Listener {
         if (a.equals("limit")) {
             int y = p.getLocation().getBlockY();
             write(s, "build-limit", String.valueOf(y));
-            p.sendMessage(ChatColor.GREEN + "Build limit set to y=" + y + ".");
+            p.sendMessage(net.h2020.api.core.Messages.get("core.mapeditservice.build-limit-set-to","p1",y));
             p.openInventory(menu(p, s, 10, null));
             return;
         }
@@ -470,7 +468,7 @@ public final class MapEditService implements Listener {
             s.armedBed = false;
             s.armedIndex = -2;
             p.closeInventory();
-            p.sendMessage(ChatColor.YELLOW + "Armed a new " + key + " - left-click the block with the wand.");
+            p.sendMessage(net.h2020.api.core.Messages.get("core.mapeditservice.armed-a-new-left","p1",key));
             return;
         }
         if (a.startsWith("arm:") || a.startsWith("arm2:")) {
@@ -482,7 +480,7 @@ public final class MapEditService implements Listener {
                 MapEditor.removePoint(s.dir, gen, idx);
                 service.reload();
                 spawnHolograms(s);
-                p.sendMessage(ChatColor.GREEN + "Removed " + gen + " " + (idx + 1) + ".");
+                p.sendMessage(net.h2020.api.core.Messages.get("core.mapeditservice.removed","p1",gen,"p2",(idx + 1)));
                 p.openInventory(menu(p, s, 9, null));
                 return;
             }
@@ -508,8 +506,7 @@ public final class MapEditService implements Listener {
                 return;
             }
             p.closeInventory();
-            p.sendMessage(ChatColor.YELLOW + "Armed " + ChatColor.WHITE + s.armed + ChatColor.YELLOW
-                    + " - left-click the block with the wand (or shift-click the item to use where you stand).");
+            p.sendMessage(net.h2020.api.core.Messages.get("core.mapeditservice.armed-left-click-the","p1",s.armed));
         }
     }
 
@@ -539,10 +536,9 @@ public final class MapEditService implements Listener {
         if (key == null) return false;
         boolean ok = write(s, key, s.armedBed, null, block);
         if (ok) {
-            p.sendMessage(ChatColor.GREEN + "Set " + key + " to " + block.getX() + "," + block.getY() + ","
-                    + block.getZ() + " on " + s.map + ChatColor.DARK_GRAY + " (map.yml written)");
+            p.sendMessage(net.h2020.api.core.Messages.get("core.mapeditservice.set-to-on-map","p1",key,"p2",block.getX(),"p3",block.getY(),"p4",block.getZ(),"p5",s.map));
         } else {
-            p.sendMessage(ChatColor.RED + "Could not write " + key + " into map.yml.");
+            p.sendMessage(net.h2020.api.core.Messages.get("core.mapeditservice.could-not-write-into","p1",key));
         }
         s.armed = null;
         s.armedBed = false;
@@ -573,8 +569,7 @@ public final class MapEditService implements Listener {
         addPoint(pts, t, "team." + c + ".generator");
         Vector spawn = t == null ? null : t.point("team." + c + ".spawn");
         if (spawn == null || pts.isEmpty()) {
-            p.sendMessage(ChatColor.RED + "Fast setup for " + capitalise(c)
-                    + " could not read the points back from map.yml.");
+            p.sendMessage(net.h2020.api.core.Messages.get("core.mapeditservice.fast-setup-for-could-2","p1",capitalise(c)));
             s.queueTeam = null;
             return;
         }
@@ -597,13 +592,9 @@ public final class MapEditService implements Listener {
         if (ok) {
             service.reload();
             spawnHolograms(s);
-            p.sendMessage(ChatColor.AQUA + "Fast setup for " + capitalise(c)
-                    + " complete: spawn, bed, shop, upgrades, generator, base ("
-                    + (int) Math.round(minX) + ", " + (int) Math.round(minZ) + ".."
-                    + (int) Math.round(maxX) + ", " + (int) Math.round(maxZ) + ")");
+            p.sendMessage(net.h2020.api.core.Messages.get("core.mapeditservice.fast-setup-for-complete","p1",capitalise(c),"p2",(int) Math.round(minX),"p3",(int) Math.round(minZ),"p4",(int) Math.round(maxX),"p5",(int) Math.round(maxZ)));
         } else {
-            p.sendMessage(ChatColor.RED + "Fast setup for " + capitalise(c)
-                    + " could not write the base box into map.yml.");
+            p.sendMessage(net.h2020.api.core.Messages.get("core.mapeditservice.fast-setup-for-could","p1",capitalise(c)));
         }
         s.queueTeam = null;
     }

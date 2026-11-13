@@ -23,12 +23,12 @@ public final class PlayCommand implements TabExecutor {
         Player p = (Player) sender;
         if (args.length < 1) {
             net.h2020.api.core.Messages.send(p, "core.playcommand.usage-play-game");
-            p.sendMessage(ChatColor.GRAY + "Games: " + ids());
+            p.sendMessage(net.h2020.api.core.Messages.get("core.playcommand.games","p1",ids()));
             return true;
         }
         GameType type = GameType.byId(alias(args[0]));
         if (type == null) {
-            p.sendMessage(ChatColor.RED + "Unknown game! Available: " + ids());
+            p.sendMessage(net.h2020.api.core.Messages.get("core.playcommand.unknown-game-available","p1",ids()));
             return true;
         }
         core.games.queue(p, type);

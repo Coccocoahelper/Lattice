@@ -261,8 +261,7 @@ public final class ServerQuestions {
         String before = read(p);
         apply(p, q.type, option - 1, picked);
         answered++;
-        p.sendMessage(ChatColor.GRAY + "[Server] Recorded: " + ChatColor.WHITE + picked
-                + ChatColor.DARK_GRAY + " (i had you as: " + before + ")");
+        p.sendMessage(net.h2020.api.core.Messages.get("bots.serverquestions.server-recorded-i-had","p1",picked,"p2",before));
         if (q.type == INTENT && INTENT_CLASS[Math.min(option - 1, INTENT_CLASS.length - 1)] == IntentModel.RUSH) {
             askTeam(p, RUSH_TEAM);
         }

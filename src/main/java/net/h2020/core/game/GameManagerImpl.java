@@ -268,7 +268,7 @@ public final class GameManagerImpl implements GameManager, Listener {
                 break;
             }
             tried.add(g.id());
-            if (human) player.sendMessage(ChatColor.GREEN + "Sending you to " + g.id() + "!");
+            if (human) player.sendMessage(net.h2020.api.core.Messages.get("core.gamemanagerimpl.sending-you-to","p1",g.id()));
             if (lobby != null) lobby.leaving(player);
             resetPlayer(player, org.bukkit.GameMode.ADVENTURE);
             boolean ok;

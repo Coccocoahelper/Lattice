@@ -30,7 +30,7 @@ public final class LobbyMenus {
     private static Menu.Click unavailable(final String what) {
         return new Menu.Click() {
             @Override public void click(Player p, ClickType type) {
-                p.sendMessage(ChatColor.RED + what + " is not available on this server!");
+                p.sendMessage(net.h2020.api.core.Messages.get("core.lobbymenus.is-not-available-on","p1",what));
                 p.closeInventory();
             }
         };
