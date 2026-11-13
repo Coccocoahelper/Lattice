@@ -74,7 +74,7 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                     if (args.length > 1 && args[1].equalsIgnoreCase("reset")) { net.h2020.bots.ai.brain.SwStats.reset(); sender.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.swstats-reset","p1",P)); }
                     if (args.length > 1 && args[1].equalsIgnoreCase("debug")) {
                         net.h2020.bots.ai.brain.SwStats.debug = args.length > 2 ? args[2].equalsIgnoreCase("on") : !net.h2020.bots.ai.brain.SwStats.debug;
-                        sender.sendMessage(net.h2020.api.core.Messages.get("bots.command.toggle", "what", "swstats debug", "state", net.h2020.bots.ai.brain.SwStats.debug ? net.h2020.api.core.Messages.raw("bots.state.on") : net.h2020.api.core.Messages.raw("bots.state.off")));
+                        sender.sendMessage(net.h2020.api.core.Messages.get("bots.command.toggle", "what", "swstats debug", "state", net.h2020.bots.ai.brain.SwStats.debug ? net.h2020.api.core.Messages.raw("bots.state.enabled") : net.h2020.api.core.Messages.raw("bots.state.disabled")));
                     }
                     for (String l : net.h2020.bots.ai.brain.SwStats.report()) sender.sendMessage(l);
                     break;
@@ -96,8 +96,9 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                     settings.averageSkill = v;
                     bots.setAverageSkill(v);
                     settings.save();
-                    sender.sendMessage(P + "average skill " + (v < 0 ? "back to the 2020 lobby mix" : String.format("%.2f (%s)", v, settings.skillLabel()))
-                            + ChatColor.GRAY + " - new bots only");
+                    sender.sendMessage(net.h2020.api.core.Messages.get("bots.command.average-skill",
+                            "value", v < 0 ? net.h2020.api.core.Messages.raw("bots.state.skill-reset")
+                                    : String.format("%.2f (%s)", v, settings.skillLabel())));
                     break;
                 }
                 case "self": {
@@ -177,7 +178,7 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                     if (args.length > 1)
                         net.h2020.bots.ai.combat.CombatTuning.fastDefence =
                                 args[1].equalsIgnoreCase("on") || args[1].equalsIgnoreCase("true");
-                    sender.sendMessage(net.h2020.api.core.Messages.get("bots.command.toggle", "what", "fast defence", "state", net.h2020.bots.ai.combat.CombatTuning.fastDefence ? net.h2020.api.core.Messages.raw("bots.state.upper-on") : net.h2020.api.core.Messages.raw("bots.state.upper-off")));
+                    sender.sendMessage(net.h2020.api.core.Messages.get("bots.command.toggle", "what", "fast defence", "state", net.h2020.bots.ai.combat.CombatTuning.fastDefence ? net.h2020.api.core.Messages.raw("bots.state.enabled-upper") : net.h2020.api.core.Messages.raw("bots.state.disabled-upper")));
                     break;
                 }
                 case "help": {
@@ -222,7 +223,7 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                         settings.apply();
                         if (settings.diagonalStance) net.h2020.bots.ai.motor.BridgeTuning.resetParked();
                     }
-                    sender.sendMessage(net.h2020.api.core.Messages.get("bots.command.toggle", "what", "diagonal stance", "state", net.h2020.bots.ai.motor.BridgeTuning.diagonalStance ? net.h2020.api.core.Messages.raw("bots.state.upper-on") : net.h2020.api.core.Messages.raw("bots.state.upper-off")));
+                    sender.sendMessage(net.h2020.api.core.Messages.get("bots.command.toggle", "what", "diagonal stance", "state", net.h2020.bots.ai.motor.BridgeTuning.diagonalStance ? net.h2020.api.core.Messages.raw("bots.state.enabled-upper") : net.h2020.api.core.Messages.raw("bots.state.disabled-upper")));
                     break;
                 }
                 case "fps": {
@@ -369,7 +370,7 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                     break;
                 case "navdebug":
                     net.h2020.bots.ai.nav.NavStats.debug = args.length > 1 ? args[1].equalsIgnoreCase("on") : !net.h2020.bots.ai.nav.NavStats.debug;
-                    sender.sendMessage(net.h2020.api.core.Messages.get("bots.command.toggle", "what", "navdebug", "state", net.h2020.bots.ai.nav.NavStats.debug ? net.h2020.api.core.Messages.raw("bots.state.on") : net.h2020.api.core.Messages.raw("bots.state.off")));
+                    sender.sendMessage(net.h2020.api.core.Messages.get("bots.command.toggle", "what", "navdebug", "state", net.h2020.bots.ai.nav.NavStats.debug ? net.h2020.api.core.Messages.raw("bots.state.enabled") : net.h2020.api.core.Messages.raw("bots.state.disabled")));
                     break;
                 case "tp": tp(sender, args); break;
                 case "goto": goTo(sender, args); break;
@@ -494,10 +495,11 @@ final class BotCommand implements CommandExecutor, TabCompleter {
             profile = bots.profileNamed(nameArg, cheat);
         }
         bots.spawn(profile, base);
-        s.sendMessage(P + ChatColor.GREEN + "Spawned " + ChatColor.WHITE + profile.name + ChatColor.GRAY + " (" + profile.rank
-                + ", lvl " + profile.networkLevel + ", " + profile.pingMs + "ms, skill " + String.format("%.2f", profile.skill.overall)
-                + ", cps " + String.format("%.1f", profile.skill.cps) + ", " + profile.skill.bridgeStyle
-                + (cheat != CheatProfile.NONE ? ", " + ChatColor.RED + cheat : "") + ChatColor.GRAY + ")");
+        s.sendMessage(net.h2020.api.core.Messages.get("bots.command.spawned",
+                "name", profile.name, "rank", profile.rank, "level", profile.networkLevel,
+                "ping", profile.pingMs, "skill", String.format("%.2f", profile.skill.overall),
+                "cps", String.format("%.1f", profile.skill.cps), "bridge", profile.skill.bridgeStyle,
+                "cheat", cheat != CheatProfile.NONE ? net.h2020.api.core.Messages.get("bots.command.spawned-cheat", "cheat", cheat) : ""));
     }
 
     private void remove(CommandSender s, String[] args) {
@@ -534,9 +536,11 @@ final class BotCommand implements CommandExecutor, TabCompleter {
         if (args.length < 2) throw new IllegalArgumentException("Usage: /bot look <name>");
         FakeBot b = need(args[1]);
         BotProfile p = b.profile();
-        s.sendMessage(P + ChatColor.YELLOW + p.name + ChatColor.GRAY + " rank=" + p.rank + " skill=" + String.format("%.2f", p.skill.overall)
-                + " aim=" + String.format("%.2f", p.skill.aim) + " react=" + p.skill.reactionMs + "ms sens=" + String.format("%.2f", p.skill.sensitivity)
-                + " brain=" + (b.brain() == null ? "idle" : b.brain().toString()));
+        s.sendMessage(net.h2020.api.core.Messages.get("bots.command.profile",
+                "name", p.name, "rank", p.rank, "skill", String.format("%.2f", p.skill.overall),
+                "aim", String.format("%.2f", p.skill.aim), "react", p.skill.reactionMs,
+                "sens", String.format("%.2f", p.skill.sensitivity),
+                "brain", b.brain() == null ? net.h2020.api.core.Messages.raw("bots.state.idle") : b.brain().toString()));
         for (String line : b.client.debug().split("\n")) s.sendMessage(ChatColor.GRAY + line);
     }
 

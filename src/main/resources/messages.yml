@@ -116,9 +116,13 @@ bots:
     u00a7cunknown-technique-noob-shift: "{p1}\\u00a7cunknown technique {p2} (noob, shift, speed, ninja, ninja2, moonwalk, breezily)"
     walk-name-fwd-strafe: "{p1}&e/{p2} walk <name> <fwd> <strafe> [sprint] | stop | jump | sneak <name>"
   command:
+    average-skill: "average skill {value} &7- new bots only"
     bridging-technique: "bridging technique {technique}"
     in-game-only: "In game only."
+    profile: "&e{name} &7rank={rank} skill={skill} aim={aim} react={react}ms sens={sens} brain={brain}"
     resistance: "&7resistance {state}"
+    spawned: "&aSpawned &f{name} &7({rank}, lvl {level}, {ping}ms, skill {skill}, cps {cps}, {bridge}{cheat})"
+    spawned-cheat: ", &c{cheat}"
     toggle: "{what} {state}"
     training-off: "&6[ml] &ebot training &cdisabled"
     training-on: "&6[ml] &ebot training &aenabled"
@@ -133,13 +137,21 @@ bots:
       - "&7 input: fps [1-20] (mouse frames per tick, 6 = 120 fps)"
       - "&7 learning: ml | navstats | navtrace <bot|off> | navfix <mask> | navdebug | swstats | menutest | pltest | shoptest"
       - "&7 chat: say <text>"
+  menu:
+    training-from-bots: "&7AI training from bots: {state}"
   serverquestions:
     server-recorded-i-had: "&7[Server] Recorded: &f{p1}&8 (i had you as: {p2})"
     server-that-question-is: "&7[Server] That question is no longer open."
   state:
+    False: "off"
+    True: "on"
     auto: "auto (persona's own)"
-    off: "off"
-    on: "on"
+    disabled: "off"
+    disabled-upper: "OFF"
+    enabled: "on"
+    enabled-upper: "ON"
+    idle: "idle"
+    skill-reset: "back to the 2020 lobby mix"
     upper-off: "OFF"
     upper-on: "ON"
 core:
@@ -357,6 +369,12 @@ practice:
     hit-at-m-hits: "&aHit&7 at &f{p1}m&7  ({p2} hits, {p3}% of shots)"
   bridgedrill:
     crossed-ms-with-blocks: "&a&lCrossed&r&7  &f{p1} ms&7 with &f{p2}&7 blocks&8  (gap {p3})"
+  command:
+    console-usage: "Console: /practice <drill> bots <n>"
+    debug-line: "  [{player}] {text}"
+    no-sessions: "no practice sessions running"
+    start-failed: "Could not start the drill (bots module missing?)"
+    stat-line: "&7  {text}"
   fireballdrill:
     deflected-streak: "&bDeflected&7  streak &f{p1}"
     hit-taken-this-session: "&cHit&7  &f{p1}&7 taken this session"
@@ -395,6 +413,10 @@ practice:
     explanation: "&8  {why}"
     scenario: "&b&lScenario&8 (12 s)"
 replay:
+  finished: "&7Replay finished ({blocks} blocks placed{failed})."
+  finished-failed: ", {failed} failed"
+  paused: "Paused."
+  paused-lower: "paused"
   replayviewer:
     at-s-of-s: "&7At {p1}s of {p2}s"
     could-not-read-that: "&cCould not read that recording: {p1}"
@@ -426,6 +448,13 @@ replay:
     unreadable: "&cUnreadable: {p1}"
     watch-one-with-h2020: "&7Watch one with /h2020 replay start <id> [speed]"
     you-are-not-watching: "&cYou are not watching a replay."
+  resumed: "Resumed."
+  resumed-lower: "resumed"
+  scoreboard-entry: "&8  {entry}&7 -> {score}"
+  state-line: "&7Replay {state}."
+  train:
+    challenger-discarded: "&6[train] &echallenger discarded"
+    usage: "&c/h2020 train human <gameId> <player>"
   traincommand:
     6-train-e: "§6[train] §e{p1}"
     6-train-ehindsight-pass: "§6[train] §ehindsight pass done: {p1}"

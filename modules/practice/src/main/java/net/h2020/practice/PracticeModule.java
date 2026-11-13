@@ -146,7 +146,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
             // console: only the drills that can run without a player, i.e. with bots in them. This is how a drill is
             // exercised headlessly, and how a bot run is measured without a human standing in the arena.
             if (args.length < 3) {
-                sender.sendMessage("Console: /practice <drill> bots <n>");
+                net.h2020.api.core.Messages.send(sender, "practice.command.console-usage");
                 return true;
             }
             PracticeMode m = modeFor(args[0].toLowerCase(java.util.Locale.ROOT));
@@ -158,7 +158,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
                 }
             String tech = techniqueArg(args);
             PracticeGame g = start(m);
-            if (g == null) { sender.sendMessage("Could not start the drill (bots module missing?)"); return true; }
+            if (g == null) { net.h2020.api.core.Messages.send(sender, "practice.command.start-failed"); return true; }
             track(g);
             spawnBots(g, n, tech);
             sender.sendMessage(net.h2020.api.core.Messages.get("practice.practicemodule.started-with-bot-s","p1",m.displayName(),"p2",n,"p3",g.id()));
@@ -308,7 +308,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
 
     /** Everything a drill can be checked on from the console: the world, who is in it, and what is ticking in it. */
     private void debug(CommandSender to) {
-        if (games.isEmpty()) { to.sendMessage("no practice sessions running"); return; }
+        if (games.isEmpty()) { net.h2020.api.core.Messages.send(to, "practice.command.no-sessions"); return; }
         for (PracticeGame g : games.values()) {
             to.sendMessage(net.h2020.api.core.Messages.get("practice.practicemodule.state-world-players","p1",g.id(),"p2",g.drill().display(),"p3",g.state(),"p4",g.world().getName(),"p5",g.players().size()));
             java.util.Map<String, Integer> counts = new java.util.TreeMap<String, Integer>();
@@ -317,7 +317,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
                 counts.put(n, counts.containsKey(n) ? counts.get(n) + 1 : 1);
             }
             to.sendMessage(net.h2020.api.core.Messages.get("practice.practicemodule.entities","p1",counts));
-            for (Player p : g.players()) for (String line : g.drill().stats(g, p)) to.sendMessage("  [" + p.getName() + "] " + line);
+            for (Player p : g.players()) for (String line : g.drill().stats(g, p)) to.sendMessage(net.h2020.api.core.Messages.get("practice.command.debug-line", "player", p.getName(), "text", line));
             for (Player p : g.players()) to.sendMessage(net.h2020.api.core.Messages.get("practice.practicemodule.dead-hp-gm-at","p1",p.getName(),"p2",p.isDead(),"p3",Math.round(p.getHealth()),"p4",p.getGameMode(),"p5",p.getLocation().getBlockX(),"p6",p.getLocation().getBlockY(),"p7",p.getLocation().getBlockZ(),"p8",g.drill().hud(g, p)));
         }
     }
@@ -326,7 +326,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
         PracticeGame g = byPlayer.get(p.getUniqueId());
         if (g == null) { net.h2020.api.core.Messages.send(p, "practice.practicemodule.you-are-not-in"); return; }
         p.sendMessage(ChatColor.AQUA + g.drill().display());
-        for (String line : g.drill().stats(g, p)) p.sendMessage(ChatColor.GRAY + "  " + line);
+        for (String line : g.drill().stats(g, p)) p.sendMessage(net.h2020.api.core.Messages.get("practice.command.stat-line", "text", line));
     }
 
     // ---- listeners ----

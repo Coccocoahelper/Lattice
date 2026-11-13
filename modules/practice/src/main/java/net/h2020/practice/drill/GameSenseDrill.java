@@ -213,7 +213,7 @@ public final class GameSenseDrill implements Drill {
             s[1]++;
             s[2] = 0;
             p.sendMessage(net.h2020.api.core.Messages.get("practice.gamesensedrill.not-this-one-the","p1",(correct + 1),"p2",((String[]) sc[1])[correct]));
-            p.sendMessage(ChatColor.DARK_GRAY + "  " + sc[3]);
+            p.sendMessage(net.h2020.api.core.Messages.get("practice.sense.explanation", "why", sc[3]));
             p.playSound(p.getLocation(), Sound.ITEM_BREAK, 0.5f, 0.8f);
         }
         ask(p, g);

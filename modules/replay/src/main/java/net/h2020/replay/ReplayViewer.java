@@ -158,7 +158,7 @@ public final class ReplayViewer {
                     ses.paused = !ses.paused;
                     if (ses.paused) ses.pausedFor = System.currentTimeMillis();
                     else ses.startedAt += System.currentTimeMillis() - ses.pausedFor;
-                    p.sendMessage(ChatColor.GRAY + (ses.paused ? "Paused." : "Resumed."));
+                    p.sendMessage(ChatColor.GRAY + (ses.paused ? net.h2020.api.core.Messages.raw("replay.paused") : net.h2020.api.core.Messages.raw("replay.resumed")));
                     return;
                 case BARRIER:
                     stop(p);
@@ -212,7 +212,7 @@ public final class ReplayViewer {
                 ses.paused = false;
                 ses.startedAt += System.currentTimeMillis() - ses.pausedFor;
             }
-            p.sendMessage(ChatColor.GRAY + "Replay " + (ses.paused ? "paused" : "resumed") + ".");
+            p.sendMessage(net.h2020.api.core.Messages.get("replay.state-line", "state", ses.paused ? net.h2020.api.core.Messages.raw("replay.paused-lower") : net.h2020.api.core.Messages.raw("replay.resumed-lower")));
             return;
         }
         if (sub.equals("seek")) {
@@ -232,7 +232,7 @@ public final class ReplayViewer {
             s.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.sidebar-of","p1",who.getName(),"p2",o.getDisplayName()));
             for (String e : o.getScoreboard().getEntries()) {
                 org.bukkit.scoreboard.Score s2 = o.getScore(e);
-                if (s2 != null) s.sendMessage(ChatColor.DARK_GRAY + "  " + e + ChatColor.GRAY + " -> " + s2.getScore());
+                if (s2 != null) s.sendMessage(net.h2020.api.core.Messages.get("replay.scoreboard-entry", "entry", e, "score", s2.getScore()));
             }
             return;
         }
@@ -926,8 +926,8 @@ public final class ReplayViewer {
                 if (t > ses.times.get(ses.times.size() - 1)[0]) {
                     plugin.getLogger().info("[replay] " + ses.gameId + " finished: " + ses.blocksApplied
                             + " blocks, " + ses.blockErrors + " errors");
-                    p.sendMessage(ChatColor.GRAY + "Replay finished (" + ses.blocksApplied + " blocks placed"
-                            + (ses.blockErrors > 0 ? ", " + ses.blockErrors + " failed" : "") + ").");
+                    p.sendMessage(net.h2020.api.core.Messages.get("replay.finished", "blocks", ses.blocksApplied,
+                            "failed", ses.blockErrors > 0 ? net.h2020.api.core.Messages.get("replay.finished-failed", "failed", ses.blockErrors) : ""));
                     stop(p);
                     continue;
                 }

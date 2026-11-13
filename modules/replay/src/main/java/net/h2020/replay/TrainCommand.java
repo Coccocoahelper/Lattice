@@ -45,7 +45,7 @@ public final class TrainCommand {
             return true;
         }
         if (sub.equals("human")) {
-            if (a.length < 4) { s.sendMessage("§c/h2020 train human <gameId> <player>"); return true; }
+            if (a.length < 4) { net.h2020.api.core.Messages.send(s, "replay.train.usage"); return true; }
             HumanReplay.Result r = HumanReplay.train(a[2], a[3]);
             s.sendMessage(r.line());
             return true;
@@ -61,7 +61,7 @@ public final class TrainCommand {
             s.sendMessage(r.line());
             return true;
         }
-        if (sub.equals("discard")) { League.discardChallenger(); s.sendMessage("§6[train] §echallenger discarded"); return true; }
+        if (sub.equals("discard")) { League.discardChallenger(); net.h2020.api.core.Messages.send(s, "replay.train.challenger-discarded"); return true; }
         for (String l : Arena.report()) s.sendMessage(l);
         return true;
     }

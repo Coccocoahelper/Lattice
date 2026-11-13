@@ -126,8 +126,8 @@ final class BotSettingsMenu {
                 "On is only for filling gaps in a fresh server."), new Menu.Click() {
             @Override public void click(Player p, ClickType type) {
                 net.h2020.bots.ai.ml.MlSettings.setTrainFromBots(!botsTrain);
-                p.sendMessage(ChatColor.GRAY + "AI training from bots: "
-                        + (net.h2020.bots.ai.ml.MlSettings.trainFromBots() ? ChatColor.GREEN + "on" : ChatColor.RED + "off"));
+                p.sendMessage(net.h2020.api.core.Messages.get("bots.menu.training-from-bots", "state",
+                        net.h2020.bots.ai.ml.MlSettings.trainFromBots() ? net.h2020.api.core.Messages.raw("bots.state.enabled") : net.h2020.api.core.Messages.raw("bots.state.disabled")));
                 render();
             }
         });
