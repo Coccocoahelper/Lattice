@@ -77,20 +77,19 @@ public final class AdminCommand implements TabExecutor {
                 return true;
             }
             case "create": {
-                if (a.length < 2) { s.sendMessage(r("/h2020 create <type> [map]")); return true; }
+                if (a.length < 2) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-create-type-map")); return true; }
                 net.h2020.api.game.GameMode t = net.h2020.api.game.GameModes.byId(a[1]);
-                if (t == null) { s.sendMessage(r("Unknown type " + a[1])); return true; }
+                if (t == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.unknown-type","p1",a[1])); return true; }
                 Game game;
                 if (a.length >= 3) {
                     MapService ms = H2020.find(MapService.class);
                     MapTemplate m = ms == null ? null : ms.byName(a[2]);
-                    if (m == null) { s.sendMessage(r("Unknown map " + a[2])); return true; }
+                    if (m == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.unknown-map","p1",a[2])); return true; }
                     // a tag switched off in config.yml keeps the map out of the rotation, and out of /create too
                     if (m instanceof net.h2020.maps.StoredMapTemplate && ms instanceof net.h2020.maps.MapServiceImpl
                             && net.h2020.maps.MapServiceImpl.taggedOff((net.h2020.maps.StoredMapTemplate) m,
                                     ((net.h2020.maps.MapServiceImpl) ms).disabledTags())) {
-                        s.sendMessage(r(a[2] + " is switched off by its tags ("
-                                + String.join(", ", m.tags()) + ") - see maps/disabled-tags"));
+                        s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.is-switched-off-by","p1",a[2],"p2",String.join(", ", m.tags())));
                         return true;
                     }
                     // the map has to be built for this mode: putting 4v4v4v4 on an 8-team solos map spreads sixteen
@@ -112,21 +111,21 @@ public final class AdminCommand implements TabExecutor {
                 return true;
             }
             case "start": {
-                if (a.length < 2) { s.sendMessage(r("/h2020 start <gameId>")); return true; }
+                if (a.length < 2) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-start-gameid")); return true; }
                 Game game = core.games.byId(a[1]);
-                if (game == null) { s.sendMessage(r("No game " + a[1])); return true; }
-                if (game.state() != GameState.WAITING && game.state() != GameState.STARTING) { s.sendMessage(r(game.id() + " already started.")); return true; }
-                if (H2020.find(BotService.class) == null) { s.sendMessage(r("Bots module not loaded.")); return true; }
+                if (game == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-game","p1",a[1])); return true; }
+                if (game.state() != GameState.WAITING && game.state() != GameState.STARTING) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.already-started","p1",game.id())); return true; }
+                if (H2020.find(BotService.class) == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.bots-module-not-loaded")); return true; }
                 int n = core.filler.fillNow(game, Integer.MAX_VALUE);
-                s.sendMessage(g("Filling " + game.id() + " with " + n + " bots; it starts when full."));
+                s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.filling-with-bots-it","p1",game.id(),"p2",n));
                 return true;
             }
             case "addmode": {
                 // /h2020 addmode <id> <family> <teams> <teamSize> [, icon] -- a mode that exists only on this server
-                if (a.length < 5) { s.sendMessage(r("/h2020 addmode <id> <family> <teams> <teamSize>")); return true; }
+                if (a.length < 5) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-addmode-id-family")); return true; }
                 net.h2020.api.game.GameFamily fam;
                 try { fam = net.h2020.api.game.GameFamily.valueOf(a[2].toUpperCase()); }
-                catch (IllegalArgumentException ex) { s.sendMessage(r("Unknown family " + a[2])); return true; }
+                catch (IllegalArgumentException ex) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.unknown-family","p1",a[2])); return true; }
                 final String id = a[1].toLowerCase();
                 final int teams = parseInt(a[3], 1), size = parseInt(a[4], 1);
                 net.h2020.api.game.GameModes.register(new net.h2020.api.game.GameMode() {
@@ -140,38 +139,38 @@ public final class AdminCommand implements TabExecutor {
                     public String menuSubtitle() { return teams + "x" + size; }
                     public String description() { return "Registered on this server."; }
                 });
-                s.sendMessage(g("Registered mode " + id + " (" + teams + "x" + size + ") in " + fam));
+                s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.registered-mode-x-in","p1",id,"p2",teams,"p3",size,"p4",fam));
                 return true;
             }
             case "private": {
                 // /h2020 private <mode> [map] [code] [max] -- a game nobody queues into; join with /h2020 joincode
-                if (a.length < 2) { s.sendMessage(r("/h2020 private <mode> [map] [code] [max]")); return true; }
+                if (a.length < 2) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-private-mode-map")); return true; }
                 net.h2020.api.game.GameMode mode = net.h2020.api.game.GameModes.byId(a[1]);
-                if (mode == null) { s.sendMessage(r("Unknown mode " + a[1])); return true; }
+                if (mode == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.unknown-mode","p1",a[1])); return true; }
                 net.h2020.api.map.MapService ms = H2020.find(net.h2020.api.map.MapService.class);
                 net.h2020.api.map.MapTemplate map = a.length >= 3 ? ms.byName(a[2]) : null;
                 String code = a.length >= 4 ? a[3] : null;
                 int max = a.length >= 5 ? parseInt(a[4], 0) : 0;
                 Game game = core.games.createPrivate(mode, map, code, max);
-                if (game == null) { s.sendMessage(r("Could not create a private game (no map fits).")); return true; }
+                if (game == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.could-not-create-a-2")); return true; }
                 s.sendMessage(g("Private game " + game.id() + " on " + game.mapName() + ", code " + game.privateCode()
                         + (max > 0 ? ", cap " + max : "") + ". Join with /h2020 joincode " + game.privateCode()));
                 return true;
             }
             case "joincode": {
-                if (a.length < 2) { s.sendMessage(r("/h2020 joincode <code>")); return true; }
+                if (a.length < 2) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-joincode-code")); return true; }
                 Game game = core.games.byCode(a[1]);
-                if (game == null) { s.sendMessage(r("No open private game with code " + a[1])); return true; }
+                if (game == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-open-private-game","p1",a[1])); return true; }
                 Player who = s instanceof Player ? (Player) s : null;
-                if (who == null) { s.sendMessage(r("A player must run this.")); return true; }
+                if (who == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.a-player-must-run-3")); return true; }
                 game.addPlayer(who);
-                s.sendMessage(g("Joined " + game.id() + " (" + game.mapName() + ")."));
+                s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.joined","p1",game.id(),"p2",game.mapName()));
                 return true;
             }
             case "islandcolors": {
-                if (a.length < 2) { s.sendMessage(r("/h2020 islandcolors <map>")); return true; }
+                if (a.length < 2) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-islandcolors-map")); return true; }
                 org.bukkit.World w = net.h2020.api.map.SlimeWorlds.spawn(a[1], "probe");
-                if (w == null) { s.sendMessage(r("No slime copy of " + a[1] + " - run /h2020 convert " + a[1])); return true; }
+                if (w == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-slime-copy-of","p1",a[1],"p2",a[1])); return true; }
                 try {
                     Object snap = net.h2020.maps.MapImporter.scan(w);
                     for (String line : net.h2020.maps.MapImporter.diagnose(snap).split("\n"))
@@ -186,7 +185,7 @@ public final class AdminCommand implements TabExecutor {
                 if (a.length < 2) {
                     s.sendMessage(g("messages: " + net.h2020.api.core.Messages.defaults().size()
                             + " keys, edit " + net.h2020.api.core.Messages.path()));
-                    s.sendMessage(g("  /h2020 messages <key> to print one, /h2020 messages list to dump them"));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-messages-key-to"));
                     return true;
                 }
                 if (a[1].equalsIgnoreCase("list")) {
@@ -198,7 +197,7 @@ public final class AdminCommand implements TabExecutor {
                     return true;
                 }
                 if (!net.h2020.api.core.Messages.has(a[1])) {
-                    s.sendMessage(r("No such message key: " + a[1]));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-such-message-key","p1",a[1]));
                     return true;
                 }
                 s.sendMessage(g(a[1] + " = ") + net.h2020.api.core.Messages.get(a[1]));
@@ -209,7 +208,7 @@ public final class AdminCommand implements TabExecutor {
                 // the hubs were built with. Prints the live world name too, since a slime hub is an instance.
                 net.h2020.core.lobby.LobbyManager lm = core.lobby;
                 net.h2020.api.map.MapService msL = net.h2020.api.H2020.find(net.h2020.api.map.MapService.class);
-                if (lm == null || msL == null) { s.sendMessage(r("No lobby service")); return true; }
+                if (lm == null || msL == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-lobby-service")); return true; }
                 String[][] worlds = {{net.h2020.maps.gen.SwoftyLobbies.MAIN, "main"},
                         {net.h2020.maps.gen.SwoftyLobbies.BEDWARS, "bedwars"},
                         {net.h2020.maps.gen.SwoftyLobbies.SKYWARS, "skywars"}};
@@ -224,7 +223,7 @@ public final class AdminCommand implements TabExecutor {
                     org.bukkit.World w = null;
                     for (org.bukkit.World cand : org.bukkit.Bukkit.getWorlds())
                         if (cand.getName().contains(pair[0])) w = cand;
-                    if (w == null) { s.sendMessage(r(pair[0] + ": not loaded")); continue; }
+                    if (w == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.not-loaded","p1",pair[0])); continue; }
                     org.bukkit.Location spawn = lm.spawn(w);
                     double[] want = net.h2020.maps.gen.SwoftyLobbies.spawn(pair[0]);
                     boolean spawnOk = spawn != null && Math.abs(spawn.getX() - want[0]) < 1e-6
@@ -247,10 +246,10 @@ public final class AdminCommand implements TabExecutor {
             }
             case "npcprobe": {
                 // /h2020 npcprobe <map> -- check shop (left) and upgrades (right) from map.yml only, no world needed
-                if (a.length < 2) { s.sendMessage(r("/h2020 npcprobe <map>")); return true; }
+                if (a.length < 2) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-npcprobe-map")); return true; }
                 MapService ms = H2020.find(MapService.class);
                 MapTemplate m = ms == null ? null : ms.byName(a[1]);
-                if (m == null) { s.sendMessage(r("Unknown map " + a[1])); return true; }
+                if (m == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.unknown-map","p1",a[1])); return true; }
                 int ok = 0, teams = 0;
                 List<String> wrong = new ArrayList<>();
                 for (net.h2020.api.game.TeamColor c : net.h2020.api.game.TeamColor.values()) {
@@ -288,12 +287,12 @@ public final class AdminCommand implements TabExecutor {
                 if (a[1].equalsIgnoreCase("enable") || a[1].equalsIgnoreCase("disable")) {
                     boolean on = a[1].equalsIgnoreCase("enable");
                     core.ping.setEnabled(on);
-                    if (on) s.sendMessage(g("simulated ping is enabled (config core.simulated-ping)"));
-                    else s.sendMessage(g("simulated ping is disabled (config core.simulated-ping); handlers removed from all online players"));
+                    if (on) s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.simulated-ping-is-enabled"));
+                    else s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.simulated-ping-is-disabled-2"));
                     return true;
                 }
                 if (a[1].equalsIgnoreCase("off")) {
-                    if (!(s instanceof Player)) { s.sendMessage(r("A player must run /h2020 ping off.")); return true; }
+                    if (!(s instanceof Player)) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.a-player-must-run-2")); return true; }
                     Player p = (Player) s;
                     core.ping.clear(p.getUniqueId());
                     try {
@@ -302,22 +301,22 @@ public final class AdminCommand implements TabExecutor {
                         data.simulatedJitter = 0;
                     } catch (Throwable ignored) {}
                     core.ping.remove(p);
-                    s.sendMessage(g("Simulated ping cleared for " + p.getName() + " (handler removed)."));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.simulated-ping-cleared-for","p1",p.getName()));
                     return true;
                 }
                 if (!core.ping.enabled()) {
-                    s.sendMessage(r("simulated ping is disabled - run /h2020 ping enable first"));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.simulated-ping-is-disabled"));
                     return true;
                 }
                 Player t = Bukkit.getPlayerExact(a[1]);
-                if (t == null) { s.sendMessage(r("Unknown player " + a[1])); return true; }
+                if (t == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.unknown-player","p1",a[1])); return true; }
                 if (a.length >= 3) {
                     int ms = parseInt(a[2], -1);
-                    if (ms < 0) { s.sendMessage(r("/h2020 ping <player> [ms] [jitter] (ms 0-1000, jitter 0-500)")); return true; }
+                    if (ms < 0) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-ping-player-ms")); return true; }
                     int jitter = core.ping.jitter(t.getUniqueId());
                     if (a.length >= 4) {
                         jitter = parseInt(a[3], -1);
-                        if (jitter < 0) { s.sendMessage(r("/h2020 ping <player> [ms] [jitter] (ms 0-1000, jitter 0-500)")); return true; }
+                        if (jitter < 0) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-ping-player-ms")); return true; }
                     }
                     core.ping.set(t, ms, jitter);
                 }
@@ -370,15 +369,15 @@ public final class AdminCommand implements TabExecutor {
                             : "FAILED (want keepalive <20ms, fixed 80-160ms, jitter min >=40ms and spread >=20ms)");
                     s.sendMessage(ok ? g(line) : r(line));
                 } catch (Throwable t) {
-                    s.sendMessage(r("pingselftest failed: " + t));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.pingselftest-failed","p1",t));
                 }
                 return true;
             }
             case "settingsprobe": {
                 // /h2020 settingsprobe <player> -- open the settings menu and report what Bukkit actually built
-                if (a.length < 2) { s.sendMessage(r("/h2020 settingsprobe <player>")); return true; }
+                if (a.length < 2) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-settingsprobe-player")); return true; }
                 Player target = Bukkit.getPlayerExact(a[1]);
-                if (target == null) { s.sendMessage(r("No player " + a[1])); return true; }
+                if (target == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-player","p1",a[1])); return true; }
                 try {
                     new net.h2020.core.lobby.SettingsMenu(core).open(target);
                     org.bukkit.inventory.Inventory top = target.getOpenInventory().getTopInventory();
@@ -387,10 +386,9 @@ public final class AdminCommand implements TabExecutor {
                     org.bukkit.inventory.ItemStack icon = top.getItem(4);
                     String slot4 = icon == null || icon.getItemMeta() == null ? "null"
                             : String.valueOf(icon.getItemMeta().getDisplayName());
-                    s.sendMessage(g("settingsprobe " + target.getName() + ": title \"" + top.getTitle()
-                            + "\", size " + top.getSize() + ", " + items + " items, slot4 \"" + slot4 + "\""));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.settingsprobe-title-size-items","p1",target.getName(),"p2",top.getTitle(),"p3",top.getSize(),"p4",items,"p5",slot4));
                 } catch (Throwable t) {
-                    s.sendMessage(r("settingsprobe failed: " + t));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.settingsprobe-failed","p1",t));
                 } finally {
                     target.closeInventory();
                 }
@@ -399,23 +397,23 @@ public final class AdminCommand implements TabExecutor {
             case "edit": {
                 // /lattice edit <map> [leave|selftest] - in-game map editor (ArenaSetup style)
                 net.h2020.api.map.MapService ms = H2020.find(net.h2020.api.map.MapService.class);
-                if (!(ms instanceof net.h2020.maps.MapServiceImpl)) { s.sendMessage(r("No map service")); return true; }
+                if (!(ms instanceof net.h2020.maps.MapServiceImpl)) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-map-service-2")); return true; }
                 net.h2020.maps.MapEditService ed = ((net.h2020.maps.MapServiceImpl) ms).editor();
-                if (ed == null) { s.sendMessage(r("The editor is not running")); return true; }
+                if (ed == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.the-editor-is-not")); return true; }
                 if (a.length < 2) {
-                    s.sendMessage(r("/h2020 edit <map> [leave|selftest]"));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-edit-map-leave"));
                     StringBuilder names = new StringBuilder();
                     for (net.h2020.api.map.MapTemplate t : ms.templates(null)) {
                         if (names.length() > 0) names.append(", ");
                         names.append(t.name());
                     }
-                    s.sendMessage(g("Maps: " + names));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.maps","p1",names));
                     return true;
                 }
                 if (a.length >= 4 && a[2].equalsIgnoreCase("opentest")) {
                     // headless proof that the open/close path works: send a bot in, then take it out again
                     Player target = Bukkit.getPlayer(a[3]);
-                    if (target == null) { s.sendMessage(r("No player " + a[3])); return true; }
+                    if (target == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-player","p1",a[3])); return true; }
                     String err = ed.open(target, a[1]);
                     if (err != null) { s.sendMessage(r(err)); return true; }
                     String world = target.getWorld() == null ? "?" : target.getWorld().getName();
@@ -424,14 +422,13 @@ public final class AdminCommand implements TabExecutor {
                     for (org.bukkit.inventory.ItemStack it : target.getInventory().getContents()) if (it != null) kit++;
                     boolean flying = target.isFlying();
                     boolean left = ed.leave(target);
-                    s.sendMessage(g("opentest " + a[1] + ": world " + world + ", " + target.getName() + " was in "
-                            + mode + " with " + kit + " setup item(s), flying=" + flying + ", left=" + left));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.opentest-world-was-in","p1",a[1],"p2",world,"p3",target.getName(),"p4",mode,"p5",kit,"p6",flying,"p7",left));
                     return true;
                 }
                 if (a.length >= 4 && a[2].equalsIgnoreCase("holotest")) {
                     // headless proof: enter the editor, count the ArmorStands it put in the world, leave again
                     Player who = Bukkit.getPlayerExact(a[3]);
-                    if (who == null) { s.sendMessage(r("No player " + a[3])); return true; }
+                    if (who == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-player","p1",a[3])); return true; }
                     String err = ed.open(who, a[1]);
                     if (err != null) { s.sendMessage(r(err)); return true; }
                     org.bukkit.World w = who.getWorld();
@@ -446,7 +443,7 @@ public final class AdminCommand implements TabExecutor {
                         }
                     }
                     ed.leave(who);
-                    s.sendMessage(g("holotest " + a[1] + ": " + stands + " hologram(s): " + names));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.holotest-hologram-s","p1",a[1],"p2",stands,"p3",names));
                     return true;
                 }
                 if (a.length >= 6 && a[2].equalsIgnoreCase("picktest")) {
@@ -455,15 +452,14 @@ public final class AdminCommand implements TabExecutor {
                     org.bukkit.block.Block b = w.getBlockAt((int) parseDouble(a[3], 0), (int) parseDouble(a[4], 64),
                             (int) parseDouble(a[5], 0));
                     org.bukkit.Location loc = net.h2020.maps.MapEditService.picker(b);
-                    s.sendMessage(g("picktest: block " + b.getX() + "," + b.getY() + "," + b.getZ() + " -> point "
-                            + loc.getX() + "," + loc.getY() + "," + loc.getZ()));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.picktest-block-point","p1",b.getX(),"p2",b.getY(),"p3",b.getZ(),"p4",loc.getX(),"p5",loc.getY(),"p6",loc.getZ()));
                     return true;
                 }
                 if (a.length >= 3 && a[2].equalsIgnoreCase("selftest")) {
                     s.sendMessage(g(ed.selftest(a[1])));
                     return true;
                 }
-                if (!(s instanceof Player)) { s.sendMessage(r("Only a player can use the map editor - run it in game.")); return true; }
+                if (!(s instanceof Player)) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.only-a-player-can")); return true; }
                 Player who = (Player) s;
                 if (a.length >= 3 && a[2].equalsIgnoreCase("leave")) {
                     who.performCommand("lattice edit leave");
@@ -475,17 +471,17 @@ public final class AdminCommand implements TabExecutor {
             }
             case "setpoi": {
                 // /h2020 setpoi <map> <key> [head] -- write one point into that map's map.yml from where you stand
-                if (a.length < 3) { s.sendMessage(r("/h2020 setpoi <map> <key> [head]")); return true; }
+                if (a.length < 3) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-setpoi-map-key")); return true; }
                 Player who = s instanceof Player ? (Player) s : null;
                 org.bukkit.Location at = who != null ? who.getLocation() : null;
                 if (at == null) {
-                    if (a.length < 6) { s.sendMessage(r("From console: /h2020 setpoi <map> <key> <x> <y> <z>")); return true; }
+                    if (a.length < 6) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.from-console-h2020-setpoi")); return true; }
                     org.bukkit.World w = Bukkit.getWorlds().get(0);
                     at = new org.bukkit.Location(w, parseDouble(a[3], 0), parseDouble(a[4], 64), parseDouble(a[5], 0));
                 }
                 net.h2020.api.map.MapService ms = H2020.find(net.h2020.api.map.MapService.class);
                 java.io.File dir = ms == null ? null : ms.folderOf(a[1]);
-                if (dir == null) { s.sendMessage(r("Unknown map " + a[1])); return true; }
+                if (dir == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.unknown-map","p1",a[1])); return true; }
                 boolean head = a.length >= 4 && a[3].equalsIgnoreCase("head");
                 boolean ok = net.h2020.maps.MapEditor.setPoint(dir, a[2], at, head);
                 if (ok) ms.reload();
@@ -498,39 +494,37 @@ public final class AdminCommand implements TabExecutor {
             case "teamshift": {
                 // /lattice teamshift <map> swap|rotate|offset ... - move existing team point sets between colours
                 if (a.length < 3) {
-                    s.sendMessage(r("/lattice teamshift <map> swap <colourA> <colourB> | rotate <1-7> | offset <colour> <dx> <dy> <dz>"));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.lattice-teamshift-map-swap"));
                     return true;
                 }
                 net.h2020.api.map.MapService ms = H2020.find(net.h2020.api.map.MapService.class);
-                if (!(ms instanceof net.h2020.maps.MapServiceImpl)) { s.sendMessage(r("No map service")); return true; }
+                if (!(ms instanceof net.h2020.maps.MapServiceImpl)) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-map-service-2")); return true; }
                 net.h2020.maps.MapEditService ed = ((net.h2020.maps.MapServiceImpl) ms).editor();
                 if (ed != null && ed.inSession(a[1])) {
-                    s.sendMessage(r("The editor for " + a[1] + " is open - close it before shifting team points."));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.the-editor-for-is","p1",a[1]));
                     return true;
                 }
                 net.h2020.api.map.MapTemplate t = ms.byName(a[1]);
-                if (t == null) { s.sendMessage(r("No map " + a[1])); return true; }
+                if (t == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-map","p1",a[1])); return true; }
                 java.io.File dir = ms.folderOf(a[1]);
-                if (dir == null || !dir.isDirectory()) { s.sendMessage(r("No map folder for " + a[1])); return true; }
+                if (dir == null || !dir.isDirectory()) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-map-folder-for","p1",a[1])); return true; }
                 String mode = a[2].toLowerCase(java.util.Locale.ROOT);
 
                 if (mode.equals("swap")) {
                     if (a.length < 5) {
-                        s.sendMessage(r("/lattice teamshift <map> swap <colourA> <colourB>"));
+                        s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.lattice-teamshift-map-swap-2"));
                         return true;
                     }
                     net.h2020.api.game.TeamColor ca = teamColor(a[3]);
                     net.h2020.api.game.TeamColor cb = teamColor(a[4]);
                     if (ca == null || cb == null) {
-                        s.sendMessage(r("Unknown colour. Colours: " + TEAM_COLOURS));
+                        s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.unknown-colour-colours","p1",TEAM_COLOURS));
                         return true;
                     }
-                    if (ca == cb) { s.sendMessage(r("Pick two different colours.")); return true; }
+                    if (ca == cb) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.pick-two-different-colours")); return true; }
                     List<net.h2020.api.game.TeamColor> present = existingTeams(t);
                     if (!present.contains(ca) || !present.contains(cb)) {
-                        s.sendMessage(r("Both colours must exist on " + t.name() + " - "
-                                + ca.name().toLowerCase(java.util.Locale.ROOT) + " and "
-                                + cb.name().toLowerCase(java.util.Locale.ROOT) + " are not both set."));
+                        s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.both-colours-must-exist","p1",t.name(),"p2",ca.name().toLowerCase(java.util.Locale.ROOT),"p3",cb.name().toLowerCase(java.util.Locale.ROOT)));
                         return true;
                     }
                     java.util.Map<String, List<org.bukkit.Location>> aa =
@@ -550,29 +544,27 @@ public final class AdminCommand implements TabExecutor {
                         if (!bb.get(k).isEmpty()) moved++;
                     }
                     if (!ok) {
-                        s.sendMessage(r("Could not write the swapped team points into " + a[1] + "'s map.yml."));
+                        s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.could-not-write-the-3","p1",a[1]));
                         return true;
                     }
                     ms.reload();
-                    s.sendMessage(g("teamshift " + t.name() + ": swapped "
-                            + ca.name().toLowerCase(java.util.Locale.ROOT) + " and "
-                            + cb.name().toLowerCase(java.util.Locale.ROOT) + ", " + moved + " key(s) moved."));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.teamshift-swapped-and-key","p1",t.name(),"p2",ca.name().toLowerCase(java.util.Locale.ROOT),"p3",cb.name().toLowerCase(java.util.Locale.ROOT),"p4",moved));
                     return true;
                 }
 
                 if (mode.equals("rotate")) {
                     if (a.length < 4) {
-                        s.sendMessage(r("/lattice teamshift <map> rotate <1-7>"));
+                        s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.lattice-teamshift-map-rotate"));
                         return true;
                     }
                     int n = parseInt(a[3], -1);
                     if (n < 1 || n > 7) {
-                        s.sendMessage(r("rotate needs a number from 1 to 7."));
+                        s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.rotate-needs-a-number"));
                         return true;
                     }
                     List<net.h2020.api.game.TeamColor> teams = existingTeams(t);
                     if (teams.size() < 2) {
-                        s.sendMessage(r("No team points to rotate on " + t.name() + "."));
+                        s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-team-points-to","p1",t.name()));
                         return true;
                     }
                     java.util.Map<String, List<org.bukkit.Location>> old =
@@ -591,28 +583,27 @@ public final class AdminCommand implements TabExecutor {
                         }
                     }
                     if (!ok) {
-                        s.sendMessage(r("Could not write the rotated team points into " + a[1] + "'s map.yml."));
+                        s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.could-not-write-the-2","p1",a[1]));
                         return true;
                     }
                     ms.reload();
-                    s.sendMessage(g("teamshift " + t.name() + ": rotated " + n + " position(s) through "
-                            + teams.size() + " team(s), " + moved + " key(s) moved."));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.teamshift-rotated-position-s","p1",t.name(),"p2",n,"p3",teams.size(),"p4",moved));
                     return true;
                 }
 
                 if (mode.equals("offset")) {
                     if (a.length < 7) {
-                        s.sendMessage(r("/lattice teamshift <map> offset <colour> <dx> <dy> <dz>"));
+                        s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.lattice-teamshift-map-offset"));
                         return true;
                     }
                     net.h2020.api.game.TeamColor c = teamColor(a[3]);
-                    if (c == null) { s.sendMessage(r("Unknown colour. Colours: " + TEAM_COLOURS)); return true; }
+                    if (c == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.unknown-colour-colours","p1",TEAM_COLOURS)); return true; }
                     double dx = parseDouble(a[4], Double.NaN);
                     double dy = parseDouble(a[5], Double.NaN);
                     double dz = parseDouble(a[6], Double.NaN);
                     if (Double.isNaN(dx) || Double.isNaN(dy) || Double.isNaN(dz)
                             || Double.isInfinite(dx) || Double.isInfinite(dy) || Double.isInfinite(dz)) {
-                        s.sendMessage(r("Offsets must be numbers (dy may be negative)."));
+                        s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.offsets-must-be-numbers"));
                         return true;
                     }
                     int moved = 0;
@@ -628,57 +619,54 @@ public final class AdminCommand implements TabExecutor {
                         moved++;
                     }
                     if (!ok) {
-                        s.sendMessage(r("Could not write the offset team points into " + a[1] + "'s map.yml."));
+                        s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.could-not-write-the","p1",a[1]));
                         return true;
                     }
                     if (moved == 0) {
-                        s.sendMessage(r("No team." + c.name().toLowerCase(java.util.Locale.ROOT)
-                                + ".* points on " + t.name() + "."));
+                        s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-team-points-on","p1",c.name().toLowerCase(java.util.Locale.ROOT),"p2",t.name()));
                         return true;
                     }
                     ms.reload();
-                    s.sendMessage(g("teamshift " + t.name() + ": offset "
-                            + c.name().toLowerCase(java.util.Locale.ROOT) + " by " + dx + ", " + dy + ", " + dz
-                            + ", " + moved + " key(s) moved."));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.teamshift-offset-by-key","p1",t.name(),"p2",c.name().toLowerCase(java.util.Locale.ROOT),"p3",dx,"p4",dy,"p5",dz,"p6",moved));
                     return true;
                 }
 
-                s.sendMessage(r("/lattice teamshift <map> swap <colourA> <colourB> | rotate <1-7> | offset <colour> <dx> <dy> <dz>"));
+                s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.lattice-teamshift-map-swap"));
                 return true;
             }
             case "testdeposit": {
-                if (a.length < 2) { s.sendMessage(r("/h2020 testdeposit <player> [team|ender]")); return true; }
+                if (a.length < 2) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-testdeposit-player-team")); return true; }
                 Player tp = Bukkit.getPlayerExact(a[1]);
-                if (tp == null) { s.sendMessage(r("No player " + a[1])); return true; }
+                if (tp == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-player","p1",a[1])); return true; }
                 net.h2020.api.game.BedwarsTools bt = H2020.find(net.h2020.api.game.BedwarsTools.class);
-                if (bt == null) { s.sendMessage(r("The Bed Wars plugin is not installed.")); return true; }
+                if (bt == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.the-bed-wars-plugin")); return true; }
                 bt.testDeposit(s, tp, a.length >= 3 && a[2].equalsIgnoreCase("ender"));
                 return true;
             }
             case "fastboard": {
-                if (a.length < 2) { s.sendMessage(r("/h2020 fastboard <player>")); return true; }
+                if (a.length < 2) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-fastboard-player")); return true; }
                 Player fp = Bukkit.getPlayerExact(a[1]);
-                if (fp == null) { s.sendMessage(r("No player " + a[1])); return true; }
+                if (fp == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-player","p1",a[1])); return true; }
                 net.h2020.core.scoreboard.FastBoardProbe.run(core.plugin, fp);
-                s.sendMessage(g("FastBoard probe started for " + fp.getName()));
+                s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.fastboard-probe-started-for","p1",fp.getName()));
                 return true;
             }
             case "playagainprobe": {
                 // send the end-of-game prompt to one player and report whether the component went out
-                if (a.length < 2) { s.sendMessage(r("/h2020 playagainprobe <player>")); return true; }
+                if (a.length < 2) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-playagainprobe-player")); return true; }
                 Player pp = Bukkit.getPlayerExact(a[1]);
-                if (pp == null) { s.sendMessage(r("No player " + a[1])); return true; }
+                if (pp == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-player","p1",a[1])); return true; }
                 net.h2020.api.core.PlayAgain.sendPrompt(pp, a.length < 3 || !a[2].equalsIgnoreCase("loss"), a.length < 4 || !a[3].equalsIgnoreCase("skywars"));
                 net.h2020.api.core.PlayAgain.giveItem(pp);
-                s.sendMessage(g("Sent the play-again prompt to " + pp.getName()));
+                s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.sent-the-play-again","p1",pp.getName()));
                 s.sendMessage(net.h2020.api.core.PlayAgain.legacyPrompt(a.length < 3 || !a[2].equalsIgnoreCase("loss"),
                         a.length < 4 || !a[3].equalsIgnoreCase("skywars")).replace('\u00a7', '&'));
                 return true;
             }
             case "slimeprobe": {
-                if (a.length < 2) { s.sendMessage(r("/h2020 slimeprobe <map>")); return true; }
+                if (a.length < 2) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-slimeprobe-map")); return true; }
                 org.bukkit.World w = net.h2020.api.map.SlimeWorlds.spawn(a[1], "probe");
-                if (w == null) { s.sendMessage(r("No slime world ready for " + a[1])); return true; }
+                if (w == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-slime-world-ready","p1",a[1])); return true; }
                 // count solid blocks in a slab at the map's own build height, which proves the copy carries the map
                 int solid = 0, air = 0;
                 net.h2020.api.map.MapTemplate mt = H2020.find(net.h2020.api.map.MapService.class) == null ? null
@@ -692,17 +680,15 @@ public final class AdminCommand implements TabExecutor {
                             org.bukkit.block.Block b = w.getBlockAt(sp.getBlockX() + x, Math.max(1, sp.getBlockY() + y), sp.getBlockZ() + z);
                             if (b.getType() == org.bukkit.Material.AIR) air++; else solid++;
                         }
-                s.sendMessage(g("world=" + w.getName() + " at=" + sp.getBlockX() + "," + sp.getBlockY() + "," + sp.getBlockZ()
-                        + " solid=" + solid + " air=" + air + " chunks=" + w.getLoadedChunks().length
-                        + " autoSave=" + w.isAutoSave()));
+                s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.world-at-solid-air","p1",w.getName(),"p2",sp.getBlockX(),"p3",sp.getBlockY(),"p4",sp.getBlockZ(),"p5",solid,"p6",air,"p7",w.getLoadedChunks().length,"p8",w.isAutoSave()));
                 net.h2020.api.map.SlimeWorlds.release(w);
                 return true;
             }
             case "blockat": {
                 // /h2020 blockat <world> <x> <y> <z> ...: read a few blocks back out, for checking a generator
-                if (a.length < 5) { s.sendMessage(r("/h2020 blockat <world> <x> <y> <z> [y2 y3 ...]")); return true; }
+                if (a.length < 5) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-blockat-world-x")); return true; }
                 org.bukkit.World w = Bukkit.getWorld(a[1]);
-                if (w == null) { s.sendMessage(r("No world " + a[1])); return true; }
+                if (w == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-world","p1",a[1])); return true; }
                 int x = Integer.parseInt(a[2]), z = Integer.parseInt(a[4]);
                 StringBuilder out = new StringBuilder("world=" + w.getName());
                 for (int i = 3; i < a.length; i++) {
@@ -716,15 +702,15 @@ public final class AdminCommand implements TabExecutor {
                 // /lattice mapimport <world|map> <name> [bedwars|skywars]: derive map.yml from a loaded world. The
                 // world is read on the main thread (a fraction of a second), the derivation runs off it because the
                 // heuristics take a while and freezing the server for a minute is not acceptable.
-                if (a.length < 3) { s.sendMessage(r("/h2020 mapimport <world> <name> [bedwars|skywars]")); return true; }
+                if (a.length < 3) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-mapimport-world-name")); return true; }
                 final org.bukkit.World w = Bukkit.getWorld(a[1]);
                 final boolean temporary = w == null;
                 final org.bukkit.World world = w != null ? w : net.h2020.api.map.SlimeWorlds.spawn(a[1], "import");
-                if (world == null) { s.sendMessage(r("No world " + a[1] + " is loaded, and there is no slime copy of it.")); return true; }
+                if (world == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-world-is-loaded","p1",a[1])); return true; }
                 net.h2020.api.game.GameFamily fam = net.h2020.api.game.GameFamily.BEDWARS;
                 if (a.length > 3) {
                     try { fam = net.h2020.api.game.GameFamily.valueOf(a[3].toUpperCase()); }
-                    catch (IllegalArgumentException e) { s.sendMessage(r("Unknown family " + a[3])); return true; }
+                    catch (IllegalArgumentException e) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.unknown-family","p1",a[3])); return true; }
                 }
                 final net.h2020.api.game.GameFamily family = fam;
                 final String mapName = a[2];
@@ -742,8 +728,7 @@ public final class AdminCommand implements TabExecutor {
                                         net.h2020.maps.MapImporter.buildLobby(world, res, world);
                                         net.h2020.api.map.MapService ms = H2020.find(net.h2020.api.map.MapService.class);
                                         if (ms != null) ms.reload();
-                                        sender.sendMessage(g("Imported " + res.name + " (" + family + ") into "
-                                                + res.folder.getName() + " - " + String.join("; ", res.lines)));
+                                        sender.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.imported-into","p1",res.name,"p2",family,"p3",res.folder.getName(),"p4",String.join("; ", res.lines)));
                                         if (temporary) net.h2020.api.map.SlimeWorlds.release(world);
                                     }
                                 });
@@ -751,16 +736,16 @@ public final class AdminCommand implements TabExecutor {
                                 core.plugin.getLogger().log(java.util.logging.Level.WARNING, "[mapimport] failed", t);
                                 Bukkit.getScheduler().runTask(core.plugin, new Runnable() {
                                     @Override public void run() {
-                                        sender.sendMessage(r("Import failed: " + t.getMessage()));
+                                        sender.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.import-failed","p1",t.getMessage()));
                                         if (temporary) net.h2020.api.map.SlimeWorlds.release(world);
                                     }
                                 });
                             }
                         }
                     });
-                    s.sendMessage(g("Reading " + world.getName() + " and deriving " + mapName + "..."));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.reading-and-deriving","p1",world.getName(),"p2",mapName));
                 } catch (Throwable t) {
-                    s.sendMessage(r("Import failed: " + t.getMessage()));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.import-failed","p1",t.getMessage()));
                     if (temporary) net.h2020.api.map.SlimeWorlds.release(world);
                 }
                 return true;
@@ -768,13 +753,13 @@ public final class AdminCommand implements TabExecutor {
             case "mapimportdir": {
                 // /lattice mapimportdir <folder> [family] [tags]: import every world folder inside <folder>, one map per
                 // second, so a bulk import never trips the tick watchdog. Used for a map pack.
-                if (a.length < 2) { s.sendMessage(r("/h2020 mapimportdir <folder> [bedwars|skywars] [tag,tag]")); return true; }
+                if (a.length < 2) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-mapimportdir-folder-bedwars")); return true; }
                 final java.io.File root = new java.io.File(a[1].startsWith("/") ? a[1] : new java.io.File(".").getAbsolutePath() + "/" + a[1]);
-                if (!root.isDirectory()) { s.sendMessage(r("No folder " + root)); return true; }
+                if (!root.isDirectory()) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-folder","p1",root)); return true; }
                 final java.util.List<java.io.File> worlds = new java.util.ArrayList<java.io.File>();
                 java.io.File[] kids = root.listFiles();
                 if (kids != null) for (java.io.File f : kids) if (f.isDirectory() && new java.io.File(f, "level.dat").isFile()) worlds.add(f);
-                if (worlds.isEmpty()) { s.sendMessage(r("No world folders (level.dat) in " + root)); return true; }
+                if (worlds.isEmpty()) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-world-folders-level","p1",root)); return true; }
                 java.util.Collections.sort(worlds);
                 final net.h2020.api.game.GameFamily fam = a.length > 2
                         ? net.h2020.api.game.GameFamily.valueOf(a[2].toUpperCase()) : net.h2020.api.game.GameFamily.BEDWARS;
@@ -783,13 +768,13 @@ public final class AdminCommand implements TabExecutor {
                 final java.io.File mapsRoot = new java.io.File(core.plugin.getDataFolder(), "maps");
                 final CommandSender sender = s;
                 final int[] at = {0};
-                s.sendMessage(g("Importing " + worlds.size() + " world(s) from " + root.getName() + " as " + fam + "..."));
+                s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.importing-world-s-from","p1",worlds.size(),"p2",root.getName(),"p3",fam));
                 new org.bukkit.scheduler.BukkitRunnable() {
                     @Override public void run() {
                         if (at[0] >= worlds.size()) {
                             net.h2020.api.map.MapService ms = H2020.find(net.h2020.api.map.MapService.class);
                             if (ms != null) ms.reload();
-                            sender.sendMessage(g("Bulk import done: " + worlds.size() + " map(s). Run /lattice convert all to build slime copies."));
+                            sender.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.bulk-import-done-map","p1",worlds.size()));
                             cancel();
                             return;
                         }
@@ -815,10 +800,10 @@ public final class AdminCommand implements TabExecutor {
                             core.plugin.getLogger().info("[mapimportdir] " + res.name + " -> " + res.folder.getName()
                                     + " (" + res.lines + ")");
                             if (at[0] % 10 == 0 || at[0] == worlds.size())
-                                sender.sendMessage(g("Imported " + at[0] + "/" + worlds.size() + ": " + res.name));
+                                sender.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.imported","p1",at[0],"p2",worlds.size(),"p3",res.name));
                         } catch (Throwable t) {
                             core.plugin.getLogger().log(java.util.logging.Level.WARNING, "[mapimportdir] failed on " + src.getName(), t);
-                            sender.sendMessage(r("Failed " + src.getName() + ": " + t.getMessage()));
+                            sender.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.failed","p1",src.getName(),"p2",t.getMessage()));
                         }
                     }
                 }.runTaskTimer(core.plugin, 20L, 20L);
@@ -826,16 +811,16 @@ public final class AdminCommand implements TabExecutor {
             }
             case "maptag": {
                 // /lattice maptag <map> <tag,tag|->: rewrite the tags line of a map.yml and reload
-                if (a.length < 3) { s.sendMessage(r("/h2020 maptag <map> <tag,tag|->")); return true; }
+                if (a.length < 3) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-maptag-map-tag")); return true; }
                 net.h2020.api.map.MapService ms = H2020.find(net.h2020.api.map.MapService.class);
                 net.h2020.api.map.MapTemplate t = ms == null ? null : ms.byName(a[1]);
-                if (t == null) { s.sendMessage(r("No map " + a[1])); return true; }
+                if (t == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-map","p1",a[1])); return true; }
                 java.util.List<String> tags = new java.util.ArrayList<String>();
                 if (!a[2].equals("-")) for (String x : a[2].split(",")) if (!x.trim().isEmpty()) tags.add(x.trim().toLowerCase(java.util.Locale.ROOT));
                 try {
                     net.h2020.maps.MapFiles.writeTags(((net.h2020.maps.StoredMapTemplate) t).folder(), tags);
                 } catch (Exception e) {
-                    s.sendMessage(r("Could not write tags: " + e.getMessage()));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.could-not-write-tags","p1",e.getMessage()));
                     return true;
                 }
                 if (ms != null) ms.reload();
@@ -844,9 +829,9 @@ public final class AdminCommand implements TabExecutor {
             }
             case "tags": {
                 net.h2020.api.map.MapService ms = H2020.find(net.h2020.api.map.MapService.class);
-                if (!(ms instanceof net.h2020.maps.MapServiceImpl)) { s.sendMessage(r("No map service")); return true; }
+                if (!(ms instanceof net.h2020.maps.MapServiceImpl)) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-map-service-2")); return true; }
                 java.util.Map<String, int[]> sum = ((net.h2020.maps.MapServiceImpl) ms).tagSummary();
-                if (sum.isEmpty()) { s.sendMessage(g("No tags on any map.")); return true; }
+                if (sum.isEmpty()) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-tags-on-any")); return true; }
                 for (java.util.Map.Entry<String, int[]> e : sum.entrySet())
                     s.sendMessage(r(e.getKey()) + g(" - " + e.getValue()[0] + " map(s), "
                             + (e.getValue()[1] == 1 ? "DISABLED" : "enabled")));
@@ -856,14 +841,14 @@ public final class AdminCommand implements TabExecutor {
                 // /lattice slimeimport <folder> <id>: import an arbitrary staged world folder into the slime store
                 // under an explicit id. /lattice convert only knows about map templates and the three fixed lobby ids,
                 // which is no help when a new lobby world has to be brought in beside the old one.
-                if (a.length < 3) { s.sendMessage(r("/h2020 slimeimport <folder> <slimeId>")); return true; }
+                if (a.length < 3) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-slimeimport-folder-slimeid")); return true; }
                 net.h2020.api.map.MapService ms0 = H2020.find(net.h2020.api.map.MapService.class);
-                if (!(ms0 instanceof net.h2020.maps.MapServiceImpl)) { s.sendMessage(r("No map service")); return true; }
+                if (!(ms0 instanceof net.h2020.maps.MapServiceImpl)) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-map-service-2")); return true; }
                 net.h2020.maps.MapServiceImpl svc = (net.h2020.maps.MapServiceImpl) ms0;
-                if (!svc.hasSlime()) { s.sendMessage(r("SwoftyWorldManager is not installed.")); return true; }
+                if (!svc.hasSlime()) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.swoftyworldmanager-is-not-installed-2")); return true; }
                 java.io.File src = new java.io.File(a[1].startsWith("/") ? a[1]
                         : new java.io.File(".").getAbsolutePath() + "/" + a[1]);
-                if (!src.isDirectory()) { s.sendMessage(r("No folder " + src)); return true; }
+                if (!src.isDirectory()) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-folder","p1",src)); return true; }
                 boolean okImp = svc.importSlime(src.getAbsolutePath(), a[2]);
                 s.sendMessage(okImp ? g("Imported " + src.getName() + " as '" + a[2] + "'")
                         : r("Import of " + src.getName() + " failed (see the log)"));
@@ -871,52 +856,51 @@ public final class AdminCommand implements TabExecutor {
             }
             case "convert": {
                 net.h2020.api.map.MapService ms = H2020.find(net.h2020.api.map.MapService.class);
-                if (ms == null) { s.sendMessage(r("No map service.")); return true; }
+                if (ms == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-map-service")); return true; }
                 String what = a.length >= 2 ? a[1] : "all";
                 int n = ms.convertToSlime(what);
-                if (n == -1) s.sendMessage(r("SwoftyWorldManager is not installed, worlds stay as folders."));
-                else if (n == -2) s.sendMessage(r("No map called " + what));
-                else s.sendMessage(g("Converted " + n + " map(s) to slime: " + String.join(", ", ms.slimeMaps())));
+                if (n == -1) s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.swoftyworldmanager-is-not-installed"));
+                else if (n == -2) s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-map-called","p1",what));
+                else s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.converted-map-s-to","p1",n,"p2",String.join(", ", ms.slimeMaps())));
                 return true;
             }
             case "arena": {
                 String asub = a.length > 1 ? a[1].toLowerCase() : "join";
                 if (asub.equals("bot")) {
-                    if (a.length < 3) { s.sendMessage(r("/h2020 arena bot <name>")); return true; }
+                    if (a.length < 3) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-arena-bot-name")); return true; }
                     Player b = Bukkit.getPlayerExact(a[2]);
-                    if (b == null) { s.sendMessage(r("No player " + a[2])); return true; }
-                    if (net.h2020.core.arena.PvpArena.spawn() == null) { s.sendMessage(r("Arena world failed to load.")); return true; }
+                    if (b == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-player","p1",a[2])); return true; }
+                    if (net.h2020.core.arena.PvpArena.spawn() == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.arena-world-failed-to")); return true; }
                     b.teleport(net.h2020.core.arena.PvpArena.spawn());
                     b.setHealth(20.0);
                     b.setFoodLevel(20);
                     net.h2020.api.core.DemoFlags.sparMode = true;
                     net.h2020.api.core.DemoFlags.zestEnabled = true;
-                    s.sendMessage(g("Sent " + b.getName() + " to the arena."));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.sent-to-the-arena","p1",b.getName()));
                     return true;
                 }
                 if (asub.equals("fill")) {
                     int n = a.length > 2 ? parseInt(a[2], 3) : 3;
                     int moved = net.h2020.core.arena.PvpArena.populate(n);
-                    s.sendMessage(g("Moved " + moved + " bots into the arena."));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.moved-bots-into-the","p1",moved));
                     return true;
                 }
                 if (asub.equals("probe")) {
-                    if (a.length < 3) { s.sendMessage(r("/h2020 arena probe <name>")); return true; }
+                    if (a.length < 3) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-arena-probe-name")); return true; }
                     Player pl = Bukkit.getPlayerExact(a[2]);
-                    if (pl == null) { s.sendMessage(r("No player " + a[2])); return true; }
+                    if (pl == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-player","p1",a[2])); return true; }
                     pl.addPotionEffect(new org.bukkit.potion.PotionEffect(
                             org.bukkit.potion.PotionEffectType.DAMAGE_RESISTANCE, 200, 20, true, false), true);
                     int amp = -1; int count = 0;
                     for (org.bukkit.potion.PotionEffect e2 : pl.getActivePotionEffects()) { count++; if (e2.getType().getName().equals("DAMAGE_RESISTANCE")) amp = e2.getAmplifier(); }
-                    s.sendMessage(g("probe " + pl.getName() + ": effects=" + count + " resistanceAmp=" + amp
-                            + " types=" + pl.getActivePotionEffects().stream().map(e2 -> e2.getType().getName()).collect(java.util.stream.Collectors.toList())));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.probe-effects-resistanceamp-types","p1",pl.getName(),"p2",count,"p3",amp,"p4",pl.getActivePotionEffects().stream().map(e2 -> e2.getType().getName()).collect(java.util.stream.Collectors.toList())));
                     return true;
                 }
                 if (asub.equals("status")) {
                     org.bukkit.World w = Bukkit.getWorld(net.h2020.core.arena.PvpArena.WORLD);
-                    if (w == null) { s.sendMessage(r("Arena world is not loaded.")); return true; }
+                    if (w == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.arena-world-is-not")); return true; }
                     java.util.List<Player> in = new java.util.ArrayList<Player>(w.getPlayers());
-                    s.sendMessage(g("  arena players: " + in.size() + " (buff tick ran " + net.h2020.core.arena.PvpArena.buffRuns + "x)"));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.arena-players-buff-tick","p1",in.size(),"p2",net.h2020.core.arena.PvpArena.buffRuns));
                     for (Player pl : in) {
                         int amp = -1, sat = -1;
                         for (org.bukkit.potion.PotionEffect e : pl.getActivePotionEffects()) {
@@ -925,33 +909,29 @@ public final class AdminCommand implements TabExecutor {
                         }
                         int canSee = 0, total = 0;
                         for (Player o : in) { if (o == pl) continue; total++; if (pl.canSee(o)) canSee++; }
-                        s.sendMessage(g("    " + pl.getName() + " hp=" + Math.round(pl.getHealth()) + " gm=" + pl.getGameMode()
-                                + " inv=" + pl.hasPotionEffect(org.bukkit.potion.PotionEffectType.INVISIBILITY)
-                                + " resist=" + amp + " sat=" + sat + " sees=" + canSee + "/" + total
-                                + " at " + Math.round(pl.getLocation().getX()) + "," + Math.round(pl.getLocation().getY())
-                                + "," + Math.round(pl.getLocation().getZ())));
+                        s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.hp-gm-inv-resist","p1",pl.getName(),"p2",Math.round(pl.getHealth()),"p3",pl.getGameMode(),"p4",pl.hasPotionEffect(org.bukkit.potion.PotionEffectType.INVISIBILITY),"p5",amp,"p6",sat,"p7",canSee,"p8",total,"p9",Math.round(pl.getLocation().getX()),"p10",Math.round(pl.getLocation().getY()),"p11",Math.round(pl.getLocation().getZ())));
                     }
                     return true;
                 }
                 if (asub.equals("die")) {
                     // prove the no-death rule: kill a player outright and check they come back on the pad
-                    if (a.length < 3) { s.sendMessage(r("/h2020 arena die <name>")); return true; }
+                    if (a.length < 3) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-arena-die-name")); return true; }
                     Player victim = Bukkit.getPlayerExact(a[2]);
-                    if (victim == null) { s.sendMessage(r("No player " + a[2])); return true; }
+                    if (victim == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-player","p1",a[2])); return true; }
                     boolean inArena = net.h2020.core.arena.PvpArena.isArena(victim.getWorld());
                     victim.setHealth(0.0);
-                    s.sendMessage(g("Killed " + victim.getName() + " in arena=" + inArena + "; they should be back on the pad"));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.killed-in-arena-they","p1",victim.getName(),"p2",inArena));
                     return true;
                 }
                 if (asub.equals("reset")) {
                     org.bukkit.World w = org.bukkit.Bukkit.getWorld(net.h2020.core.arena.PvpArena.WORLD);
                     if (w != null) for (Player pl : w.getPlayers()) pl.teleport(net.h2020.core.arena.PvpArena.spawn());
-                    s.sendMessage(g("Arena reset."));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.arena-reset"));
                     return true;
                 }
-                if (!(s instanceof Player)) { s.sendMessage(r("A player must run this, or use /h2020 arena bot <name>.")); return true; }
+                if (!(s instanceof Player)) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.a-player-must-run")); return true; }
                 net.h2020.core.arena.PvpArena.join((Player) s);
-                s.sendMessage(g("Arena: " + net.h2020.core.arena.PvpArena.WORLD + " at 0,65,0"));
+                s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.arena-at-0-65","p1",net.h2020.core.arena.PvpArena.WORLD));
                 return true;
             }
             case "spar": {
@@ -982,13 +962,13 @@ public final class AdminCommand implements TabExecutor {
             }
             case "gens": {
                 net.h2020.api.game.BedwarsTools bt = H2020.find(net.h2020.api.game.BedwarsTools.class);
-                if (bt == null) { s.sendMessage(r("The Bed Wars plugin is not installed.")); return true; }
+                if (bt == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.the-bed-wars-plugin")); return true; }
                 bt.generators(s, s instanceof Player ? (Player) s : null);
                 return true;
             }
             case "teamchest": {
                 net.h2020.api.game.BedwarsTools bt = H2020.find(net.h2020.api.game.BedwarsTools.class);
-                if (bt == null) { s.sendMessage(r("The Bed Wars plugin is not installed.")); return true; }
+                if (bt == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.the-bed-wars-plugin")); return true; }
                 bt.teamChest(s, s instanceof Player ? (Player) s : null);
                 return true;
             }
@@ -1004,30 +984,30 @@ public final class AdminCommand implements TabExecutor {
                 return true;
             }
             case "fill": {
-                if (a.length < 2) { s.sendMessage(r("/h2020 fill <type> [count]")); return true; }
+                if (a.length < 2) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-fill-type-count")); return true; }
                 net.h2020.api.game.GameMode t = net.h2020.api.game.GameModes.byId(a[1]);
-                if (t == null) { s.sendMessage(r("Unknown type " + a[1])); return true; }
+                if (t == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.unknown-type","p1",a[1])); return true; }
                 Game game = core.games.findJoinable(t);
                 if (game == null) game = core.games.createRandom(t);
-                if (game == null) { s.sendMessage(r("Could not create a " + t.id() + " game.")); return true; }
+                if (game == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.could-not-create-a","p1",t.id())); return true; }
                 int count = a.length >= 3 ? parseInt(a[2], Integer.MAX_VALUE) : Integer.MAX_VALUE;
                 int n = core.filler.fillNow(game, count);
-                s.sendMessage(g("Added " + n + " bots to " + game.id() + " (" + game.mapName() + ")."));
+                s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.added-bots-to","p1",n,"p2",game.id(),"p3",game.mapName()));
                 return true;
             }
             case "join": {
                 // put any online player (human or bot) into a game of that type, e.g. for recording or testing
-                if (a.length < 3) { s.sendMessage(r("/h2020 join <player> <type>")); return true; }
+                if (a.length < 3) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-join-player-type")); return true; }
                 Player target = Bukkit.getPlayerExact(a[1]);
                 net.h2020.api.game.GameMode t = net.h2020.api.game.GameModes.byId(a[2]);
-                if (target == null || t == null) { s.sendMessage(r("Unknown player or type.")); return true; }
+                if (target == null || t == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.unknown-player-or-type")); return true; }
                 Game game = core.games.queue(target, t);
                 s.sendMessage(game == null ? r("Could not queue " + target.getName() + ".")
                         : g("Queued " + target.getName() + " into " + game.id() + " (" + game.mapName() + ")."));
                 return true;
             }
             case "bots": {
-                if (a.length < 2) { s.sendMessage(r("/h2020 bots <n> [main|bedwars|skywars]")); return true; }
+                if (a.length < 2) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-bots-n-main")); return true; }
                 int n = Math.max(0, parseInt(a[1], -1));
                 World w;
                 if (a.length >= 3) w = core.lobby.lobbyWorld(family(a[2]));
@@ -1039,9 +1019,9 @@ public final class AdminCommand implements TabExecutor {
             }
             case "watch": {
                 if (!(s instanceof Player)) return true;
-                if (a.length < 2) { s.sendMessage(r("/h2020 watch <gameId>")); return true; }
+                if (a.length < 2) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-watch-gameid")); return true; }
                 Game game = core.games.byId(a[1]);
-                if (game == null) { s.sendMessage(r("No game " + a[1])); return true; }
+                if (game == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-game","p1",a[1])); return true; }
                 Player p = (Player) s;
                 Game cur = core.games.gameOf(p);
                 if (cur != null) core.games.leaveGame(p, cur);
@@ -1051,46 +1031,46 @@ public final class AdminCommand implements TabExecutor {
                 p.setGameMode(GameMode.SPECTATOR);
                 Location to = game.spectatorSpawn();
                 p.teleport(to != null ? to : game.world().getSpawnLocation());
-                p.sendMessage(g("You are now spectating " + game.id() + " (" + game.mapName() + "). Use /lobby to leave."));
+                p.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.you-are-now-spectating","p1",game.id(),"p2",game.mapName()));
                 return true;
             }
             case "end": {
-                if (a.length < 2) { s.sendMessage(r("/h2020 end <gameId>")); return true; }
+                if (a.length < 2) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-end-gameid")); return true; }
                 Game g = core.games.byId(a[1]);
-                if (g == null) { s.sendMessage(r("No game " + a[1])); return true; }
+                if (g == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-game","p1",a[1])); return true; }
                 g.shutdown();
-                s.sendMessage(g("Ended " + a[1]));
+                s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.ended","p1",a[1]));
                 return true;
             }
             case "replay": {
                 net.h2020.api.core.AdminHooks.Hook rh = net.h2020.api.core.AdminHooks.get("replay");
-                if (rh == null) { s.sendMessage(r("The bots plugin is not installed.")); return true; }
+                if (rh == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.the-bots-plugin-is")); return true; }
                 rh.run(s, a);
                 return true;
             }
             case "train": {
                 net.h2020.api.core.AdminHooks.Hook th = net.h2020.api.core.AdminHooks.get("train");
-                if (th == null) { s.sendMessage(r("The bots plugin is not installed.")); return true; }
+                if (th == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.the-bots-plugin-is")); return true; }
                 th.run(s, a);
                 return true;
             }
             case "placecheck": {
-                if (a.length < 4) { s.sendMessage(r("/h2020 placecheck <x> <y> <z>")); return true; }
+                if (a.length < 4) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-placecheck-x-y")); return true; }
                 net.h2020.api.game.BedwarsTools bt = H2020.find(net.h2020.api.game.BedwarsTools.class);
-                if (bt == null) { s.sendMessage(r("The Bed Wars plugin is not installed.")); return true; }
+                if (bt == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.the-bed-wars-plugin")); return true; }
                 org.bukkit.World w = s instanceof Player ? ((Player) s).getWorld() : Bukkit.getWorlds().get(0);
                 bt.placeCheck(s, w.getBlockAt(parseInt(a[1], 0), parseInt(a[2], 64), parseInt(a[3], 0)));
                 return true;
             }
             case "tower": {
                 // build a pop-up tower in place, for testing the blueprint without a player hand
-                if (a.length < 4) { s.sendMessage(r("/h2020 tower <x> <y> <z>")); return true; }
+                if (a.length < 4) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-tower-x-y")); return true; }
                 org.bukkit.World w = s instanceof Player ? ((Player) s).getWorld() : Bukkit.getWorlds().get(0);
                 org.bukkit.Location at = new org.bukkit.Location(w, parseInt(a[1], 0), parseInt(a[2], 64), parseInt(a[3], 0));
                 net.h2020.api.game.BedwarsTools bt = H2020.find(net.h2020.api.game.BedwarsTools.class);
-                if (bt == null) { s.sendMessage(r("The Bed Wars plugin is not installed.")); return true; }
+                if (bt == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.the-bed-wars-plugin")); return true; }
                 bt.tower(s, at);
-                s.sendMessage(g("Pop-up tower under construction at " + at.getBlockX() + "," + at.getBlockY() + "," + at.getBlockZ()));
+                s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.pop-up-tower-under","p1",at.getBlockX(),"p2",at.getBlockY(),"p3",at.getBlockZ()));
                 return true;
             }
             case "reload": {
@@ -1104,36 +1084,36 @@ public final class AdminCommand implements TabExecutor {
                 net.h2020.core.CoreModule.applyDate(core.config.date);
                 if (core.npcs != null) core.npcs.rebuild();
                 for (Player p : Bukkit.getOnlinePlayers()) if (!CoreUtil.isBot(p)) core.scoreboards.setTabHeaderFooter(p, core.config.tabHeader, core.config.tabFooter);
-                s.sendMessage(g("Hypixel2020 core config reloaded."));
+                s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.hypixel2020-core-config-reloaded"));
                 return true;
             }
             case "date": {
-                if (a.length < 2) { s.sendMessage(g("Scoreboard date: " + HypixelFormat.date())); return true; }
+                if (a.length < 2) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.scoreboard-date","p1",HypixelFormat.date())); return true; }
                 if (a[1].equalsIgnoreCase("2020")) a[1] = "07/14/20";   // back to the 2020 look
                 if (a[1].equalsIgnoreCase("today")) a[1] = "today";     // follows the real date
-                else if (!DATE.matcher(a[1]).matches()) { s.sendMessage(r("Format: MM/dd/yy (e.g. 07/14/20), 'today' or '2020'")); return true; }
+                else if (!DATE.matcher(a[1]).matches()) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.format-mm-dd-yy")); return true; }
                 core.config.saveDate(a[1]);
                 net.h2020.core.CoreModule.applyDate(a[1]);
                 s.sendMessage(g("Scoreboard date set to " + a[1] + (a[1].equals("today") ? " (" + HypixelFormat.date() + ")" : "") + ". New games use it; the lobby updates now."));
                 return true;
             }
             case "rank": {
-                if (a.length < 3) { s.sendMessage(r("/h2020 rank <player> <rank> [plusColor]")); return true; }
+                if (a.length < 3) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-rank-player-rank")); return true; }
                 Player t = Bukkit.getPlayerExact(a[1]);
                 Rank rank = CoreConfig.parseEnum(Rank.class, a[2]);
-                if (t == null || rank == null) { s.sendMessage(r("Unknown player or rank. Ranks: " + Arrays.toString(Rank.values()))); return true; }
+                if (t == null || rank == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.unknown-player-or-rank","p1",Arrays.toString(Rank.values()))); return true; }
                 ChatColor plus = a.length >= 4 ? CoreConfig.parseEnum(ChatColor.class, a[3]) : null;
                 core.profiles.setRank(t, rank, plus);
-                s.sendMessage(g("Set " + t.getName() + " to ") + core.profiles.displayName(t));
+                s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.set","p1",t.getName(),"p2"," to ") + core.profiles.displayName(t));
                 return true;
             }
             case "level": {
-                if (a.length < 3) { s.sendMessage(r("/h2020 level <player> <level>")); return true; }
+                if (a.length < 3) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-level-player-level")); return true; }
                 Player t = Bukkit.getPlayerExact(a[1]);
                 int lvl = parseInt(a[2], -1);
-                if (t == null || lvl < 1) { s.sendMessage(r("Unknown player or bad level.")); return true; }
+                if (t == null || lvl < 1) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.unknown-player-or-bad")); return true; }
                 core.profiles.setNetworkLevel(t, lvl);
-                s.sendMessage(g("Set " + t.getName() + "'s network level to " + lvl));
+                s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.set-s-network-level","p1",t.getName(),"p2",lvl));
                 return true;
             }
             case "build": {
@@ -1148,41 +1128,41 @@ public final class AdminCommand implements TabExecutor {
             case "setspawn": {
                 if (!(s instanceof Player)) return true;
                 Player p = (Player) s;
-                if (!core.lobby.isLobby(p.getWorld())) { s.sendMessage(r("Stand in a lobby world.")); return true; }
+                if (!core.lobby.isLobby(p.getWorld())) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.stand-in-a-lobby")); return true; }
                 core.lobby.setSpawn(p.getLocation());
                 if (core.npcs != null) core.npcs.rebuild();
-                s.sendMessage(g("Lobby spawn for " + p.getWorld().getName() + " set."));
+                s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.lobby-spawn-for-set","p1",p.getWorld().getName()));
                 return true;
             }
             case "npc": {
                 if (!(s instanceof Player)) return true;
-                if (a.length < 2) { s.sendMessage(r("/h2020 npc <id>  ids: " + NpcManager.ids())); return true; }
+                if (a.length < 2) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.h2020-npc-id-ids","p1",NpcManager.ids())); return true; }
                 boolean ok = core.npcs != null && core.npcs.move(a[1], ((Player) s).getLocation());
                 s.sendMessage(ok ? g("NPC " + a[1] + " moved here.") : r("Unknown NPC. ids: " + NpcManager.ids()));
                 return true;
             }
             case "cheaters": {
-                if (a.length < 2) { s.sendMessage(g("Cheater %: " + core.config.cheaterPercent)); return true; }
+                if (a.length < 2) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.cheater","p1",core.config.cheaterPercent)); return true; }
                 core.config.cheaterPercent = Math.max(0, Math.min(100, parseDouble(a[1], 0)));
                 core.plugin.getConfig().set("core.bot-fill.cheater-percent", core.config.cheaterPercent);
                 core.plugin.saveConfig();
-                s.sendMessage(g("Queue-filler cheater percentage set to " + core.config.cheaterPercent + "%"));
+                s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.queue-filler-cheater-percentage","p1",core.config.cheaterPercent));
                 return true;
             }
             case "fillspeed": {
-                if (a.length < 2) { s.sendMessage(g("Fill speed: " + core.config.fillSpeed)); return true; }
+                if (a.length < 2) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.fill-speed","p1",core.config.fillSpeed)); return true; }
                 core.config.fillSpeed = Math.max(0.05, parseDouble(a[1], 1));
                 core.plugin.getConfig().set("core.bot-fill.speed", core.config.fillSpeed);
                 core.plugin.saveConfig();
-                s.sendMessage(g("Bot fill speed set to x" + core.config.fillSpeed));
+                s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.bot-fill-speed-set","p1",core.config.fillSpeed));
                 return true;
             }
             case "background": {
-                if (a.length < 2) { s.sendMessage(g("Background games: " + core.config.backgroundGames)); return true; }
+                if (a.length < 2) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.background-games","p1",core.config.backgroundGames)); return true; }
                 core.config.backgroundGames = Math.max(0, parseInt(a[1], 0));
                 core.plugin.getConfig().set("core.background-games", core.config.backgroundGames);
                 core.plugin.saveConfig();
-                s.sendMessage(g("Background bot-only games set to " + core.config.backgroundGames));
+                s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.background-bot-only-games","p1",core.config.backgroundGames));
                 return true;
             }
             case "sidebar": {
@@ -1197,23 +1177,23 @@ public final class AdminCommand implements TabExecutor {
                 if (action.equals("reload")) {
                     try {
                         Sidebars.reload();
-                        s.sendMessage(g("sidebar.yml reloaded: " + Sidebars.names().size() + " board(s)"));
+                        s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.sidebar-yml-reloaded-board","p1",Sidebars.names().size()));
                     } catch (Throwable t) {
-                        s.sendMessage(r("sidebar.yml reload failed: " + t.getMessage()));
+                        s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.sidebar-yml-reload-failed","p1",t.getMessage()));
                     }
                     return true;
                 }
                 if (action.equals("preview")) {
-                    if (a.length < 3) { s.sendMessage(r("/lattice sidebar preview <board> [player]")); return true; }
+                    if (a.length < 3) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.lattice-sidebar-preview-board")); return true; }
                     SidebarTemplate template = Sidebars.get(a[2].toLowerCase());
                     if (template == null) {
-                        s.sendMessage(r("No enabled board '" + a[2] + "'. Boards: " + String.join(", ", Sidebars.names())));
+                        s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.no-enabled-board-boards","p1",a[2],"p2",String.join(", ", Sidebars.names())));
                         return true;
                     }
                     Player target = null;
                     if (a.length >= 4) {
                         target = Bukkit.getPlayerExact(a[3]);
-                        if (target == null) { s.sendMessage(r("Unknown player " + a[3])); return true; }
+                        if (target == null) { s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.unknown-player","p1",a[3])); return true; }
                     } else if (s instanceof Player) {
                         target = (Player) s;
                     }
@@ -1230,14 +1210,14 @@ public final class AdminCommand implements TabExecutor {
                             vars.putAll(core.lobby.sidebarVars(target, fam));
                         }
                     }
-                    s.sendMessage(g("Sidebar " + template.name + " title: " + amp(template.renderTitle(target, vars))));
+                    s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.sidebar-title","p1",template.name,"p2",amp(template.renderTitle(target, vars))));
                     java.util.List<String> lines = template.render(target, vars, flags, null);
                     for (int i = 0; i < lines.size(); i++) {
                         s.sendMessage(ChatColor.GRAY + String.valueOf(i + 1) + ": " + ChatColor.RESET + amp(lines.get(i)));
                     }
                     return true;
                 }
-                s.sendMessage(r("/lattice sidebar [list] | reload | preview <board> [player]"));
+                s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.lattice-sidebar-list-reload"));
                 return true;
             }
             default:
