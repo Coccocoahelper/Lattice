@@ -55,24 +55,33 @@ public final class BridgeDrill implements Drill {
         this.spawn = a.at(0.5, 65, 0.5, 0f);
     }
 
-    /** Start platform, gap and finish platform for the current length. */
+    /**
+     * Start pad, gap and finish platform for the current length.
+     *
+     * <p>The pad runs from behind the spawn up to the spawn block, so the block the player stands on is the last one
+     * before the void. That matters for the bots: a bridging run starts from the support under the feet, and if there
+     * is platform in front of it the first cells are already solid, nothing can be placed and the run stalls with a
+     * handful of blocks. Measured exactly that before this was fixed.
+     */
     private void rebuild(PracticeArena a) {
         clear();
-        int sx = startX;
-        int ex = startX + length + 3;
-        a.platform(sx, 64, 0, 2, Material.SANDSTONE);
-        a.rim(sx, 64, 0, 2, 1, Material.SMOOTH_BRICK);
+        a.box(startX - 3, 64, -1, startX, 64, 1, Material.SANDSTONE);
+        a.box(startX - 3, 63, -1, startX, 63, 1, Material.SANDSTONE);
+        a.rim(startX - 3, 64, 0, 1, 1, Material.SMOOTH_BRICK);        // a lip behind, not in front
+        int fz = variant == Variant.DIAGONAL ? length : 0;
+        int ex = startX + length + 1;
         // the far side: three wide so a diagonal bridge actually has somewhere to land
-        a.platform(ex, 64, variant == Variant.DIAGONAL ? length : 0, 2, Material.SANDSTONE);
-        a.marker(ex, 65, variant == Variant.DIAGONAL ? length : 0, Material.GLOWSTONE);
+        a.platform(ex, 64, fz, 2, Material.SANDSTONE);
+        a.platform(ex, 63, fz, 2, Material.SANDSTONE);
+        a.marker(ex, 65, fz, Material.GLOWSTONE);
         this.endX = ex;
     }
 
     /** Remove the previous build out to the old far side, so a longer gap is not laid over the old one. */
     private void clear() {
-        for (int x = startX; x <= startX + 40; x++)
+        for (int x = startX - 4; x <= startX + 40; x++)
             for (int z = -3; z <= 40; z++)
-                for (int y = 63; y <= 67; y++)
+                for (int y = 62; y <= 67; y++)
                     arena.world().getBlockAt(x, y, z).setType(Material.AIR, false);
     }
 
@@ -90,8 +99,18 @@ public final class BridgeDrill implements Drill {
     @Override
     public void tick(PracticeGame g) {
         for (Player p : g.alivePlayers()) {
+            if (g.isFollowing(p)) continue;      // watching a bot is not a run
             long[] r = row(p);
             Location l = p.getLocation();
+            // out of the world is a fall. A bot dropped into the void does not die - it keeps falling, and nothing
+            // resets it, which is how one ended up at y=-3506 with eighteen falls on the clock.
+            if (l.getY() < 40) {
+                if (r[0] > 0) r[4]++;
+                r[0] = 0;
+                r[1] = 0;
+                g.reset(p);
+                continue;
+            }
             boolean onStart = l.getBlockX() <= startX + 2;
             boolean onFinish = nearFinish(l);
             if (r[0] == 0 && !onStart && p.getGameMode() == org.bukkit.GameMode.SURVIVAL) {

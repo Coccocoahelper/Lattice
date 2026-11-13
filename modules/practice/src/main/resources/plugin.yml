@@ -6,5 +6,5 @@ depend: [Lattice]
 commands:
   practice:
     description: Practise Bed Wars mechanics
-    usage: /practice <fireball|bow|gamesense|bridge> [bots <n>]
+    usage: /practice <fireball|bow|gamesense|bridge> [bots <n>] [technique]
     aliases: [prac, drill]

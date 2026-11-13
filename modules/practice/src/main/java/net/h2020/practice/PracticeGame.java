@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.UUID;
 import java.util.Set;
 
 /**
@@ -36,6 +37,8 @@ public final class PracticeGame implements Game {
     private final Set<Player> players = new LinkedHashSet<Player>();
     private GameState state = GameState.WAITING;
     private int hudTick;
+    /** Watcher -> the body they are riding. A player watching a bot bridge follows it instead of standing still. */
+    private final java.util.Map<UUID, Player> following = new java.util.HashMap<UUID, Player>();
 
     PracticeGame(PracticeMode type, String id, Drill drill, PracticeArena arena) {
         this.type = type;
@@ -87,8 +90,32 @@ public final class PracticeGame implements Game {
         if (players.isEmpty()) shutdown();
     }
 
+    /**
+     * Ride a body: spectator, teleported to it every tick. Used when a player starts a drill to watch a bot run it,
+     * which is the only way to see the bridging the drill is measuring from the bot's own point of view.
+     */
+    public void follow(Player watcher, Player target) {
+        if (watcher == null || target == null) return;
+        following.put(watcher.getUniqueId(), target);
+        watcher.setGameMode(org.bukkit.GameMode.SPECTATOR);
+        watcher.setAllowFlight(true);
+        watcher.setFlying(true);
+        watcher.teleport(target.getLocation().clone().add(0, 1.2, 0));
+        watcher.sendMessage(ChatColor.GRAY + "Watching " + ChatColor.WHITE + target.getName()
+                + ChatColor.GRAY + " - leave with " + ChatColor.WHITE + "/practice leave");
+    }
+
+    public boolean isFollowing(Player p) { return following.containsKey(p.getUniqueId()); }
+
     /** Put one player back at the drill's start with its kit: used on join, on respawn and after a fall. */
     public void reset(Player p) {
+        if (following.containsKey(p.getUniqueId())) {
+            // a watcher has no body in the drill: keep them out of it rather than dropping them into the arena
+            p.setGameMode(org.bukkit.GameMode.SPECTATOR);
+            Player target = following.get(p.getUniqueId());
+            if (target != null && target.isOnline()) p.teleport(target.getLocation().clone().add(0, 1.2, 0));
+            return;
+        }
         p.teleport(drill.spawn());
         p.setGameMode(org.bukkit.GameMode.SURVIVAL);
         p.setHealth(p.getMaxHealth());
@@ -107,6 +134,15 @@ public final class PracticeGame implements Game {
     void tick() {
         if (state != GameState.PLAYING) return;
         drill.tick(this);
+        // a watcher rides its target: one teleport a tick keeps the view attached without the server fighting it
+        for (java.util.Map.Entry<UUID, Player> e : new java.util.ArrayList<>(following.entrySet())) {
+            Player watcher = Bukkit.getPlayer(e.getKey());
+            Player target = e.getValue();
+            if (watcher == null || !watcher.isOnline()) { following.remove(e.getKey()); continue; }
+            if (target == null || !target.isOnline() || target.isDead()) continue;
+            if (watcher.getWorld() != target.getWorld()) watcher.teleport(target.getLocation());
+            else watcher.teleport(target.getLocation().clone().add(0, 1.2, 0));
+        }
         if (++hudTick % 4 == 0) {
             for (Player p : new ArrayList<Player>(players)) {
                 if (!p.isOnline()) continue;
@@ -147,6 +183,7 @@ public final class PracticeGame implements Game {
             if (gm != null) gm.sendToLobby(p, null);
         }
         players.clear();
+        following.clear();
         GameManager gm = H2020.find(GameManager.class);
         if (gm != null) gm.finished(this);
         arena.destroy();

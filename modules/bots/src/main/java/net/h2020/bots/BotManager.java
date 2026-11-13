@@ -168,6 +168,19 @@ public final class BotManager implements BotService, Listener {
     public boolean isBot(Player p) { return bot(p) != null; }
 
     @Override
+    public net.h2020.api.bot.BotBrain bridgeBrain(int dx, int dz, int maxBlocks, String technique) {
+        net.h2020.bots.ai.motor.Bridger.Tech t = null;
+        if (technique != null && !technique.equalsIgnoreCase("auto")) {
+            try {
+                t = net.h2020.bots.ai.motor.Bridger.Tech.valueOf(technique.toUpperCase(java.util.Locale.ROOT));
+            } catch (IllegalArgumentException ignored) {
+                t = null;   // an unknown name just means "the bot's own"
+            }
+        }
+        return new net.h2020.bots.ai.brain.BridgeBrain(dx, dz, maxBlocks, t);
+    }
+
+    @Override
     public Bot bot(Player p) {
         if (p == null) return null;
         FakeBot b = bots.get(p.getUniqueId());

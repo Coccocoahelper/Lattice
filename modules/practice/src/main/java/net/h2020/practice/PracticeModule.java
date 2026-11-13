@@ -156,10 +156,11 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
                 if (args[i].equalsIgnoreCase("bots")) {
                     try { n = Math.max(1, Math.min(8, Integer.parseInt(args[i + 1]))); } catch (Exception ignored) { }
                 }
+            String tech = techniqueArg(args);
             PracticeGame g = start(m);
             if (g == null) { sender.sendMessage("Could not start the drill (bots module missing?)"); return true; }
             track(g);
-            spawnBots(g, n);
+            spawnBots(g, n, tech);
             sender.sendMessage("Started " + m.displayName() + " with " + n + " bot(s) as " + g.id());
             return true;
         }
@@ -199,6 +200,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
                 try { bots = Math.max(0, Math.min(8, Integer.parseInt(args[i + 1]))); } catch (Exception ignored) { }
             }
         }
+        String tech = techniqueArg(args);
 
         PracticeGame existing = byPlayer.get(p.getUniqueId());
         if (existing != null) existing.removePlayer(p);
@@ -210,7 +212,17 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
         }
         g.addPlayer(p);
         track(g);
-        if (bots > 0) spawnBots(g, bots);
+        if (bots > 0) {
+            List<Player> before = new ArrayList<Player>(g.players());
+            spawnBots(g, bots, tech);
+            // a player who starts a bridging drill to watch a bot run it does not stand in the arena: they ride the
+            // first bot that is actually bridging, in spectator
+            if (g.drill() instanceof BridgeDrill) {
+                Player watch = null;
+                for (Player q : g.players()) if (!before.contains(q) && !q.equals(p)) { watch = q; break; }
+                if (watch != null) g.follow(p, watch);
+            }
+        }
         return true;
     }
 
@@ -246,21 +258,40 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
         }, 20L, 40L);
     }
 
+    /** The technique token of a command, or "auto" when none was given: bots then use the persona's own method. */
+    private static String techniqueArg(String[] args) {
+        for (int i = 1; i < args.length; i++) {
+            String a = args[i].toLowerCase(java.util.Locale.ROOT);
+            if (a.equals("bots") || a.matches("\\d+")) continue;
+            if (a.matches("auto|noob|shift|speed|ninja|ninja2|moonwalk|breezily")) return a;
+        }
+        return "auto";
+    }
+
     /** Bots on the same arena with the same kit: this is the testing ground. */
-    private void spawnBots(PracticeGame g, int n) {
+    private void spawnBots(PracticeGame g, int n, String technique) {
         BotService bs = H2020.find(BotService.class);
         if (bs == null) {
             for (Player p : g.players()) p.sendMessage(ChatColor.GRAY + "Bots are not available on this server.");
             return;
         }
-        Location at = g.drill().spawn();
+        Location base = g.drill().spawn();
         for (int i = 0; i < n; i++) {
             try {
                 BotProfile prof = bs.randomProfile();
+                // one lane each: two bots on the same block fight over the same cells and neither bridges
+                Location at = base.clone().add(0, 0, (i % 3) - 1);
                 Bot bot = bs.spawn(prof, at);
                 if (bot == null || bot.player() == null) continue;
                 g.addPlayer(bot.player());
                 byPlayer.put(bot.player().getUniqueId(), g);
+                // a bridging drill is only a benchmark if the bot actually bridges: give it the brain that does
+                if (g.drill() instanceof BridgeDrill) {
+                    BridgeDrill bd = (BridgeDrill) g.drill();
+                    int dx = bd.variant() == BridgeDrill.Variant.DIAGONAL ? 1 : 1;
+                    int dz = bd.variant() == BridgeDrill.Variant.DIAGONAL ? 1 : 0;
+                    bot.setBrain(bs.bridgeBrain(dx, dz, 26, technique));
+                }
             } catch (Throwable t) {
                 plugin.getLogger().warning("practice bot: " + t);
             }
@@ -276,6 +307,9 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
         p.sendMessage(ChatColor.GRAY + "/practice bridge-diagonal " + ChatColor.DARK_GRAY + "- the same on the diagonal");
         p.sendMessage(ChatColor.DARK_GRAY + "add " + ChatColor.WHITE + "bots <n>" + ChatColor.DARK_GRAY
                 + " to any of them to bring bots in; " + ChatColor.WHITE + "/practice leave" + ChatColor.DARK_GRAY + " to stop");
+        p.sendMessage(ChatColor.DARK_GRAY + "the bridge drill also takes a method: "
+                + ChatColor.WHITE + "/practice bridge bots 2 ninja2" + ChatColor.DARK_GRAY
+                + " - and you watch the bot it puts in the arena");
     }
 
     /** Everything a drill can be checked on from the console: the world, who is in it, and what is ticking in it. */

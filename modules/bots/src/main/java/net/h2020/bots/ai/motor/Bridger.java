@@ -50,6 +50,11 @@ public final class Bridger {
     private Tech tech;
     /** The technique for this bridge. Every method lives in its own file; the engine only drives it. */
     private BridgeMethod method;
+    /**
+     * Technique to use for this engine's bridges, or null to follow the persona. Set by a caller that is measuring one
+     * method on purpose (the practice drills), so it stays per-bot and cannot leak into a real match.
+     */
+    private Tech forcedTech;
     private BridgeMethod.Crouch crouch;
     /** Body-centre distance past the support's travel-side edge, and the lateral error, as of this tick. */
     float curH;
@@ -177,7 +182,7 @@ public final class Bridger {
         this.tech = chosenTech(count, pressured);
         // a diagonal wants a tap rather than a held shift - but only when the persona is choosing. A forced technique
         // (or one that already taps) is left alone, otherwise /bot bridgetech cannot measure anything.
-        if (diag && BridgeTuning.forceTech == null && this.tech != Tech.NINJA && this.tech != Tech.NINJA2
+        if (diag && BridgeTuning.forceTech == null && forcedTech == null && this.tech != Tech.NINJA && this.tech != Tech.NINJA2
                 && ctx.persona.skill.overall > 0.35 && ctx.rng.nextDouble() < 0.6) {
             this.tech = Tech.NINJA;          // a diagonal wants the tap, not a held shift
             CombatStats.inc("bridge.ninja");
@@ -280,9 +285,15 @@ public final class Bridger {
 
     /** The persona's technique after the disabled ones have been mapped away, or the forced one when measuring. */
     private Tech chosenTech(int count, boolean pressure) {
+        if (forcedTech != null) return forcedTech;
         if (BridgeTuning.forceTech != null) return BridgeTuning.forceTech;
         return sanction(chooseTech(count, pressure));
     }
+
+    /** Force one method for this engine's bridges (null = the persona's own choice). */
+    public void forceTech(Tech t) { this.forcedTech = t; }
+
+    public Tech forcedTech() { return forcedTech; }
 
     public static long launchedBridges() { return launchCount; }
 

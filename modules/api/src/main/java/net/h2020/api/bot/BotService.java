@@ -17,4 +17,12 @@ public interface BotService {
     boolean isBot(Player p);
     /** null if not a bot */
     Bot bot(Player p);
+
+    /**
+     * A brain that walks to the edge of what it is standing on and bridges in one direction until it runs out of
+     * blocks, using the named technique ("auto" for the bot's own). This is what the practice drill puts on a bot so
+     * a bridging run can be measured; null when this server has no bridging brain.
+     */
+    default BotBrain bridgeBrain(int dx, int dz, int maxBlocks, String technique) { return BrainFactory.none(); }
 }
+
