@@ -17,3 +17,7 @@ bot-behaviour.patch
 libs/swm/*.jar
 run/slime_worlds/
 maps-import/
+
+# A local Gradle home (GRADLE_USER_HOME=.gradle-user-home) and classpath scratch; neither is source.
+.gradle-user-home/
+tools_classpath_tmp.txt
