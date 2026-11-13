@@ -85,14 +85,16 @@ public final class PracticeGame implements Game {
 
     @Override
     public void removePlayer(Player p) {
+        following.remove(p.getUniqueId());
         if (!players.remove(p)) return;
         drill.onQuit(this, p);
         if (players.isEmpty()) shutdown();
     }
 
     /**
-     * Ride a body: spectator, teleported to it every tick. Used when a player starts a drill to watch a bot run it,
-     * which is the only way to see the bridging the drill is measuring from the bot's own point of view.
+     * Watch a body: spectator, dropped at it once so the view starts on the bot that is bridging. From there the
+     * spectator moves themselves - a camera that follows a bot around is not watching, and it fights the client's own
+     * movement every tick.
      */
     public void follow(Player watcher, Player target) {
         if (watcher == null || target == null) return;
@@ -101,8 +103,9 @@ public final class PracticeGame implements Game {
         watcher.setAllowFlight(true);
         watcher.setFlying(true);
         watcher.teleport(target.getLocation().clone().add(0, 1.2, 0));
-        watcher.sendMessage(ChatColor.GRAY + "Watching " + ChatColor.WHITE + target.getName()
-                + ChatColor.GRAY + " - leave with " + ChatColor.WHITE + "/practice leave");
+        watcher.sendMessage(ChatColor.GRAY + "Spectating " + ChatColor.WHITE + target.getName()
+                + ChatColor.GRAY + " - fly to look around, " + ChatColor.WHITE + "/practice leave"
+                + ChatColor.GRAY + " to stop");
     }
 
     public boolean isFollowing(Player p) { return following.containsKey(p.getUniqueId()); }
@@ -110,10 +113,9 @@ public final class PracticeGame implements Game {
     /** Put one player back at the drill's start with its kit: used on join, on respawn and after a fall. */
     public void reset(Player p) {
         if (following.containsKey(p.getUniqueId())) {
-            // a watcher has no body in the drill: keep them out of it rather than dropping them into the arena
+            // a watcher has no body in the drill: put them in spectator once and leave them where they are. They fly
+            // themselves from there - being dragged along behind a bot is not watching, it is being carried.
             p.setGameMode(org.bukkit.GameMode.SPECTATOR);
-            Player target = following.get(p.getUniqueId());
-            if (target != null && target.isOnline()) p.teleport(target.getLocation().clone().add(0, 1.2, 0));
             return;
         }
         p.teleport(drill.spawn());
@@ -134,15 +136,6 @@ public final class PracticeGame implements Game {
     void tick() {
         if (state != GameState.PLAYING) return;
         drill.tick(this);
-        // a watcher rides its target: one teleport a tick keeps the view attached without the server fighting it
-        for (java.util.Map.Entry<UUID, Player> e : new java.util.ArrayList<>(following.entrySet())) {
-            Player watcher = Bukkit.getPlayer(e.getKey());
-            Player target = e.getValue();
-            if (watcher == null || !watcher.isOnline()) { following.remove(e.getKey()); continue; }
-            if (target == null || !target.isOnline() || target.isDead()) continue;
-            if (watcher.getWorld() != target.getWorld()) watcher.teleport(target.getLocation());
-            else watcher.teleport(target.getLocation().clone().add(0, 1.2, 0));
-        }
         if (++hudTick % 4 == 0) {
             for (Player p : new ArrayList<Player>(players)) {
                 if (!p.isOnline()) continue;
