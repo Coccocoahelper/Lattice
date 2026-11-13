@@ -113,7 +113,11 @@ public final class Gaze {
         for (Entity e : ctx.player.getNearbyEntities(r, 4, r)) {
             if (!(e instanceof LivingEntity)) continue;
             if (e instanceof Player && ((Player) e).isSneaking() && ctx.rng.nextDouble() < 0.5) continue;
-            double d = e.getLocation().distanceSquared(me) * (0.6 + ctx.rng.nextDouble());
+            // a bot being moved between worlds (a hub swap) can hold a position from the old world for a tick, and
+            // distance across worlds throws instead of returning a number
+            Location there = e.getLocation();
+            if (there.getWorld() != me.getWorld()) continue;
+            double d = there.distanceSquared(me) * (0.6 + ctx.rng.nextDouble());
             if (d < bd) { bd = d; best = e; }
         }
         return best;
