@@ -288,9 +288,8 @@ public final class GameManagerImpl implements GameManager, Listener {
                 haveMap = ms != null && !ms.templatesFor(type).isEmpty();
             } catch (Throwable ignored) { }
             player.sendMessage(haveMap
-                    ? ChatColor.RED + "Could not find a game for " + type.displayName() + "! Please try again later."
-                    : ChatColor.RED + "No map is installed for " + type.displayName() + ": put the map folders back in"
-                        + " plugins/Lattice/maps/ and the slime files in run/slime_worlds/.");
+                    ? net.h2020.api.core.Messages.get("core.queue.no-game", "mode", type.displayName())
+                    : net.h2020.api.core.Messages.get("core.queue.no-map", "mode", type.displayName()));
             if (gameOf(player) == null && lobby != null) sendToLobby(player, type.family());
         }
         return null;

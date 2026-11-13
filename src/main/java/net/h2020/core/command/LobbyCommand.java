@@ -28,7 +28,7 @@ public final class LobbyCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-        if (!(sender instanceof Player)) { sender.sendMessage("Players only."); return true; }
+        if (!(sender instanceof Player)) { sender.sendMessage(net.h2020.api.core.Messages.get("core.command.players-only")); return true; }
         Player p = (Player) sender;
         Game g = core.games.gameOf(p);
         GameFamily target;

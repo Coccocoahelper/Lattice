@@ -290,14 +290,14 @@ public final class LobbyManager implements LobbyHooks, Listener {
         long now = System.currentTimeMillis();
         Long last = visibilityCooldown.get(p.getUniqueId());
         if (last != null && now - last < 3000) {
-            p.sendMessage(ChatColor.RED + "You must wait " + ChatColor.YELLOW + "3s" + ChatColor.RED + " between uses!");
+            p.sendMessage(net.h2020.api.core.Messages.get("core.lobby.visibility-cooldown"));
             return;
         }
         visibilityCooldown.put(p.getUniqueId(), now);
         ProfileData d = core.profiles.data(p);
         d.playersHidden = !d.playersHidden;
         p.getInventory().setItem(7, LobbyItems.visibility(d.playersHidden));
-        p.sendMessage(d.playersHidden ? ChatColor.RED + "Player visibility disabled!" : ChatColor.GREEN + "Player visibility enabled!");
+        p.sendMessage(d.playersHidden ? net.h2020.api.core.Messages.get("core.lobby.visibility-off") : net.h2020.api.core.Messages.get("core.lobby.visibility-on"));
         p.playSound(p.getLocation(), Sound.CLICK, 1f, 1f);
         refreshVisibility(p);
     }

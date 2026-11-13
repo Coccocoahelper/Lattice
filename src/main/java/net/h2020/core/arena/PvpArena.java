@@ -161,8 +161,8 @@ public final class PvpArena implements Listener {
         p.setFoodLevel(20);
         giveKit(p);
         int bots = populate(3);
-        p.sendMessage(ChatColor.GREEN + "PvP arena: nobody dies here, damage still counts."
-                + (bots > 0 ? ChatColor.GRAY + " (" + bots + " bots joined)" : ""));
+        p.sendMessage(net.h2020.api.core.Messages.get("core.arena.joined", "bots", bots > 0
+                ? net.h2020.api.core.Messages.get("core.arena.bots-joined", "bots", bots) : ""));
     }
 
     /**

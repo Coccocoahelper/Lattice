@@ -317,9 +317,18 @@ core:
     unknown-type: "&cUnknown type {p1}"
     world-at-solid-air: "&aworld={p1} at={p2},{p3},{p4} solid={p5} air={p6} chunks={p7} autoSave={p8}"
     you-are-now-spectating: "&aYou are now spectating {p1} ({p2}). Use /lobby to leave."
+  arena:
+    bots-joined: "&7 ({bots} bots joined)"
+    joined: "&aPvP arena: nobody dies here, damage still counts.{bots}"
+  command:
+    players-only: "&cPlayers only."
   gamemanagerimpl:
     sending-you-to: "&aSending you to {p1}!"
     that-game-is-currently: "&cThat game is currently unavailable!"
+  lobby:
+    visibility-cooldown: "&cYou must wait &e3s&c between uses!"
+    visibility-off: "&cPlayer visibility disabled!"
+    visibility-on: "&aPlayer visibility enabled!"
   lobbycommand:
     are-you-sure-type: "&eAre you sure? Type /lobby again if you really want to quit."
   lobbymenus:
@@ -348,6 +357,9 @@ core:
     usage-play-game: "&cUsage: /play <game>"
   pvparena:
     could-not-create-the: "&cCould not create the arena world."
+  queue:
+    no-game: "&cCould not find a game for {mode}! Please try again later."
+    no-map: "&cNo map is installed for {mode}: put the map folders back in plugins/Lattice/maps/ and the slime files in run/slime_worlds/."
   spectatecommand:
     is-not-in-a: "&c{p1} is not in a game."
     no-longer-spectating: "&7No longer spectating."

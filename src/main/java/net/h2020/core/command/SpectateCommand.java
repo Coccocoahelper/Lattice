@@ -44,7 +44,7 @@ public final class SpectateCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-        if (!(sender instanceof Player)) { sender.sendMessage("Players only."); return true; }
+        if (!(sender instanceof Player)) { sender.sendMessage(net.h2020.api.core.Messages.get("core.command.players-only")); return true; }
         Player p = (Player) sender;
         if (args.length < 1) {
             stop(p);

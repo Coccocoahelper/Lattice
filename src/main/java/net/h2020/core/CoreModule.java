@@ -99,7 +99,7 @@ public final class CoreModule implements Module {
             @Override public boolean onCommand(org.bukkit.command.CommandSender sender, org.bukkit.command.Command cmd,
                                                 String label, String[] args) {
                 if (!(sender instanceof Player)) {
-                    sender.sendMessage(org.bukkit.ChatColor.RED + "Players only.");
+                    sender.sendMessage(net.h2020.api.core.Messages.get("core.command.players-only"));
                     return true;
                 }
                 new SettingsMenu(core).open((Player) sender);
