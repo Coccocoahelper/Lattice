@@ -115,9 +115,33 @@ bots:
     tp-name-all-player: "{p1}&e/{p2} tp <name|all> [player]&7 - bring bot(s)"
     u00a7cunknown-technique-noob-shift: "{p1}\\u00a7cunknown technique {p2} (noob, shift, speed, ninja, ninja2, moonwalk, breezily)"
     walk-name-fwd-strafe: "{p1}&e/{p2} walk <name> <fwd> <strafe> [sprint] | stop | jump | sneak <name>"
+  command:
+    bridging-technique: "bridging technique {technique}"
+    in-game-only: "In game only."
+    resistance: "&7resistance {state}"
+    toggle: "{what} {state}"
+    training-off: "&6[ml] &ebot training &cdisabled"
+    training-on: "&6[ml] &ebot training &aenabled"
+  help:
+    lines:
+      - "&6Bot commands:"
+      - "&7 spawn <name> [cheat] | remove <name|all> | list | settings | skill <0..1> | self <x>"
+      - "&7 movement: goto <x> <y> <z> | walk <f> <s> | stop | jump | sneak | tp <player>"
+      - "&7 aim and clicks: aim <player> | attack <player> | aimpos <x> <y> <z> | left [cps] | right | slot <n> | click | close | open"
+      - "&7 combat: pvp [v1|v2|ab|reset|debug] | cheat <profile> | why <name> | counters | deaths [reset]"
+      - "&7 bridging: diag on|off (diagonal stance) | defspeed on|off (fast bed defence) | neo (neo availability probe)"
+      - "&7 input: fps [1-20] (mouse frames per tick, 6 = 120 fps)"
+      - "&7 learning: ml | navstats | navtrace <bot|off> | navfix <mask> | navdebug | swstats | menutest | pltest | shoptest"
+      - "&7 chat: say <text>"
   serverquestions:
     server-recorded-i-had: "&7[Server] Recorded: &f{p1}&8 (i had you as: {p2})"
     server-that-question-is: "&7[Server] That question is no longer open."
+  state:
+    auto: "auto (persona's own)"
+    off: "off"
+    on: "on"
+    upper-off: "OFF"
+    upper-on: "ON"
 core:
   admincommand:
     a-player-must-run: "&cA player must run this, or use /h2020 arena bot <name>."

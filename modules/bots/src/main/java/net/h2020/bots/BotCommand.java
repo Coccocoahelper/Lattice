@@ -74,7 +74,7 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                     if (args.length > 1 && args[1].equalsIgnoreCase("reset")) { net.h2020.bots.ai.brain.SwStats.reset(); sender.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.swstats-reset","p1",P)); }
                     if (args.length > 1 && args[1].equalsIgnoreCase("debug")) {
                         net.h2020.bots.ai.brain.SwStats.debug = args.length > 2 ? args[2].equalsIgnoreCase("on") : !net.h2020.bots.ai.brain.SwStats.debug;
-                        sender.sendMessage(P + "swstats debug " + (net.h2020.bots.ai.brain.SwStats.debug ? "on" : "off"));
+                        sender.sendMessage(net.h2020.api.core.Messages.get("bots.command.toggle", "what", "swstats debug", "state", net.h2020.bots.ai.brain.SwStats.debug ? net.h2020.api.core.Messages.raw("bots.state.on") : net.h2020.api.core.Messages.raw("bots.state.off")));
                     }
                     for (String l : net.h2020.bots.ai.brain.SwStats.report()) sender.sendMessage(l);
                     break;
@@ -101,7 +101,7 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                     break;
                 }
                 case "self": {
-                    if (!(sender instanceof Player)) { sender.sendMessage("In game only."); break; }
+                    if (!(sender instanceof Player)) { net.h2020.api.core.Messages.send(sender, "bots.command.in-game-only"); break; }
                     Player me = (Player) sender;
                     String holder = me.getOpenInventory() != null && me.getOpenInventory().getTopInventory() != null
                             && me.getOpenInventory().getTopInventory().getHolder() != null
@@ -177,19 +177,11 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                     if (args.length > 1)
                         net.h2020.bots.ai.combat.CombatTuning.fastDefence =
                                 args[1].equalsIgnoreCase("on") || args[1].equalsIgnoreCase("true");
-                    sender.sendMessage(P + "fast defence " + (net.h2020.bots.ai.combat.CombatTuning.fastDefence ? "ON" : "OFF"));
+                    sender.sendMessage(net.h2020.api.core.Messages.get("bots.command.toggle", "what", "fast defence", "state", net.h2020.bots.ai.combat.CombatTuning.fastDefence ? net.h2020.api.core.Messages.raw("bots.state.upper-on") : net.h2020.api.core.Messages.raw("bots.state.upper-off")));
                     break;
                 }
                 case "help": {
-                    sender.sendMessage("§6Bot commands:");
-                    sender.sendMessage("§7 spawn <name> [cheat] | remove <name|all> | list | settings | skill <0..1> | self <x>");
-                    sender.sendMessage("§7 movement: goto <x> <y> <z> | walk <f> <s> | stop | jump | sneak | tp <player>");
-                    sender.sendMessage("§7 aim and clicks: aim <player> | attack <player> | aimpos <x> <y> <z> | left [cps] | right | slot <n> | click | close | open");
-                    sender.sendMessage("§7 combat: pvp [v1|v2|ab|reset|debug] | cheat <profile> | why <name> | counters | deaths [reset]");
-                    sender.sendMessage("§7 bridging: diag on|off (diagonal stance) | defspeed on|off (fast bed defence) | neo (neo availability probe)");
-                    sender.sendMessage("§7 input: fps [1-20] (mouse frames per tick, 6 = 120 fps)");
-                    sender.sendMessage("§7 learning: ml | navstats | navtrace <bot|off> | navfix <mask> | navdebug | swstats | menutest | pltest | shoptest");
-                    sender.sendMessage("§7 chat: say <text>");
+                    for (String line : net.h2020.api.core.Messages.lines("bots.help.lines")) sender.sendMessage(line);
                     break;
                 }
                 case "deaths": {
@@ -210,9 +202,9 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                             break;
                         }
                     }
-                    sender.sendMessage(P + "bridging technique "
-                            + (net.h2020.bots.ai.motor.BridgeTuning.forceTech == null ? "auto (persona's own)"
-                            : net.h2020.bots.ai.motor.BridgeTuning.forceTech.name()));
+                    sender.sendMessage(net.h2020.api.core.Messages.get("bots.command.bridging-technique",
+                            "technique", net.h2020.bots.ai.motor.BridgeTuning.forceTech == null
+                                    ? net.h2020.api.core.Messages.raw("bots.state.auto") : net.h2020.bots.ai.motor.BridgeTuning.forceTech.name()));
                     // starts / finished / fell, per method: a technique is only better if it crosses and stays up
                     for (net.h2020.bots.ai.motor.Bridger.Tech t : net.h2020.bots.ai.motor.Bridger.Tech.values()) {
                         String k = t.name().toLowerCase(java.util.Locale.ROOT);
@@ -230,7 +222,7 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                         settings.apply();
                         if (settings.diagonalStance) net.h2020.bots.ai.motor.BridgeTuning.resetParked();
                     }
-                    sender.sendMessage(P + "diagonal stance " + (net.h2020.bots.ai.motor.BridgeTuning.diagonalStance ? "ON" : "OFF"));
+                    sender.sendMessage(net.h2020.api.core.Messages.get("bots.command.toggle", "what", "diagonal stance", "state", net.h2020.bots.ai.motor.BridgeTuning.diagonalStance ? net.h2020.api.core.Messages.raw("bots.state.upper-on") : net.h2020.api.core.Messages.raw("bots.state.upper-off")));
                     break;
                 }
                 case "fps": {
@@ -249,7 +241,7 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                     boolean on = args.length > 1 ? args[1].equalsIgnoreCase("on") : !net.h2020.api.core.DemoFlags.resistanceOn;
                     net.h2020.api.core.DemoFlags.resistanceOn = on;
                     if (args.length > 2) net.h2020.api.core.DemoFlags.resistanceAmp = Math.max(0, Math.min(4, Integer.parseInt(args[2])));
-                    sender.sendMessage("§7resistance " + (on ? "on (amp " + net.h2020.api.core.DemoFlags.resistanceAmp + ")" : "off"));
+                    sender.sendMessage(net.h2020.api.core.Messages.get("bots.command.resistance", "state", on ? "on (" + net.h2020.api.core.DemoFlags.resistanceAmp + ")" : "off"));
                     return true;
                 }
                 case "zest": {
@@ -286,7 +278,7 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                     if (a.equals("bots")) {
                         boolean on = args.length > 2 && args[2].equalsIgnoreCase("on");
                         net.h2020.bots.ai.ml.MlSettings.setTrainFromBots(on);
-                        sender.sendMessage("§6[ml] §ebot training " + (on ? "§aenabled" : "§cdisabled"));
+                        sender.sendMessage(on ? net.h2020.api.core.Messages.get("bots.command.training-on") : net.h2020.api.core.Messages.get("bots.command.training-off"));
                         break;
                     }
                     if (a.equals("reset")) {
@@ -377,7 +369,7 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                     break;
                 case "navdebug":
                     net.h2020.bots.ai.nav.NavStats.debug = args.length > 1 ? args[1].equalsIgnoreCase("on") : !net.h2020.bots.ai.nav.NavStats.debug;
-                    sender.sendMessage(P + "navdebug " + (net.h2020.bots.ai.nav.NavStats.debug ? "on" : "off"));
+                    sender.sendMessage(net.h2020.api.core.Messages.get("bots.command.toggle", "what", "navdebug", "state", net.h2020.bots.ai.nav.NavStats.debug ? net.h2020.api.core.Messages.raw("bots.state.on") : net.h2020.api.core.Messages.raw("bots.state.off")));
                     break;
                 case "tp": tp(sender, args); break;
                 case "goto": goTo(sender, args); break;
