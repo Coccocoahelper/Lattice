@@ -6,6 +6,11 @@ maps:
   # Tags switched off, e.g. [seasonal] hides every map tagged seasonal and [dreams] the Dreams maps.
   # A map is off when any of its tags is listed here; tags live in each map.yml as tags: [dreams].
   disabled-tags: []
+  # The three hubs, as Swofty's maps (slime_worlds/swofty_lobby_*.swofty). A named world is loaded from the slime
+  # store and the generated lobby is only a fallback, so these files are what the server actually stands on.
+  main-lobby-world: swofty_lobby_main
+  bedwars-lobby-world: swofty_lobby_bedwars
+  skywars-lobby-world: swofty_lobby_skywars
 
 core:
   # Date shown on every scoreboard: MM/dd/yy, or "today" for the real date. In-game: /h2020 date 07/14/20 | today | 2020
