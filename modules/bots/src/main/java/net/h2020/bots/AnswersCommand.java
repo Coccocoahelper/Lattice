@@ -20,7 +20,7 @@ final class AnswersCommand implements CommandExecutor {
         try {
             ServerQuestions.answer(p, Long.parseLong(args[0]), Integer.parseInt(args[1]));
         } catch (NumberFormatException e) {
-            p.sendMessage(ChatColor.GRAY + "That is not an answer for the current question.");
+            net.h2020.api.core.Messages.send(p, "bots.answerscommand.that-is-not-an");
         }
         return true;
     }

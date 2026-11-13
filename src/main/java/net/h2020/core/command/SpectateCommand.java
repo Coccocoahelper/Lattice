@@ -58,7 +58,7 @@ public final class SpectateCommand implements CommandExecutor, TabCompleter {
         if (byId != null) { spectate(p, byId); return true; }
         Player target = find(args[0]);
         if (target == null) { p.sendMessage(ChatColor.RED + "No player or game called " + args[0] + "."); return true; }
-        if (target == p) { p.sendMessage(ChatColor.RED + "You are already looking at yourself."); return true; }
+        if (target == p) { net.h2020.api.core.Messages.send(p, "core.spectatecommand.you-are-already-looking"); return true; }
         Game game = core.games.gameOf(target);
         if (game == null) {
             p.sendMessage(ChatColor.RED + target.getName() + " is not in a game.");
@@ -90,7 +90,7 @@ public final class SpectateCommand implements CommandExecutor, TabCompleter {
         core.lobby.leaving(p);
         core.scoreboards.clearSidebar(p);
         p.setGameMode(GameMode.SURVIVAL);
-        p.sendMessage(ChatColor.GRAY + "No longer spectating.");
+        net.h2020.api.core.Messages.send(p, "core.spectatecommand.no-longer-spectating");
     }
 
     private Player find(String name) {

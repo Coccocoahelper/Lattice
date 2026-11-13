@@ -1158,7 +1158,7 @@ public final class BedwarsGame implements BedwarsView {
                 m.sendMessage(ChatColor.RED + "" + ChatColor.BOLD + "Alarm! " + feedName(ip) + ChatColor.GRAY + " from "
                         + intruder.team.coloredName() + " Team " + ChatColor.GRAY + "has entered your base!");
             } else {
-                m.sendMessage(ChatColor.RED + "" + ChatColor.BOLD + "Your " + trap.displayName + " has been triggered!");
+                m.sendMessage(net.h2020.api.core.Messages.get("bedwars.game.trap-triggered", "trap", trap.displayName));
             }
             m.playSound(m.getLocation(), Sound.ENDERMAN_TELEPORT, 1f, 1f);
         }
@@ -1223,8 +1223,8 @@ public final class BedwarsGame implements BedwarsView {
             p.teleport(spectatorSpawn);
             Text.title(p, ChatColor.RED + "" + ChatColor.BOLD + "YOU DIED!", ChatColor.YELLOW + "You will respawn in "
                     + ChatColor.RED + settings.efRespawnSeconds() + ChatColor.YELLOW + " seconds!", 0, 30, 0);
-            p.sendMessage(ChatColor.YELLOW + "You will respawn in " + ChatColor.RED + settings.efRespawnSeconds()
-                    + ChatColor.YELLOW + " seconds!");
+            p.sendMessage(net.h2020.api.core.Messages.get("bedwars.game.respawn-in",
+                    "seconds", settings.efRespawnSeconds()));
         }
     }
 
@@ -1323,7 +1323,7 @@ public final class BedwarsGame implements BedwarsView {
         giveKit(bp);
         for (BwPlayer o : players.values()) if (o.player != p) o.player.showPlayer(p);
         Text.title(p, ChatColor.GREEN + "" + ChatColor.BOLD + "RESPAWNED!", "", 0, 30, 10);
-        p.sendMessage(ChatColor.YELLOW + "You have respawned!");
+        net.h2020.api.core.Messages.send(p, "bedwars.bedwarsgame.you-have-respawned");
     }
 
     void checkTeamElimination(BwTeam t) {
@@ -1718,19 +1718,19 @@ public final class BedwarsGame implements BedwarsView {
         BwPlayer bp = data(p);
         if (bp == null) return;
         if (state != GameState.PLAYING) {
-            p.sendMessage(ChatColor.RED + "You can only use /shout during a game!");
+            net.h2020.api.core.Messages.send(p, "bedwars.bedwarsgame.you-can-only-use");
             return;
         }
         if (soloMode()) {
-            p.sendMessage(ChatColor.RED + "You can't use /shout in Solo mode!");
+            net.h2020.api.core.Messages.send(p, "bedwars.bedwarsgame.you-can-t-use");
             return;
         }
         if (bp.eliminated || bp.team == null) {
-            p.sendMessage(ChatColor.RED + "You can't use /shout while spectating!");
+            net.h2020.api.core.Messages.send(p, "bedwars.bedwarsgame.you-can-t-use-2");
             return;
         }
         if (msg == null || msg.trim().isEmpty()) {
-            p.sendMessage(ChatColor.RED + "Usage: /shout <message>");
+            net.h2020.api.core.Messages.send(p, "bedwars.bedwarsgame.usage-shout-message");
             return;
         }
         long now = System.currentTimeMillis();

@@ -129,7 +129,7 @@ final class GameListener implements Listener {
             BwTeam owner = g.bedOwner(b);
             if (owner == null) return;
             if (owner == bp.team) {
-                p.sendMessage(ChatColor.RED + "You can't destroy your own bed!");
+                net.h2020.api.core.Messages.send(p, "bedwars.gamelistener.you-can-t-destroy");
                 return;
             }
             g.destroyBed(owner, p);
@@ -137,7 +137,7 @@ final class GameListener implements Listener {
         }
         if (!g.isPlaced(b)) {
             e.setCancelled(true);
-            p.sendMessage(ChatColor.RED + "You can only break blocks placed by a player!");
+            net.h2020.api.core.Messages.send(p, "bedwars.gamelistener.you-can-only-break");
             return;
         }
         g.unmarkPlaced(b);
@@ -645,7 +645,7 @@ final class GameListener implements Listener {
             else if (intoChest) moving = e.getCursor();
             if (isTierOneTool(moving)) {
                 e.setCancelled(true);
-                p.sendMessage(ChatColor.RED + "The first-tier tool stays in your inventory.");
+                net.h2020.api.core.Messages.send(p, "bedwars.gamelistener.the-first-tier-tool");
             }
         }
     }

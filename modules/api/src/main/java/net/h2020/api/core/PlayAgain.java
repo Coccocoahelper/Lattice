@@ -30,19 +30,21 @@ public final class PlayAgain {
      */
     public static net.md_5.bungee.api.chat.BaseComponent[] parts(boolean win, boolean bedWars) {
         net.md_5.bungee.api.chat.TextComponent result = new net.md_5.bungee.api.chat.TextComponent(
-                win ? "You won!" : (bedWars ? "You lost!" : "You died!"));
+                win ? Messages.raw("end.won") : Messages.raw(bedWars ? "end.lost" : "end.died"));
         result.setColor(win ? net.md_5.bungee.api.ChatColor.GREEN : net.md_5.bungee.api.ChatColor.RED);
         net.md_5.bungee.api.chat.TextComponent ask = new net.md_5.bungee.api.chat.TextComponent(
-                " Want to play again? ");
+                " " + Messages.raw("end.play-again") + " ");
         ask.setColor(net.md_5.bungee.api.ChatColor.YELLOW);
-        net.md_5.bungee.api.chat.TextComponent click = new net.md_5.bungee.api.chat.TextComponent("Click here!");
+        net.md_5.bungee.api.chat.TextComponent click =
+                new net.md_5.bungee.api.chat.TextComponent(Messages.raw("end.click-here"));
         click.setColor(net.md_5.bungee.api.ChatColor.AQUA);
         click.setBold(true);
         click.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(
                 net.md_5.bungee.api.chat.ClickEvent.Action.RUN_COMMAND, "/playagain"));
         click.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(
                 net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT,
-                new net.md_5.bungee.api.chat.ComponentBuilder(net.md_5.bungee.api.ChatColor.YELLOW + "Click to play again").create()));
+                new net.md_5.bungee.api.chat.ComponentBuilder(net.md_5.bungee.api.ChatColor.YELLOW
+                        + Messages.raw("end.click-hover")).create()));
         return new net.md_5.bungee.api.chat.BaseComponent[]{result, ask, click};
     }
 
@@ -64,14 +66,14 @@ public final class PlayAgain {
 
     public static void requeue(Player p) {
         LastGame.Entry e = LastGame.of(p);
-        if (e == null) { p.sendMessage(ChatColor.RED + "You have not finished a game yet."); return; }
+        if (e == null) { net.h2020.api.core.Messages.send(p, "api.playagain.you-have-not-finished"); return; }
         int cd = LastGame.cooldown(p);
-        if (cd > 0) { p.sendMessage(ChatColor.RED + "Wait " + cd + "s before playing again."); return; }
+        if (cd > 0) { p.sendMessage(ChatColor.RED + Messages.raw("end.requeue-wait", "seconds", cd)); return; }
         GameManager gm = H2020.find(GameManager.class);
         if (gm == null) return;
-        if (gm.gameOf(p) != null) { p.sendMessage(ChatColor.RED + "You are already in a game."); return; }
+        if (gm.gameOf(p) != null) { net.h2020.api.core.Messages.send(p, "api.playagain.you-are-already-in"); return; }
         LastGame.stamp(p);
         gm.queue(p, e.mode);
-        p.sendMessage(ChatColor.GREEN + "Playing again: " + ChatColor.WHITE + e.mode.displayName());
+        p.sendMessage(ChatColor.GREEN + Messages.raw("end.playing-again", "mode", e.mode.displayName()));
     }
 }

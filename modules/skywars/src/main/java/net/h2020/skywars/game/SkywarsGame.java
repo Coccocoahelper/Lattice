@@ -493,7 +493,7 @@ public final class SkywarsGame implements SkywarsView {
     public void spectate(Player spectator, UUID target) {
         Player t = Bukkit.getPlayer(target);
         if (t == null || !isAlive(t)) {
-            spectator.sendMessage(ChatColor.RED + "That player is no longer alive!");
+            net.h2020.api.core.Messages.send(spectator, "skywars.skywarsgame.that-player-is-no");
             return;
         }
         spectator.teleport(t.getLocation());
@@ -513,7 +513,7 @@ public final class SkywarsGame implements SkywarsView {
         GameManager gm = H2020.find(GameManager.class);
         if (gm == null) { leaveToLobby(p); return; }
         removePlayer(p);
-        p.sendMessage(ChatColor.GREEN + "Sending you to a new game...");
+        net.h2020.api.core.Messages.send(p, "skywars.skywarsgame.sending-you-to-a");
         if (gm.queue(p, type) == null) gm.sendToLobby(p, GameFamily.SKYWARS);
     }
 
@@ -779,7 +779,7 @@ public final class SkywarsGame implements SkywarsView {
             UUID k = killer.getUniqueId();
             kills.put(k, kills(killer) + 1);
             killer.sendMessage(ChatColor.GOLD + "+" + (insane() ? 15 : 10) + " coins! (Kill)");
-            killer.sendMessage(ChatColor.AQUA + "+1 Soul");
+            net.h2020.api.core.Messages.send(killer, "skywars.skywarsgame.1-soul");
             killer.playSound(killer.getLocation(), Sound.SUCCESSFUL_HIT, 1f, 1f);
         }
         Bukkit.getPluginManager().callEvent(new GameKillEvent(this, victim, killer, true));

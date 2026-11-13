@@ -25,7 +25,7 @@ public final class BedwarsAdminTools implements BedwarsTools {
 
     @Override public void teamChest(CommandSender s, Player asPlayerOrNull) {
         BedwarsGame g = game(asPlayerOrNull);
-        if (g == null) { s.sendMessage(ChatColor.RED + "No bedwars game."); return; }
+        if (g == null) { net.h2020.api.core.Messages.send(s, "bedwars.bedwarsadmintools.no-bedwars-game"); return; }
         for (BwTeam t : g.teams) {
             StringBuilder labels = new StringBuilder();
             if (t.chest != null) {
@@ -46,14 +46,14 @@ public final class BedwarsAdminTools implements BedwarsTools {
 
     @Override public void placeCheck(CommandSender s, Block b) {
         BedwarsGame g = game(s instanceof Player ? (Player) s : null);
-        if (g == null) { s.sendMessage(ChatColor.RED + "No bedwars game in this world."); return; }
+        if (g == null) { net.h2020.api.core.Messages.send(s, "bedwars.bedwarsadmintools.no-bedwars-game-in"); return; }
         String deny = g.placeDenial(b);
         s.sendMessage(deny == null ? ChatColor.GREEN + "placement allowed" : ChatColor.RED + "denied: " + deny);
     }
 
     @Override public void testDeposit(CommandSender s, Player tp, boolean ender) {
         BedwarsGame g = game(tp);
-        if (g == null) { s.sendMessage(ChatColor.RED + "That player is not in a bedwars game."); return; }
+        if (g == null) { net.h2020.api.core.Messages.send(s, "bedwars.bedwarsadmintools.that-player-is-not"); return; }
         BwPlayer bp = g.data(tp);
         BwTeam team = bp.team;
         Block target;
@@ -61,7 +61,7 @@ public final class BedwarsAdminTools implements BedwarsTools {
             target = tp.getLocation().add(0, 2, 0).getBlock();
             target.setType(org.bukkit.Material.ENDER_CHEST);
         } else {
-            if (team == null || team.chest == null) { s.sendMessage(ChatColor.RED + "No team chest for that player."); return; }
+            if (team == null || team.chest == null) { net.h2020.api.core.Messages.send(s, "bedwars.bedwarsadmintools.no-team-chest-for"); return; }
             target = team.chest.getBlock();
         }
         org.bukkit.Material[] mats = {org.bukkit.Material.WOOL, org.bukkit.Material.IRON_INGOT,
@@ -108,7 +108,7 @@ public final class BedwarsAdminTools implements BedwarsTools {
 
     @Override public void generators(CommandSender s, Player asPlayerOrNull) {
         BedwarsGame g = game(asPlayerOrNull);
-        if (g == null) { s.sendMessage(ChatColor.RED + "No game running."); return; }
+        if (g == null) { net.h2020.api.core.Messages.send(s, "bedwars.bedwarsadmintools.no-game-running"); return; }
         s.sendMessage(ChatColor.GREEN + "  map=" + g.mapName() + " type=" + g.type().id());
         s.sendMessage(ChatColor.GREEN + "  diamond=" + g.diamondGenerators().size()
                 + " emerald=" + g.emeraldGenerators().size()

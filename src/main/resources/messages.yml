@@ -1,0 +1,120 @@
+# Every message the plugins send. Edit freely: the file is read on boot and on /h2020 reload.
+# Colours are the usual & codes. {placeholders} are filled by the plugin.
+# A key you delete is restored from the defaults on the next boot, so nothing can leave a message missing.
+
+api:
+  playagain:
+    you-are-already-in: "&cYou are already in a game."
+    you-have-not-finished: "&cYou have not finished a game yet."
+bedwars:
+  bedwarsadmintools:
+    no-bedwars-game: "&cNo bedwars game."
+    no-bedwars-game-in: "&cNo bedwars game in this world."
+    no-game-running: "&cNo game running."
+    no-team-chest-for: "&cNo team chest for that player."
+    that-player-is-not: "&cThat player is not in a bedwars game."
+  bedwarsgame:
+    usage-shout-message: "&cUsage: /shout <message>"
+    you-can-only-use: "&cYou can only use /shout during a game!"
+    you-can-t-use: "&cYou can't use /shout in Solo mode!"
+    you-can-t-use-2: "&cYou can't use /shout while spectating!"
+    you-have-respawned: "&eYou have respawned!"
+  bedwarsmodule:
+    players-only: "&cPlayers only."
+    you-can-only-use: "&cYou can only use /shout in a Bed Wars game!"
+  chest:
+    deposited: "&7Deposited {colour}x{amount} {item}{plural} &7into {chest}&7! &8({total} Total)"
+    full: "&cNo room in the {chest}."
+    not-yours: "&cThat chest belongs to {colour}{team} Team&c."
+  game:
+    respawn-in: "&eYou will respawn in &c{seconds} &eseconds!"
+    trap-triggered: "&c&lYour {trap} &7has been triggered!"
+  gamelistener:
+    the-first-tier-tool: "&cThe first-tier tool stays in your inventory."
+    you-can-only-break: "&cYou can only break blocks placed by a player!"
+    you-can-t-destroy: "&cYou can't destroy your own bed!"
+  itemshop:
+    you-already-have-this: "&cYou already have this item!"
+  shop:
+    cannot-afford: "&cYou don't have enough {currency}!"
+    purchased: "&aYou purchased {item}"
+    upgrade-afford: "&cYou don't have enough Diamonds! Need {short} more."
+  spectatormenu:
+    that-player-is-no: "&cThat player is no longer alive!"
+  teamchest:
+    hold-the-stack-you: "&7Hold the stack you want to deposit."
+    you-keep-your-tools: "&cYou keep your tools and armour."
+  upgradeshop:
+    trap-queue-full: "&cTrap queue full!"
+    you-already-unlocked-this: "&cYou already unlocked this upgrade!"
+bots:
+  answerscommand:
+    that-is-not-an: "&7That is not an answer for the current question."
+  serverquestions:
+    server-that-question-is: "&7[Server] That question is no longer open."
+core:
+  admincommand:
+    games: "&7 games"
+    h2020-build-setspawn-npc: "&e/h2020 build | setspawn | npc <id> | reload"
+    h2020-cheaters-fillspeed-x: "&e/h2020 cheaters <%> | fillspeed <x> | background <n>"
+    h2020-rank-player-rank: "&e/h2020 rank <player> <rank> [color] | level <player> <n>"
+    hypixel2020-admin: "&6Hypixel2020 admin:"
+    lobby-and-world: "&7 lobby and world"
+    no-running-games: "&7No running games."
+    replays: "&7 replays"
+    running-games: "&6Running games:"
+    training-self-play-arena: "&7 training (self-play arena)"
+  gamemanagerimpl:
+    that-game-is-currently: "&cThat game is currently unavailable!"
+  lobbycommand:
+    are-you-sure-type: "&eAre you sure? Type /lobby again if you really want to quit."
+  lobbymenus:
+    that-mode-has-no: "&cThat mode has no game provider yet."
+    you-are-already-connected: "&cYou are already connected to this server!"
+  mapeditservice:
+    nothing-armed-open-the: "&cNothing armed - open the book and pick a point first."
+  playagaincommand:
+    players-only: "&cPlayers only."
+  playcommand:
+    usage-play-game: "&cUsage: /play <game>"
+  pvparena:
+    could-not-create-the: "&cCould not create the arena world."
+  spectatecommand:
+    no-longer-spectating: "&7No longer spectating."
+    you-are-already-looking: "&cYou are already looking at yourself."
+end:
+  click-here: "Click here!"
+  click-hover: "Click to play again"
+  died: "You died!"
+  lost: "You lost!"
+  play-again: "Want to play again?"
+  playing-again: "Playing again: {mode}"
+  requeue-wait: "Wait {seconds}s before playing again."
+  won: "You won!"
+practice:
+  practicemodule:
+    bots-are-not-available: "&7Bots are not available on this server."
+    could-not-start-the: "&cCould not start the drill - see the console."
+    not-the-game-sense: "&7Not the game sense drill."
+    practice-answer-1-3: "&c/practice answer <1-3>"
+    you-are-not-in: "&7You are not in a drill."
+replay:
+  replayviewer:
+    free-camera: "&7Free camera."
+    h2020-replay-list-start: "&c/h2020 replay list|start <id> [speed]|pause|resume|seek <s>|stop"
+    h2020-replay-start-gameid: "&c/h2020 replay start <gameId> [speed]"
+    h2020-replay-verify-gameid: "&c/h2020 replay verify <gameId> [viewer]"
+    no-recordings-yet: "&7No recordings yet."
+    no-such-player: "&cNo such player."
+    replay-stopped: "&7Replay stopped."
+    replays-are-watched-in: "&cReplays are watched in game."
+    that-recording-is-empty: "&cThat recording is empty."
+    watch-one-with-h2020: "&7Watch one with /h2020 replay start <id> [speed]"
+    you-are-not-watching: "&cYou are not watching a replay."
+skywars:
+  skywarsgame:
+    1-soul: "&b+1 Soul"
+    sending-you-to-a: "&aSending you to a new game..."
+    that-player-is-no: "&cThat player is no longer alive!"
+  skywarslistener:
+    you-can-t-place: "&cYou can't place blocks here!"

@@ -251,7 +251,7 @@ public final class ServerQuestions {
     public static boolean answer(Player p, long id, int option) {
         Pending q = PENDING.get(p.getUniqueId());
         if (q == null || q.id != id) {
-            p.sendMessage(ChatColor.GRAY + "[Server] That question is no longer open.");
+            net.h2020.api.core.Messages.send(p, "bots.serverquestions.server-that-question-is");
             return false;
         }
         if (option < 1 || option > q.options.length) return false;

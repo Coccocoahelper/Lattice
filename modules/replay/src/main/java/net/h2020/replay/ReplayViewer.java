@@ -135,7 +135,7 @@ public final class ReplayViewer {
                             org.bukkit.Material mt, int slot, boolean left) {
             switch (mt) {
                 case COMPASS:
-                    if (left) { ses.follow = null; p.sendMessage(ChatColor.GRAY + "Free camera."); }
+                    if (left) { ses.follow = null; net.h2020.api.core.Messages.send(p, "replay.replayviewer.free-camera"); }
                     else openPlayers(p, ses);
                     return;
                 case WATCH: {
@@ -163,7 +163,7 @@ public final class ReplayViewer {
                     return;
                 case BARRIER:
                     stop(p);
-                    p.sendMessage(ChatColor.GRAY + "Replay stopped.");
+                    net.h2020.api.core.Messages.send(p, "replay.replayviewer.replay-stopped");
                     return;
                 default:
                     return;
@@ -179,7 +179,7 @@ public final class ReplayViewer {
         String sub = a.length > 1 ? a[1].toLowerCase() : "list";
         if (sub.equals("list")) { list(s); return; }
         if (sub.equals("verify")) {          // console-friendly: parse + build the world, no viewer needed
-            if (a.length < 3) { s.sendMessage(ChatColor.RED + "/h2020 replay verify <gameId> [viewer]"); return; }
+            if (a.length < 3) { net.h2020.api.core.Messages.send(s, "replay.replayviewer.h2020-replay-verify-gameid"); return; }
             verify(s, a[2]);
             if (a.length > 3) {                       // optional: drive a real session with that player as the viewer
                 Player v = Bukkit.getPlayerExact(a[3]);
@@ -198,7 +198,7 @@ public final class ReplayViewer {
             // the console can drive a session for a named player (testing, or starting one for somebody else)
             boolean targeted = a.length > 4 && Bukkit.getPlayerExact(a[4]) != null;
             boolean boardOnly = a.length > 1 && a[1].equalsIgnoreCase("board");
-            if (!targeted && !boardOnly) { s.sendMessage(ChatColor.RED + "Replays are watched in game."); return; }
+            if (!targeted && !boardOnly) { net.h2020.api.core.Messages.send(s, "replay.replayviewer.replays-are-watched-in"); return; }
         }
         // from here on the "player" is whoever the command is about: the sender, or the named target for the console
         Player p = s instanceof Player ? (Player) s : (a.length > 4 ? Bukkit.getPlayerExact(a[4]) : null);
@@ -207,7 +207,7 @@ public final class ReplayViewer {
         if (sub.equals("stop")) { stop(p); return; }
         if (sub.equals("pause") || sub.equals("resume")) {
             Session ses = SESSIONS.get(p.getUniqueId());
-            if (ses == null) { p.sendMessage(ChatColor.RED + "You are not watching a replay."); return; }
+            if (ses == null) { net.h2020.api.core.Messages.send(p, "replay.replayviewer.you-are-not-watching"); return; }
             if (sub.equals("pause") && !ses.paused) { ses.paused = true; ses.pausedFor = System.currentTimeMillis(); }
             if (sub.equals("resume") && ses.paused) {
                 ses.paused = false;
@@ -218,7 +218,7 @@ public final class ReplayViewer {
         }
         if (sub.equals("seek")) {
             Session ses = SESSIONS.get(p.getUniqueId());
-            if (ses == null) { p.sendMessage(ChatColor.RED + "You are not watching a replay."); return; }
+            if (ses == null) { net.h2020.api.core.Messages.send(p, "replay.replayviewer.you-are-not-watching"); return; }
             double secs = a.length > 2 ? parse(a[2], 0) : 0;
             seek(ses, (long) (secs * 1000));
             p.sendMessage(ChatColor.GRAY + "Replay at " + (int) (secs) + "s.");
@@ -226,7 +226,7 @@ public final class ReplayViewer {
         }
         if (sub.equals("board")) {
             Player who = a.length > 2 ? Bukkit.getPlayerExact(a[2]) : p;
-            if (who == null) { s.sendMessage(ChatColor.RED + "No such player."); return; }
+            if (who == null) { net.h2020.api.core.Messages.send(s, "replay.replayviewer.no-such-player"); return; }
             org.bukkit.scoreboard.Objective o =
                     who.getScoreboard().getObjective(org.bukkit.scoreboard.DisplaySlot.SIDEBAR);
             if (o == null) { s.sendMessage(ChatColor.GRAY + "No sidebar for " + who.getName() + "."); return; }
@@ -238,14 +238,14 @@ public final class ReplayViewer {
             return;
         }
         if (sub.equals("start")) {
-            if (a.length < 3) { p.sendMessage(ChatColor.RED + "/h2020 replay start <gameId> [speed]"); return; }
+            if (a.length < 3) { net.h2020.api.core.Messages.send(p, "replay.replayviewer.h2020-replay-start-gameid"); return; }
             double speed = a.length > 3 ? Math.max(0.25, Math.min(8, parse(a[3], 1))) : 1.0;
             Player who = a.length > 4 ? Bukkit.getPlayerExact(a[4]) : p;
             if (who == null) { p.sendMessage(ChatColor.RED + "No such player " + a[4] + "."); return; }
             start(who, a[2], speed);
             return;
         }
-        p.sendMessage(ChatColor.RED + "/h2020 replay list|start <id> [speed]|pause|resume|seek <s>|stop");
+        net.h2020.api.core.Messages.send(p, "replay.replayviewer.h2020-replay-list-start");
     }
 
     /** Read a recording end to end and build its cinema world, reporting what it contains. */
@@ -290,7 +290,7 @@ public final class ReplayViewer {
     private static void list(CommandSender s) {
         File dir = Recorder.dir();
         File[] files = dir == null ? null : dir.listFiles();
-        if (files == null || files.length == 0) { s.sendMessage(ChatColor.GRAY + "No recordings yet."); return; }
+        if (files == null || files.length == 0) { net.h2020.api.core.Messages.send(s, "replay.replayviewer.no-recordings-yet"); return; }
         List<File> list = new ArrayList<File>();
         for (File f : files) if (f.getName().endsWith(".jsonl")) list.add(f);
         list.sort(new java.util.Comparator<File>() {
@@ -309,7 +309,7 @@ public final class ReplayViewer {
                     + ChatColor.GRAY + "  " + mode + ", " + (f.length() / 1024) + " KB, "
                     + new java.text.SimpleDateFormat("dd MMM HH:mm").format(new java.util.Date(f.lastModified())));
         }
-        s.sendMessage(ChatColor.GRAY + "Watch one with /h2020 replay start <id> [speed]");
+        net.h2020.api.core.Messages.send(s, "replay.replayviewer.watch-one-with-h2020");
     }
 
     // ------------------------------------------------------------------------------------------------ playback
@@ -403,7 +403,7 @@ public final class ReplayViewer {
         } finally {
             try { if (r != null) r.close(); } catch (Throwable ignored) { }
         }
-        if (frames.isEmpty()) { p.sendMessage(ChatColor.RED + "That recording is empty."); return; }
+        if (frames.isEmpty()) { net.h2020.api.core.Messages.send(p, "replay.replayviewer.that-recording-is-empty"); return; }
 
         // The replay needs the map's world, and only a game-owned world is safe: an instance world created outside a
         // game is ticked by WindSpigot with a chunk provider that was never attached, which crashes the server. So the

@@ -399,7 +399,7 @@ public final class MapEditService implements Listener {
         if (e.getAction() == Action.LEFT_CLICK_BLOCK && type == Material.BLAZE_ROD) {
             e.setCancelled(true);
             if (s.armed == null && s.queue.isEmpty()) {
-                e.getPlayer().sendMessage(ChatColor.RED + "Nothing armed - open the book and pick a point first.");
+                net.h2020.api.core.Messages.send(e.getPlayer(), "core.mapeditservice.nothing-armed-open-the");
                 return;
             }
             apply(e.getPlayer(), s, e.getClickedBlock());

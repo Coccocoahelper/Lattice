@@ -78,7 +78,7 @@ public final class ItemShop {
         if (bp == null || !bp.playing() || bp.team() == null) return false;
         Price pr = price(g, bp, item);
         if (pr == null) {
-            p.sendMessage(ChatColor.RED + "You already have this item!");
+            net.h2020.api.core.Messages.send(p, "bedwars.itemshop.you-already-have-this");
             p.playSound(p.getLocation(), Sound.ENDERMAN_TELEPORT, 1f, 0.5f);
             return false;
         }
@@ -91,7 +91,7 @@ public final class ItemShop {
         }
         take(p, pr.currency, pr.cost);
         String name = deliver(g, bp, item);
-        p.sendMessage(ChatColor.GREEN + "You purchased " + ChatColor.GOLD + name);
+        p.sendMessage(ChatColor.GREEN + net.h2020.api.core.Messages.raw("bedwars.shop.purchased", "item", ChatColor.GOLD + name));
         p.playSound(p.getLocation(), Sound.NOTE_PLING, 1f, 2f);
         return true;
     }
@@ -311,7 +311,7 @@ public final class ItemShop {
         lore.add(ChatColor.AQUA + (quickBuyPage ? "Sneak Click to remove from Quick Buy" : "Sneak Click to add to Quick Buy"));
         if (owned) lore.add(tiered ? ChatColor.GREEN + "MAXED!" : ChatColor.GREEN + "UNLOCKED");
         else if (afford) lore.add(ChatColor.YELLOW + "Click to purchase!");
-        else lore.add(ChatColor.RED + "You don't have enough " + ShopCatalog.name(pr.currency, 2) + "!");
+        else lore.add(ChatColor.RED + net.h2020.api.core.Messages.raw("bedwars.shop.cannot-afford", "currency", ShopCatalog.name(pr.currency, 2)));
 
         ItemMeta meta = base.getItemMeta();
         if (meta != null) {

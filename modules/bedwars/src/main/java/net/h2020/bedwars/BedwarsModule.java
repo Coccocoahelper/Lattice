@@ -153,13 +153,13 @@ public final class BedwarsModule implements Module, GameProvider {
         @Override
         public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
             if (!(sender instanceof Player)) {
-                sender.sendMessage(ChatColor.RED + "Players only.");
+                net.h2020.api.core.Messages.send(sender, "bedwars.bedwarsmodule.players-only");
                 return true;
             }
             Player p = (Player) sender;
             BedwarsGame g = gameOf(p);
             if (g == null) {
-                p.sendMessage(ChatColor.RED + "You can only use /shout in a Bed Wars game!");
+                net.h2020.api.core.Messages.send(p, "bedwars.bedwarsmodule.you-can-only-use");
                 return true;
             }
             StringBuilder sb = new StringBuilder();

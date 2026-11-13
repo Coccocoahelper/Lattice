@@ -22,7 +22,7 @@ public final class PlayCommand implements TabExecutor {
         if (!(sender instanceof Player)) { sender.sendMessage("Players only."); return true; }
         Player p = (Player) sender;
         if (args.length < 1) {
-            p.sendMessage(ChatColor.RED + "Usage: /play <game>");
+            net.h2020.api.core.Messages.send(p, "core.playcommand.usage-play-game");
             p.sendMessage(ChatColor.GRAY + "Games: " + ids());
             return true;
         }

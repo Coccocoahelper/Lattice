@@ -245,7 +245,7 @@ public final class GameManagerImpl implements GameManager, Listener {
         }
         boolean human = !CoreUtil.isBot(player);
         if (!providers.containsKey(type.family())) {
-            if (human) player.sendMessage(ChatColor.RED + "That game is currently unavailable!");
+            if (human) net.h2020.api.core.Messages.send(player, "core.gamemanagerimpl.that-game-is-currently");
             return null;
         }
         Set<String> tried = new HashSet<>();

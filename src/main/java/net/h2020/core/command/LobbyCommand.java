@@ -48,7 +48,7 @@ public final class LobbyCommand implements CommandExecutor {
             long now = System.currentTimeMillis();
             if (at == null || now - at > CONFIRM_MS) {
                 confirm.put(p.getUniqueId(), now);
-                p.sendMessage(ChatColor.YELLOW + "Are you sure? Type /lobby again if you really want to quit.");
+                net.h2020.api.core.Messages.send(p, "core.lobbycommand.are-you-sure-type");
                 return true;
             }
         }

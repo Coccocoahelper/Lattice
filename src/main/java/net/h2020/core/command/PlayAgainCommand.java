@@ -16,7 +16,7 @@ public final class PlayAgainCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender s, Command c, String label, String[] a) {
-        if (!(s instanceof Player)) { s.sendMessage(ChatColor.RED + "Players only."); return true; }
+        if (!(s instanceof Player)) { net.h2020.api.core.Messages.send(s, "core.playagaincommand.players-only"); return true; }
         requeue((Player) s);
         return true;
     }

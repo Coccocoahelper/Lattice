@@ -182,7 +182,7 @@ public final class SkywarsListener implements Listener {
         if (g.preGame() || !g.isAlive(e.getPlayer())) { e.setCancelled(true); return; }
         if (!g.canBuildAt(e.getBlock().getLocation())) {
             e.setCancelled(true);
-            e.getPlayer().sendMessage(ChatColor.RED + "You can't place blocks here!");
+            net.h2020.api.core.Messages.send(e.getPlayer(), "skywars.skywarslistener.you-can-t-place");
         }
     }
 
@@ -193,7 +193,7 @@ public final class SkywarsListener implements Listener {
         if (g.preGame() || !g.isAlive(e.getPlayer())) { e.setCancelled(true); return; }
         if (!g.canBuildAt(e.getBlockClicked().getRelative(e.getBlockFace()).getLocation())) {
             e.setCancelled(true);
-            e.getPlayer().sendMessage(ChatColor.RED + "You can't place blocks here!");
+            net.h2020.api.core.Messages.send(e.getPlayer(), "skywars.skywarslistener.you-can-t-place");
         }
     }
 

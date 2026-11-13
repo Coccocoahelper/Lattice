@@ -51,19 +51,19 @@ public final class TeamChest {
             BwTeam owner = owner(g, block);
             if (owner != null && owner != bp.team) {
                 CombatStats.inc("deposit.refused");
-                p.sendMessage(ChatColor.RED + "That chest belongs to " + owner.color.chat + owner.color.displayName
-                        + " Team" + ChatColor.RED + ".");
+                p.sendMessage(net.h2020.api.core.Messages.get("bedwars.chest.not-yours",
+                        "colour", owner.color.chat, "team", owner.color.displayName));
                 return;
             }
         }
         ItemStack held = p.getItemInHand();
         if (held == null || held.getType() == Material.AIR) {
-            p.sendMessage(ChatColor.GRAY + "Hold the stack you want to deposit.");
+            net.h2020.api.core.Messages.send(p, "bedwars.teamchest.hold-the-stack-you");
             return;
         }
         if (KEEP.contains(held.getType())) {
             CombatStats.inc("deposit.refused");
-            p.sendMessage(ChatColor.RED + "You keep your tools and armour.");
+            net.h2020.api.core.Messages.send(p, "bedwars.teamchest.you-keep-your-tools");
             return;
         }
         Inventory target;
@@ -91,7 +91,7 @@ public final class TeamChest {
                     totalIn(target, moving.getType()), ender)
                     + ChatColor.GRAY + " (" + rest.getAmount() + " left in hand)");
         } else {
-            p.sendMessage(ChatColor.RED + "No room in the " + (ender ? "ender chest" : "team chest") + ".");
+            p.sendMessage(ChatColor.RED + net.h2020.api.core.Messages.raw("bedwars.chest.full", "chest", ender ? "ender chest" : "team chest"));
         }
     }
 
@@ -119,9 +119,10 @@ public final class TeamChest {
             col = ChatColor.YELLOW.toString();
             plural = false;
         }
-        return ChatColor.GRAY + "Deposited " + col + "x" + amount + " " + name + (plural && amount != 1 ? "s" : "")
-                + ChatColor.GRAY + " into " + (ender ? ChatColor.DARK_PURPLE + "Ender Chest" : ChatColor.AQUA + "Team Chest")
-                + ChatColor.GRAY + "!" + ChatColor.DARK_GRAY + " (" + total + " Total)";
+        return net.h2020.api.core.Messages.get("bedwars.chest.deposited",
+                "colour", col, "amount", amount, "item", name, "plural", plural && amount != 1 ? "s" : "",
+                "chest", (ender ? ChatColor.DARK_PURPLE + "Ender Chest" : ChatColor.AQUA + "Team Chest"),
+                "total", total);
     }
 
     /** How much of one item the chest holds now, counted after the deposit landed. */

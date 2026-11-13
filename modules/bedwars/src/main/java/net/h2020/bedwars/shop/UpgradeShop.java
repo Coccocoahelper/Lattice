@@ -49,7 +49,7 @@ public final class UpgradeShop {
         BwTeam team = bp.team();
         int lvl = team.upgrades().level(u);
         if (lvl >= u.maxLevel()) {
-            p.sendMessage(ChatColor.RED + "You already unlocked this upgrade!");
+            net.h2020.api.core.Messages.send(p, "bedwars.upgradeshop.you-already-unlocked-this");
             p.playSound(p.getLocation(), Sound.ENDERMAN_TELEPORT, 1f, 0.5f);
             return false;
         }
@@ -67,7 +67,7 @@ public final class UpgradeShop {
         BwTeam team = bp.team();
         List<Trap> q = team.upgrades().traps();
         if (q.size() >= Trap.MAX_QUEUE) {
-            p.sendMessage(ChatColor.RED + "Trap queue full!");
+            net.h2020.api.core.Messages.send(p, "bedwars.upgradeshop.trap-queue-full");
             p.playSound(p.getLocation(), Sound.ENDERMAN_TELEPORT, 1f, 0.5f);
             return false;
         }

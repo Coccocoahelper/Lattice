@@ -170,7 +170,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
         String sub = args[0].toLowerCase(java.util.Locale.ROOT);
         if (sub.equals("leave") || sub.equals("quit") || sub.equals("lobby")) {
             PracticeGame g = byPlayer.get(p.getUniqueId());
-            if (g == null) { p.sendMessage(ChatColor.GRAY + "You are not in a drill."); return true; }
+            if (g == null) { net.h2020.api.core.Messages.send(p, "practice.practicemodule.you-are-not-in"); return true; }
             g.removePlayer(p);
             GameManager gm = H2020.find(GameManager.class);
             if (gm != null) gm.sendToLobby(p, null);
@@ -180,10 +180,10 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
         if (sub.equals("debug")) { debug(sender); return true; }
         if (sub.equals("answer")) {
             PracticeGame g = byPlayer.get(p.getUniqueId());
-            if (g == null) { p.sendMessage(ChatColor.GRAY + "You are not in a drill."); return true; }
-            if (!(g.drill() instanceof GameSenseDrill)) { p.sendMessage(ChatColor.GRAY + "Not the game sense drill."); return true; }
+            if (g == null) { net.h2020.api.core.Messages.send(p, "practice.practicemodule.you-are-not-in"); return true; }
+            if (!(g.drill() instanceof GameSenseDrill)) { net.h2020.api.core.Messages.send(p, "practice.practicemodule.not-the-game-sense"); return true; }
             int n;
-            try { n = Integer.parseInt(args[1]); } catch (Exception e) { p.sendMessage(ChatColor.RED + "/practice answer <1-3>"); return true; }
+            try { n = Integer.parseInt(args[1]); } catch (Exception e) { net.h2020.api.core.Messages.send(p, "practice.practicemodule.practice-answer-1-3"); return true; }
             ((GameSenseDrill) g.drill()).answer(g, p, n);
             return true;
         }
@@ -207,7 +207,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
 
         PracticeGame g = start(mode);
         if (g == null) {
-            p.sendMessage(ChatColor.RED + "Could not start the drill - see the console.");
+            net.h2020.api.core.Messages.send(p, "practice.practicemodule.could-not-start-the");
             return true;
         }
         g.addPlayer(p);
@@ -272,7 +272,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
     private void spawnBots(PracticeGame g, int n, String technique) {
         BotService bs = H2020.find(BotService.class);
         if (bs == null) {
-            for (Player p : g.players()) p.sendMessage(ChatColor.GRAY + "Bots are not available on this server.");
+            for (Player p : g.players()) net.h2020.api.core.Messages.send(p, "practice.practicemodule.bots-are-not-available");
             return;
         }
         Location base = g.drill().spawn();
@@ -338,7 +338,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
 
     private void stats(Player p) {
         PracticeGame g = byPlayer.get(p.getUniqueId());
-        if (g == null) { p.sendMessage(ChatColor.GRAY + "You are not in a drill."); return; }
+        if (g == null) { net.h2020.api.core.Messages.send(p, "practice.practicemodule.you-are-not-in"); return; }
         p.sendMessage(ChatColor.AQUA + g.drill().display());
         for (String line : g.drill().stats(g, p)) p.sendMessage(ChatColor.GRAY + "  " + line);
     }

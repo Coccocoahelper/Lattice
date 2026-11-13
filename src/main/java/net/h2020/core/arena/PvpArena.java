@@ -154,7 +154,7 @@ public final class PvpArena implements Listener {
     /** Put a player on the pad in survival, fed and full, with what a melee test needs. */
     public static void join(Player p) {
         Location s = spawn();
-        if (s == null) { p.sendMessage(ChatColor.RED + "Could not create the arena world."); return; }
+        if (s == null) { net.h2020.api.core.Messages.send(p, "core.pvparena.could-not-create-the"); return; }
         p.teleport(s);
         p.setGameMode(GameMode.SURVIVAL);
         p.setHealth(20.0);

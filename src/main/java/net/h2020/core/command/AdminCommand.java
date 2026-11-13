@@ -42,7 +42,7 @@ public final class AdminCommand implements TabExecutor {
     private static final Pattern DATE = Pattern.compile("\\d{2}/\\d{2}/\\d{2}");
     private static final String[] TEAMSHIFT_KEYS = {"spawn", "bed", "generator", "shop", "upgrades", "base"};
     private static final String TEAM_COLOURS = "red, blue, green, yellow, aqua, white, pink, gray";
-    private static final List<String> SUBS = Arrays.asList("games", "create", "start", "fill", "bots", "watch", "end", "train", "replay", "reload", "date", "edit", "slimeimport", "lobbyprobe", "maptag", "teamshift", "tags", "mapimportdir",            "rank", "level", "build", "setspawn", "npc", "cheaters", "fillspeed", "background", "npcprobe", "ping", "pingselftest", "settingsprobe",            "sidebar");
+    private static final List<String> SUBS = Arrays.asList("games", "create", "start", "fill", "bots", "watch", "end", "train", "replay", "reload", "date", "edit", "slimeimport", "messages", "lobbyprobe", "maptag", "teamshift", "tags", "mapimportdir",            "rank", "level", "build", "setspawn", "npc", "cheaters", "fillspeed", "background", "npcprobe", "ping", "pingselftest", "settingsprobe",            "sidebar");
     private final Core core;
 
     public AdminCommand(Core core) { this.core = core; }
@@ -179,6 +179,29 @@ public final class AdminCommand implements TabExecutor {
                 } finally {
                     net.h2020.api.map.SlimeWorlds.release(w);
                 }
+                return true;
+            }
+            case "messages": {
+                // /h2020 messages [key|list]: what a message resolves to, and where the file is
+                if (a.length < 2) {
+                    s.sendMessage(g("messages: " + net.h2020.api.core.Messages.defaults().size()
+                            + " keys, edit " + net.h2020.api.core.Messages.path()));
+                    s.sendMessage(g("  /h2020 messages <key> to print one, /h2020 messages list to dump them"));
+                    return true;
+                }
+                if (a[1].equalsIgnoreCase("list")) {
+                    for (java.util.Map.Entry<String, String> e : net.h2020.api.core.Messages.defaults().entrySet()) {
+                        s.sendMessage(ChatColor.GRAY + e.getKey()
+                                + ChatColor.DARK_GRAY + " = "
+                                + ChatColor.WHITE + e.getValue());
+                    }
+                    return true;
+                }
+                if (!net.h2020.api.core.Messages.has(a[1])) {
+                    s.sendMessage(r("No such message key: " + a[1]));
+                    return true;
+                }
+                s.sendMessage(g(a[1] + " = ") + net.h2020.api.core.Messages.get(a[1]));
                 return true;
             }
             case "lobbyprobe": {
@@ -1072,6 +1095,8 @@ public final class AdminCommand implements TabExecutor {
             }
             case "reload": {
                 core.plugin.reloadConfig();
+                net.h2020.api.core.Messages.reload(core.plugin);
+                s.sendMessage(g("messages reloaded from " + net.h2020.api.core.Messages.path()));
                 core.config.load(core.plugin);
                 core.config.applyNetwork(core.plugin);
                 net.h2020.api.game.BedwarsTools btr = H2020.find(net.h2020.api.game.BedwarsTools.class);
@@ -1250,8 +1275,8 @@ public final class AdminCommand implements TabExecutor {
     }
 
     private void games(CommandSender s) {
-        if (core.games.games().isEmpty()) { s.sendMessage(ChatColor.GRAY + "No running games."); return; }
-        s.sendMessage(ChatColor.GOLD + "Running games:");
+        if (core.games.games().isEmpty()) { net.h2020.api.core.Messages.send(s, "core.admincommand.no-running-games"); return; }
+        net.h2020.api.core.Messages.send(s, "core.admincommand.running-games");
         for (Game game : core.games.games()) {
             int bots = 0;
             for (Player p : game.players()) if (CoreUtil.isBot(p)) bots++;
@@ -1264,8 +1289,8 @@ public final class AdminCommand implements TabExecutor {
     }
 
     private static void help(CommandSender s) {
-        s.sendMessage(ChatColor.GOLD + "Hypixel2020 admin:");
-        s.sendMessage(ChatColor.GRAY + " games");
+        net.h2020.api.core.Messages.send(s, "core.admincommand.hypixel2020-admin");
+        net.h2020.api.core.Messages.send(s, "core.admincommand.games");
         s.sendMessage(ChatColor.YELLOW + "/h2020 games" + ChatColor.GRAY + " - list running games");
         s.sendMessage(ChatColor.YELLOW + "/h2020 create <type> [map]" + ChatColor.GRAY + " - create a game");
         s.sendMessage(ChatColor.YELLOW + "/h2020 start <gameId>" + ChatColor.GRAY + " - fill with bots so it starts");
@@ -1275,18 +1300,18 @@ public final class AdminCommand implements TabExecutor {
         s.sendMessage(ChatColor.YELLOW + "/h2020 watch <gameId>" + ChatColor.GRAY + " - spectate a game");
         s.sendMessage(ChatColor.YELLOW + "/h2020 end <gameId>" + ChatColor.GRAY + " - end a game now");
         s.sendMessage(ChatColor.YELLOW + "/h2020 create bedwars_duel [map]" + ChatColor.GRAY + " - 1v1 on a solo map (RED vs AQUA)");
-        s.sendMessage(ChatColor.GRAY + " training (self-play arena)");
+        net.h2020.api.core.Messages.send(s, "core.admincommand.training-self-play-arena");
         s.sendMessage(ChatColor.YELLOW + "/h2020 train start [total] [train] [eval]" + ChatColor.GRAY + " - run generations");
         s.sendMessage(ChatColor.YELLOW + "/h2020 train stop | report | promote | discard" + ChatColor.GRAY + " - control the run");
-        s.sendMessage(ChatColor.GRAY + " replays");
+        net.h2020.api.core.Messages.send(s, "core.admincommand.replays");
         s.sendMessage(ChatColor.YELLOW + "/h2020 replay list" + ChatColor.GRAY + " - recorded games");
         s.sendMessage(ChatColor.YELLOW + "/h2020 replay start <gameId> [speed]" + ChatColor.GRAY + " - watch one (also in the game menu)");
         s.sendMessage(ChatColor.YELLOW + "/h2020 replay pause | resume | seek <s> | stop" + ChatColor.GRAY + " - playback");
-        s.sendMessage(ChatColor.GRAY + " lobby and world");
+        net.h2020.api.core.Messages.send(s, "core.admincommand.lobby-and-world");
         s.sendMessage(ChatColor.YELLOW + "/h2020 date [MM/dd/yy|today|2020]" + ChatColor.GRAY + " - scoreboard date");
-        s.sendMessage(ChatColor.YELLOW + "/h2020 rank <player> <rank> [color] | level <player> <n>");
-        s.sendMessage(ChatColor.YELLOW + "/h2020 cheaters <%> | fillspeed <x> | background <n>");
-        s.sendMessage(ChatColor.YELLOW + "/h2020 build | setspawn | npc <id> | reload");
+        net.h2020.api.core.Messages.send(s, "core.admincommand.h2020-rank-player-rank");
+        net.h2020.api.core.Messages.send(s, "core.admincommand.h2020-cheaters-fillspeed-x");
+        net.h2020.api.core.Messages.send(s, "core.admincommand.h2020-build-setspawn-npc");
         s.sendMessage(ChatColor.GRAY + " bots have their own help: " + ChatColor.YELLOW + "/bot help");
     }
 

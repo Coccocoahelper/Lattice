@@ -45,6 +45,8 @@ public final class CoreModule implements Module {
     @Override
     public void enable(JavaPlugin plugin) {
         net.h2020.api.game.GameModes.install();
+        // every message the plugins send lives in messages.yml, merged with the defaults on each boot
+        net.h2020.api.core.Messages.load(plugin);
         // the two data files a server edits: identity and menu presentation
         for (String res : new String[]{"network.yml", "menus.yml"}) {
             try { plugin.saveResource(res, false); }

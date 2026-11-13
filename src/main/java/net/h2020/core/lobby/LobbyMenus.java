@@ -145,7 +145,7 @@ public final class LobbyMenus {
         m.set(slot, b.hideAll().build(), new Menu.Click() {
             @Override public void click(Player p, ClickType ct) {
                 p.closeInventory();
-                if (!(type instanceof GameType)) { p.sendMessage(ChatColor.RED + "That mode has no game provider yet."); return; }
+                if (!(type instanceof GameType)) { net.h2020.api.core.Messages.send(p, "core.lobbymenus.that-mode-has-no"); return; }
                 core.games.queue(p, (GameType) type);
             }
         });
@@ -178,7 +178,7 @@ public final class LobbyMenus {
                 m.set(slot, new ItemBuilder(Material.STAINED_CLAY, number, 14).name(ChatColor.RED + "Lobby #" + number)
                         .lore(ChatColor.GRAY + "Players: " + players + "/100", "", ChatColor.RED + "Already connected!").build(),
                         new Menu.Click() {
-                            @Override public void click(Player pl, ClickType type) { pl.sendMessage(ChatColor.RED + "You are already connected to this server!"); }
+                            @Override public void click(Player pl, ClickType type) { net.h2020.api.core.Messages.send(pl, "core.lobbymenus.you-are-already-connected"); }
                         });
             } else if (players >= 100) {
                 m.set(slot, new ItemBuilder(Material.STAINED_CLAY, number, 14).name(ChatColor.RED + "Lobby #" + number)

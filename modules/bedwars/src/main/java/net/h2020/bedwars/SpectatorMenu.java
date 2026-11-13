@@ -37,7 +37,7 @@ final class SpectatorMenu {
                 @Override public void click(Player p, ClickType type) {
                     p.closeInventory();
                     if (!bp.playing() || !bp.player.isOnline()) {
-                        p.sendMessage(ChatColor.RED + "That player is no longer alive!");
+                        net.h2020.api.core.Messages.send(p, "bedwars.spectatormenu.that-player-is-no");
                         return;
                     }
                     p.teleport(bp.player.getLocation());
