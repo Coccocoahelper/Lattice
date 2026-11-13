@@ -121,6 +121,10 @@ public final class CoreModule implements Module {
             @Override public void run() {
                 core.lobby.applyWorldSettings();
                 core.lobby.start();
+                // hubs keep their players: falling off a lobby edge is a rescue, not a death
+                net.h2020.core.lobby.VoidGuard guard = new net.h2020.core.lobby.VoidGuard(plugin, core.lobby);
+                register(plugin, guard);
+                guard.start();
                 core.npcs.start();
                 core.lobbyBots.start();
             }
