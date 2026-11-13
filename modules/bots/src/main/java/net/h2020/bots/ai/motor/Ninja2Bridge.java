@@ -12,9 +12,10 @@ import org.bukkit.Location;
  * <p><b>Rotations</b> follow LibreBounce's god-bridge rotation mode (Scaffold, {@code generateGodBridgeRotations}):
  * the travel direction is snapped to 45 degree steps, and while the bot is bridging straight the head sits 45 degrees
  * off that axis, on a side that flips when the body is leaning off the block and the next cell is air. The diagonal
- * case looks straight down the snapped direction instead. Pitches are that mode's own: 73.5 straight, 75.6 diagonal,
- * 75 for the stationary pose. The head only commits to a god-bridge angle near an edge (their {@code edgeLimit} of
- * 2.5 blocks); further in it keeps the angle it had, which is why the pose reads as a carry rather than a twitch.
+ * case looks straight down the snapped direction instead. Their look-down pitches are not used: this bridge fires on
+ * the client's own crosshair, so it walks at 79.5 degrees, the angle that actually meets the support's face. Only the
+ * yaw comes from that mode. The head commits to it near an edge (their {@code edgeLimit} of 2.5 blocks); further in it
+ * keeps the angle it had, so the pose reads as a carry rather than a twitch.
  *
  * <p><b>Crouch and placement</b> follow IllusionClient's BridgeAssist: sneak once the body is 0.24 past the edge, hold
  * the sneak for about 85 ms after leaving it, sneak immediately after a click that went out without one, and - the
@@ -30,9 +31,8 @@ import org.bukkit.Location;
 public final class Ninja2Bridge extends BridgeMethod {
 
     // ---- LibreBounce god-bridge rotation mode ----
-    private static final float STRAIGHT_PITCH = 73.5f;
-    private static final float DIAGONAL_PITCH = 75.6f;
-    private static final float NORMAL_PITCH = 75f;
+    /** The pitch the ray needs to meet the support's face at this method's edge distance. */
+    private static final float PITCH = 79.5f;
     /** Only commit to a god-bridge angle this close to an edge. */
     private static final float EDGE_LIMIT = 2.5f;
 
@@ -70,9 +70,10 @@ public final class Ninja2Bridge extends BridgeMethod {
         hTarget = EDGE_OFFSET;
         depth = 0.25;
         eyeH = 1.62;
-        // The click needs a pitch that actually meets the support's face - that is physics. The god-bridge 73.5 is
-        // the look-down angle a client wears between blocks, so it is applied by walkPitch below, not here.
-        pitch = pitchFloor(facePitch(eyeH, depth, hTarget, 0f));
+        // 79.5 degrees: the angle that puts the ray on the support's face at this edge distance. The god-bridge
+        // look-down constants are not used for the pitch - this bridge fires on the client's own crosshair, so the
+        // pitch has to meet the face for the click to land.
+        pitch = PITCH;
         wobbleAmp = 0;
         // the corner is what answers the click, so any face that reaches the next cell will do
         anyFace = true;
