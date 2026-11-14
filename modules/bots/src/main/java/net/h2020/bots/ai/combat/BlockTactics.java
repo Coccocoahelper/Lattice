@@ -47,6 +47,8 @@ final class BlockTactics {
     private int mode = NONE;
     private Player foe;
     private int[][] cells;
+    /** This wall has already been counted as a stomp. */
+    private boolean stompScored;
     private int cellIdx;
     private int phase;
     private long started;
@@ -138,6 +140,12 @@ final class BlockTactics {
             }
             case STOMP: {
                 BlockPlacer.Result r = placer.tick();
+                // The wall counts as a stomp the moment its first block is down: waiting for all three meant a wall
+                // that sealed the step and then failed on a side cell was recorded as nothing at all (2 of 21).
+                if (!stompScored && placer.clickedThisTarget()) {
+                    stompScored = true;
+                    CombatStats.inc("block.stomp");
+                }
                 if (r == BlockPlacer.Result.RUNNING) return true;
                 if (r == BlockPlacer.Result.DONE) net.h2020.bots.ai.ml.PlacementPolicy.completed(ctx.player.getUniqueId(), (int) (ctx.tick - started));
                 if (r == BlockPlacer.Result.DONE) {
@@ -498,27 +506,64 @@ final class BlockTactics {
         return true;
     }
 
+    /**
+     * Stomp: three blocks across the opponent's approach, not one in the step they are taking.
+     *
+     * <p>One block is a step to the side; three is a wall they have to break or go round, and going round costs them
+     * the half second the fight is decided by. It is more aggressive on purpose: a wider band (2.0 to 5.5 blocks), a
+     * shorter cooldown (30 ticks instead of 60) and no dice roll at all when they are already running at us - a
+     * committed approach is the one moment the wall cannot be dodged, so it is not left to a coin flip.
+     */
     private boolean doStomp(Scene f) {
-        if (f.d < 2.3 || f.d > 4.6 || f.dy > 1.2) return false;
-        if (ctx.tick - lastStomp <= 60) return false;
-        if (!movingTowardMe(f.target, f.me) && f.d >= 3.1) return false;
-        if (ctx.rng.nextDouble() >= style.stomp) return false;
+        if (f.d < 2.0 || f.d > 5.5 || f.dy > 1.4) return false;
+        if (f.blocks < 1) return false;
+        if (ctx.tick - lastStomp <= 30) return false;
+        boolean charging = movingTowardMe(f.target, f.me);
+        if (!charging && f.d >= 3.1) return false;
+        if (!charging && ctx.rng.nextDouble() >= style.stomp) return false;
         Location ahead = net.h2020.bots.ai.ml.FightFlow.aheadOf(ctx, f.target, f.d, 3);
         int tx = floor(ahead.getX()), ty = floor(f.tl.getY() + 0.01), tz = floor(ahead.getZ());
         int[] dir = lineDir(f.me, f.tl);
         if (dir == null) return false;
         int sx = tx + dir[0], sz = tz + dir[1];
         if (!f.wv.passable(sx, ty, sz) || !f.wv.passable(sx, ty + 1, sz)) return false;
+        // The wall is in front of them, but it has to be in our reach and in our sight to go up at all. A cell
+        // alongside a moving opponent is often behind their shoulder by the time the crosshair arrives (measured:
+        // 28 walls tried, 3 placed), so when that anchor is not visible we put the wall between us instead - still
+        // in front of them, two blocks off our own face, and always reachable.
+        if (BlockPlacer.findSupport(f.wv, sx, ty, sz, ctx.eye(), 4.4, true) == null) {
+            int ax = floor(f.me.getX()) + dir[0] * 2, az = floor(f.me.getZ()) + dir[1] * 2;
+            if (!f.wv.passable(ax, ty, az) || !f.wv.passable(ax, ty + 1, az)) return false;
+            if (BlockPlacer.findSupport(f.wv, ax, ty, az, ctx.eye(), 4.4, true) != null) { sx = ax; sz = az; }
+        }
         boolean air = !f.target.isOnGround() || f.tl.getY() - ty > 0.35;
+
+        // the wall: the cell straight ahead, then one either side of it across their approach
+        int px = -dir[1], pz = dir[0];
+        java.util.List<int[]> wall = new java.util.ArrayList<int[]>();
+        wall.add(new int[]{sx, ty, sz});
+        for (int side = -1; side <= 1; side += 2) {
+            if (wall.size() >= 3) break;
+            int wx = sx + px * side, wz = sz + pz * side;
+            if (!f.wv.passable(wx, ty, wz) || !f.wv.passable(wx, ty + 1, wz)) continue;
+            if (!Shape.floor(f.wv.shape(wx, ty - 1, wz))) continue;      // do not build into the void
+            wall.add(new int[]{wx, ty, wz});
+        }
         lastStomp = ctx.tick;
         started = ctx.tick;
+        stompScored = false;
         cellIdx = 0;
-        cells = air ? new int[][]{{sx, ty, sz}, {sx, ty + 1, sz}} : new int[][]{{sx, ty, sz}};
+        // everything after the first is queued: the wall goes up back to back instead of one placement per decision
+        cellIdx = 0;
+        cells = new int[][]{wall.get(0)};
         placer.setNeedSight(true);
-        placer.start(cells[0][0], cells[0][1], cells[0][2], Inv.BLOCK);
+        placer.start(wall.get(0)[0], wall.get(0)[1], wall.get(0)[2], Inv.BLOCK);
+        for (int i = 1; i < wall.size(); i++) placer.queue(wall.get(i)[0], wall.get(i)[1], wall.get(i)[2]);
+        if (air) placer.queue(sx, ty + 1, sz);                            // they are in the air: cap the step too
         mode = STOMP;
         foe = f.target;
         CombatStats.inc(air ? "block.stomp.try.air" : "block.stomp.try");
+        CombatStats.inc("block.stomp.wall." + Math.min(3, wall.size()));
         if (ctx.nav.active()) ctx.nav.stop();
         tick();
         return true;
