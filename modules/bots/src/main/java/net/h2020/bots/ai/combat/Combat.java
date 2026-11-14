@@ -561,6 +561,7 @@ public final class Combat {
         }
         if (net.h2020.bots.ai.ml.FightFlow.samples() >= 40 && net.h2020.bots.ai.ml.FightFlow.error() < 1.2) {
             Location tl = ctx.posOf(target);
+            if (tl == null) return;      // the target left the world between the check above and this line
             double[] delta = net.h2020.bots.ai.ml.FightFlow.predict(ctx, target, ctx.pos().distance(tl), 4);
             double lead = net.h2020.bots.ai.ml.AimPolicy.leadScale(aimArm);
             ctx.motor.aimPoint(prio, tl.clone().add(delta[0] * lead, 1.15, delta[1] * lead), intent, 0.45);

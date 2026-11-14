@@ -85,12 +85,30 @@ public final class ScoutModel {
      * Score for "which base next": close bases are cheap, teams that look strong are less attractive, and a team whose
      * bed is already broken is worth much less (bed first, then final kills).
      */
-    public static double targetScore(World w, TeamColor t, double distance, boolean bedAlive, boolean hasPlayers, double defenseIntegrity) {
+    public static double targetScore(World w, TeamColor t, double distance, boolean bedAlive, boolean hasPlayers,
+                                     double defenseIntegrity) {
+        return targetScore(w, t, distance, bedAlive, hasPlayers, defenseIntegrity, 0, 1);
+    }
+
+    /**
+     * The same, with what a scout has actually seen: how many of that team are standing on their bed, and how many of
+     * them are still alive.
+     *
+     * <p>An empty base is the thing to punish. Real players read "both of them went mid" and take the bed in the time
+     * it takes them to come back; a bot that only knows the bed is 40 blocks away goes to whichever is nearest and
+     * walks into two defenders. A team down to one player is also cheaper than a team of three at the same distance,
+     * and that is public knowledge from the tab list.
+     */
+    public static double targetScore(World w, TeamColor t, double distance, boolean bedAlive, boolean hasPlayers,
+                                     double defenseIntegrity, int defendersHome, int aliveCount) {
         double s = distance;
         s *= 1.0 - 0.3 * Math.min(1.0, threat(w, t));       // a strong team at the same distance is less attractive
         if (!bedAlive) s += 60;
         if (!hasPlayers) s += 500;
         if (defenseIntegrity > 0.95) s += 10;                // a full defence is another trip's work
+        s += 9.0 * Math.max(0, defendersHome);               // somebody is home: this is a fight, not a walk-in
+        s += 6.0 * Math.max(0, aliveCount - 1);              // a team at full strength is not a free bed
+        if (aliveCount <= 1) s -= 8.0;                       // last man standing: the bed is usually undefended
         return s;
     }
 

@@ -89,6 +89,8 @@ public final class RushTask extends BwTask {
 
     /** Last tick this task either moved a meaningful distance or put a block down. */
     private long lastProgress = -1000;
+    /** Tick the navigator first came back with no path, or -1. */
+    private long noPathSince = -1;
     private double lastPX = Double.NaN, lastPZ = Double.NaN;
 
     @Override
@@ -100,6 +102,9 @@ public final class RushTask extends BwTask {
         boolean alive = view.bedAlive(target);
         if (!alive && phase != Phase.AFTER) {
             phase(Phase.AFTER);
+            // the number this whole path exists to move: a bed that is gone because this bot went and took it
+            net.h2020.api.stats.CombatStats.inc("bed.broken");
+            net.h2020.api.stats.CombatStats.inc("bed.broken." + target.name().toLowerCase(java.util.Locale.ROOT));
             ctx.chat.callout(ctx.persona.toxic ? "ez bed" : "bed broken", 0.25);
         }
         double eyeDist = ctx.eye().distance(bedC);
@@ -111,6 +116,18 @@ public final class RushTask extends BwTask {
         if ((phase == Phase.TRAVEL || phase == Phase.EXTEND || phase == Phase.FOLLOW)
                 && ctx.tick - lastProgress > 60 && !ctx.combat.engaged() && !ctx.c.containerOpen()) {
             net.h2020.api.stats.CombatStats.inc("rush.stall");
+            // Why it stalled, not just that it did: the phase, the blocks left, whether a route existed, how far the
+            // bed still is, and whether the bot was airborne. A statue has a cause and this names it.
+            net.h2020.api.stats.CombatStats.inc("rush.stall." + phase.name().toLowerCase(java.util.Locale.ROOT)
+                    + (brain.blocks() < 1 ? ".noblocks" : "")
+                    + (ctx.nav.path() == null ? ".nopath" : ".path")
+                    + (ctx.c.onGround() ? ".ground" : ".air"));
+            if (net.h2020.api.stats.CombatStats.debug) {
+                org.bukkit.Bukkit.getLogger().info("[rushstall] " + ctx.player.getName() + " phase=" + phase
+                        + " blocks=" + brain.blocks() + " path=" + (ctx.nav.path() == null ? "none" : "yes")
+                        + " bedDist=" + Math.round(eyeDist) + " ground=" + ctx.c.onGround()
+                        + " hp=" + Math.round(ctx.health()));
+            }
             return false;                     // the brain re-decides immediately
         }
         switch (phase) {
@@ -140,6 +157,21 @@ public final class RushTask extends BwTask {
                 o.avoidEnemies = false;
                 ctx.nav.goTo(bedC, 3.5, o);
                 ctx.nav.tick();
+                // No route at all is different from a route that failed: goTo quietly does nothing when the search
+                // finds nothing, failed() stays false, and the bot stood on the spot until the stall guard fired
+                // three seconds later. Measured: 35 of 45 rushes in one game were exactly this. Build the last
+                // stretch ourselves, and if that is not possible hand the decision back now.
+                if (ctx.nav.path() == null && !ctx.nav.failed()) {
+                    // Planning is asynchronous: the first tick after goTo has no path yet, which is normal. Give the
+                    // search two seconds, then treat an empty answer as "no route" rather than standing there.
+                    if (noPathSince < 0) noPathSince = ctx.tick;
+                    if (ctx.tick - noPathSince < 40) { ctx.nav.tick(); return true; }
+                    net.h2020.api.stats.CombatStats.inc("rush.nopath");
+                    noPathSince = -1;
+                    if (startExtend(bedC)) { net.h2020.api.stats.CombatStats.inc("rush.nopath.extend"); return true; }
+                    return false;
+                }
+                noPathSince = -1;
                 if (ctx.nav.failed()) {
                     net.h2020.api.stats.CombatStats.inc("rush.navfail");
                     // no route the navigator likes: if the bed is a short straight line away and we have the blocks,

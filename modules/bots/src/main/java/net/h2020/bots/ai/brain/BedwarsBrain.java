@@ -813,13 +813,20 @@ public final class BedwarsBrain extends GameBrain {
 
     private BwTask decide() {
         if (color == null) return null;
-        // a team without a bed is a final kill waiting: hunt it, the last man first (if this bot is the hunting kind)
-        if (!(task instanceof HuntTask) && ctx.tick - lastHuntTry > 400
-                && ctx.rng.nextDouble() < 0.25 + 0.7 * ctx.persona.skill.aggression) {
+        // A team without a bed is a final kill waiting, and finishing them is not a personality trait. A bedless enemy
+        // close by, while we are healthy and nobody is on our bed, is taken now: the dice stay for the distant ones,
+        // which is where a farmer is right to keep farming.
+        if (!(task instanceof HuntTask) && ctx.tick - lastHuntTry > 200) {
             Player hunt = nextHuntTarget(null);
-            if (hunt != null && ctx.pos().distance(hunt.getLocation()) < 70) {
-                lastHuntTry = ctx.tick;
-                return new HuntTask(this, hunt);
+            if (hunt != null && hunt.getWorld() == ctx.player.getWorld()) {
+                double d = ctx.pos().distance(hunt.getLocation());
+                boolean decisive = d < 40 && ctx.health() >= 14 && !enemyNearBed();
+                boolean hunting = ctx.rng.nextDouble() < 0.25 + 0.7 * ctx.persona.skill.aggression;
+                if (d < 70 && (decisive || hunting)) {
+                    lastHuntTry = ctx.tick;
+                    net.h2020.api.stats.CombatStats.inc(decisive ? "hunt.decisive" : "hunt.roll");
+                    return new HuntTask(this, hunt);
+                }
             }
         }
         // hurt and a teammate is right here: hand the valuables over instead of losing them to the next hit
@@ -1312,6 +1319,29 @@ public final class BedwarsBrain extends GameBrain {
     }
 
     /** Nearest enemy team with a bed (or players when all beds are gone). Team bots rush the same target. */
+    /**
+     * How many of that team the bots have actually seen near their own bed: what a scout can see, not what the server
+     * knows. An empty base is the thing to punish, and this is the only honest way a bot can tell.
+     */
+    private int defendersHome(TeamColor t, Location bed) {
+        if (bed == null) return 0;
+        int n = 0;
+        for (Sighting s : ctx.perception.all()) {
+            if (!s.known || s.ally || s.lastPos == null || s.confidence(ctx.tick) < 0.3) continue;
+            if (teamColorOf(s.player) != t) continue;
+            Location at = s.estimate(ctx.tick);
+            if (at != null && at.getWorld() == bed.getWorld() && at.distance(bed) < 16) n++;
+        }
+        return n;
+    }
+
+    /** Members still alive on that team: the tab list is public, so a short team is fair knowledge. */
+    private static int aliveCount(GameTeam t) {
+        int n = 0;
+        for (Player p : t.members()) if (!p.isDead()) n++;
+        return n;
+    }
+
     private TeamColor chooseTarget() {
         // rush with the team: if a teammate is already on a bed, that is the bed (no split pushes)
         TeamColor together = TeamPlay.rushTargetOfTeam(this);
@@ -1328,7 +1358,8 @@ public final class BedwarsBrain extends GameBrain {
             BedDefense td = bed ? BedDefense.of(b) : null;
             double integrity = td == null ? 1 : td.integrity(ctx.world());
             double d = ScoutModel.targetScore(game.world(), t.color(), b.distance(from), bed,
-                    !t.members().isEmpty(), integrity);
+                    !t.members().isEmpty(), integrity,
+                    defendersHome(t.color(), b), aliveCount(t));
             if (d < bd) { bd = d; best = t.color(); }
         }
         return best;
