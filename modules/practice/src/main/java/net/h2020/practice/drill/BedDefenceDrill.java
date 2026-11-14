@@ -85,40 +85,16 @@ public final class BedDefenceDrill implements Drill {
     private short colour() { return 14; }                                          // red wool, easy to tell from sand
 
     /**
-     * The defence for a level: a front row, a full ring, a roof, then a second layer. Cells are the ring around the two
-     * bed blocks; the bed itself is never part of the target.
+     * The defence for a level, taken from the template store: the nth shape in the file, so a shape added in game is a
+     * level and one removed is gone. Cells are relative to the bed's foot block.
      */
     private void setLevel(int lvl) {
-        this.level = Math.max(1, Math.min(4, lvl));
+        this.level = Math.max(1, Math.min(BedDefenceTemplates.count(), lvl));
         target.clear();
-        int x0 = BED_X, z0 = BED_Z;
-        // the ring around a bed occupying (x0,z0) and (x0+1,z0), at bed level
-        int[][] ring = {
-                {-1, 0}, {-1, 1}, {0, 1}, {1, 1}, {2, 1}, {2, 0}, {2, -1}, {1, -1}, {0, -1}, {-1, -1}
-        };
-        for (int[] c : ring) target.put(key(x0 + c[0], BED_Y, z0 + c[1]), Material.WOOL);
-        if (level == 1) {
-            // front row only: the four cells closest to the player, so the first attempt is a shape and not a wall
-            target.keySet().retainAll(java.util.Arrays.asList(
-                    key(x0 - 1, BED_Y, z0 + 1), key(x0, BED_Y, z0 + 1), key(x0 + 1, BED_Y, z0 + 1), key(x0 + 2, BED_Y, z0 + 1)));
-        } else if (level == 2) {
-            target.keySet().retainAll(java.util.Arrays.asList(
-                    key(x0 - 1, BED_Y, z0 + 1), key(x0, BED_Y, z0 + 1), key(x0 + 1, BED_Y, z0 + 1), key(x0 + 2, BED_Y, z0 + 1),
-                    key(x0 - 1, BED_Y, z0), key(x0 + 2, BED_Y, z0), key(x0 - 1, BED_Y, z0 - 1), key(x0 + 2, BED_Y, z0 - 1)));
-        }
-        if (level >= 3) {
-            // the roof: the same footprint one block up
-            for (int dx = -1; dx <= 2; dx++) for (int dz = -1; dz <= 1; dz++) {
-                target.put(key(x0 + dx, BED_Y + 1, z0 + dz), Material.WOOL);
-            }
-            target.remove(key(x0, BED_Y + 1, z0));
-            target.remove(key(x0 + 1, BED_Y + 1, z0));
-        }
-        if (level == 4) {
-            // second layer of end stone under the wool ring, the way a real defence is built
-            for (int dx = -2; dx <= 3; dx++) for (int dz = -2; dz <= 2; dz++) {
-                if (Math.abs(dx) < 3 && Math.abs(dz) < 2) target.put(key(x0 + dx, BASE_Y - 1, z0 + dz), Material.ENDER_STONE);
-            }
+        for (Object[] c : BedDefenceTemplates.at(this.level)) {
+            int dx = (Integer) c[0], dy = (Integer) c[1], dz = (Integer) c[2];
+            Material m = (Material) c[3];
+            target.put(key(BED_X + dx, BED_Y + dy, BED_Z + dz), m);
         }
         buildModel();
         buildBed();
@@ -219,7 +195,8 @@ public final class BedDefenceDrill implements Drill {
     @Override
     public String hud(PracticeGame g, Player p) {
         long[] r = row(p);
-        return ChatColor.AQUA + "Defence " + ChatColor.WHITE + level + ChatColor.DARK_GRAY + "/4"
+        return ChatColor.AQUA + "Defence " + ChatColor.WHITE + level + ChatColor.DARK_GRAY
+                + "/" + BedDefenceTemplates.count()
                 + ChatColor.DARK_GRAY + " | " + ChatColor.WHITE + target.size() + ChatColor.GRAY + " blocks to place"
                 + ChatColor.DARK_GRAY + " | " + ChatColor.YELLOW + "Best " + ChatColor.WHITE
                 + (r[3] == 0 ? "-" : r[3] + "ms")

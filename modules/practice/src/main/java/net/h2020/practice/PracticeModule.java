@@ -14,6 +14,9 @@ import net.h2020.api.game.GameProvider;
 import net.h2020.api.game.GameState;
 import net.h2020.api.map.MapTemplate;
 import net.h2020.practice.drill.BedDefenceDrill;
+import net.h2020.practice.drill.BedDefenceTemplates;
+import org.bukkit.Material;
+import org.bukkit.inventory.ItemStack;
 import net.h2020.practice.drill.BowDrill;
 import net.h2020.practice.drill.BridgeDrill;
 import net.h2020.practice.drill.Drill;
@@ -72,6 +75,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
     public void enable(JavaPlugin plugin) {
         this.plugin = plugin;
         for (PracticeMode m : PracticeMode.ALL) GameModes.register(m);
+        BedDefenceTemplates.load(plugin);
         // the replay viewer has no map to look up for a drill: let it ask for a fresh arena instead
         net.h2020.api.practice.PracticeArenas.install(new net.h2020.api.practice.PracticeArenas.Factory() {
             @Override public World create(String modeId) {
@@ -190,6 +194,9 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
             GameManager gm = H2020.find(GameManager.class);
             if (gm != null) gm.sendToLobby(p, null);
             return true;
+        }
+        if (sub.equals("beddefence") || sub.equals("defence") || sub.equals("defense")) {
+            return bedDefenceCommand(p, sender, args);
         }
         if (sub.equals("stats")) { stats(p); return true; }
         if (sub.equals("debug")) { debug(sender); return true; }
@@ -329,6 +336,125 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
 
     private void menu(Player p) {
         for (String line : net.h2020.api.core.Messages.lines("practice.menu.lines")) p.sendMessage(line);
+    }
+
+    // ---------------------------------------------------------------- bed defence template editor
+
+    /** An open editing session: a private arena, the bed, and the shape being written. */
+    private static final class Edit {
+        PracticeArena arena;
+        String id;
+        int x, y, z;
+    }
+
+    private final java.util.Map<java.util.UUID, Edit> edits = new ConcurrentHashMap<java.util.UUID, Edit>();
+
+    /**
+     * /practice beddefence edit|save|cancel|list|use|delete
+     *
+     * <p>Editing happens in a private void arena with a bed on a plinth, exactly like the drill's, and the blocks
+     * placed around that bed become the shape. Nothing is read from the player's inventory and nothing is inferred:
+     * build it, say save, and that is the template.
+     */
+    private boolean bedDefenceCommand(Player p, CommandSender sender, String[] args) {
+        String action = args.length > 1 ? args[1].toLowerCase(java.util.Locale.ROOT) : "list";
+        if (action.equals("list")) {
+            sender.sendMessage(ChatColor.AQUA + "Defence templates " + ChatColor.DARK_GRAY + "(" + BedDefenceTemplates.count() + ")");
+            int i = 1;
+            for (String id : BedDefenceTemplates.ids()) {
+                sender.sendMessage(ChatColor.GRAY + "  " + (i++) + ". " + ChatColor.WHITE + id
+                        + (id.equals(BedDefenceTemplates.activeId()) ? ChatColor.GREEN + "  (active)" : ""));
+            }
+            sender.sendMessage(ChatColor.DARK_GRAY + "  file: " + BedDefenceTemplates.path());
+            return true;
+        }
+        if (action.equals("use")) {
+            if (args.length < 3) { sender.sendMessage(ChatColor.RED + "/practice beddefence use <id>"); return true; }
+            if (!BedDefenceTemplates.has(args[2])) { sender.sendMessage(ChatColor.RED + "No template " + args[2]); return true; }
+            BedDefenceTemplates.active(args[2]);
+            BedDefenceTemplates.save(plugin);
+            sender.sendMessage(ChatColor.GREEN + "Defence " + ChatColor.WHITE + args[2] + ChatColor.GREEN + " is now the drill's");
+            return true;
+        }
+        if (action.equals("delete")) {
+            if (args.length < 3) { sender.sendMessage(ChatColor.RED + "/practice beddefence delete <id>"); return true; }
+            boolean had = BedDefenceTemplates.remove(args[2]);
+            if (had) BedDefenceTemplates.save(plugin);
+            sender.sendMessage(had ? ChatColor.GREEN + "Removed " + args[2] : ChatColor.RED + "No template " + args[2]);
+            return true;
+        }
+        if (action.equals("cancel")) {
+            Edit e = edits.remove(p.getUniqueId());
+            if (e == null) { sender.sendMessage(ChatColor.GRAY + "You are not editing a defence."); return true; }
+            e.arena.destroy();
+            sender.sendMessage(ChatColor.GRAY + "Editing cancelled.");
+            return true;
+        }
+        if (action.equals("save")) {
+            Edit e = edits.get(p.getUniqueId());
+            if (e == null) { sender.sendMessage(ChatColor.RED + "Nothing to save - /practice beddefence edit <id> first."); return true; }
+            java.util.List<Object[]> cells = scan(e);
+            if (cells.isEmpty()) {
+                sender.sendMessage(ChatColor.RED + "Nothing built around the bed - place the defence first.");
+                return true;
+            }
+            BedDefenceTemplates.put(e.id, cells);
+            BedDefenceTemplates.save(plugin);
+            edits.remove(p.getUniqueId());
+            e.arena.destroy();
+            sender.sendMessage(ChatColor.GREEN + "Saved " + ChatColor.WHITE + e.id + ChatColor.GREEN + " with "
+                    + ChatColor.WHITE + cells.size() + ChatColor.GREEN + " blocks - it is now a drill level.");
+            return true;
+        }
+        if (action.equals("edit")) {
+            String id = args.length > 2 ? args[2].toLowerCase(java.util.Locale.ROOT) : "custom-" + (BedDefenceTemplates.count() + 1);
+            Edit old = edits.remove(p.getUniqueId());
+            if (old != null) old.arena.destroy();
+            PracticeArena arena = PracticeArena.create("defedit");
+            arena.platform(0, 64, 0, 7, Material.SANDSTONE);
+            arena.platform(0, 63, 0, 7, Material.SANDSTONE);
+            org.bukkit.block.Block foot = arena.world().getBlockAt(0, 65, 0);
+            org.bukkit.block.Block head = arena.world().getBlockAt(1, 65, 0);
+            foot.setType(Material.BED_BLOCK, false); foot.setData((byte) 3, false);
+            head.setType(Material.BED_BLOCK, false); head.setData((byte) 11, false);
+            arena.world().setSpawnLocation(0, 65, 6);
+            Edit e = new Edit();
+            e.arena = arena; e.id = id; e.x = 0; e.y = 65; e.z = 0;
+            edits.put(p.getUniqueId(), e);
+            GameManager gm = H2020.find(GameManager.class);
+            PracticeGame g = byPlayer.get(p.getUniqueId());
+            if (g != null) g.removePlayer(p);
+            p.teleport(arena.at(0.5, 65, 6.5, 180f));
+            p.setGameMode(org.bukkit.GameMode.CREATIVE);
+            p.getInventory().clear();
+            p.getInventory().setItem(0, new ItemStack(Material.WOOL, 64, (short) 14));
+            p.getInventory().setItem(1, new ItemStack(Material.ENDER_STONE, 64));
+            p.getInventory().setItem(2, new ItemStack(Material.WOOD, 64, (short) 5));
+            p.sendMessage(ChatColor.AQUA + "Editing defence " + ChatColor.WHITE + id);
+            p.sendMessage(ChatColor.GRAY + "Build it around the bed, then " + ChatColor.WHITE
+                    + "/practice beddefence save" + ChatColor.GRAY + ". Anything on the floor blocks is ignored.");
+            return true;
+        }
+        sender.sendMessage(ChatColor.RED + "/practice beddefence edit|save|cancel|list|use|delete");
+        return true;
+    }
+
+    /** Every block placed around the bed, as offsets from the bed's foot and its material. */
+    private static java.util.List<Object[]> scan(Edit e) {
+        java.util.List<Object[]> out = new java.util.ArrayList<Object[]>();
+        for (int dx = -6; dx <= 7; dx++) {
+            for (int dz = -6; dz <= 6; dz++) {
+                for (int dy = 0; dy <= 3; dy++) {
+                    org.bukkit.block.Block b = e.arena.world().getBlockAt(e.x + dx, e.y + dy, e.z + dz);
+                    Material m = b.getType();
+                    if (m == Material.AIR) continue;
+                    if (m == Material.BED_BLOCK) continue;              // the bed is not part of the defence
+                    if (m == Material.SANDSTONE) continue;              // the floor is not either
+                    out.add(new Object[]{dx, dy, dz, m});
+                }
+            }
+        }
+        return out;
     }
 
     /** Everything a drill can be checked on from the console: the world, who is in it, and what is ticking in it. */
