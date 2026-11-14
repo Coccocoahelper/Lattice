@@ -72,6 +72,19 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
     public void enable(JavaPlugin plugin) {
         this.plugin = plugin;
         for (PracticeMode m : PracticeMode.ALL) GameModes.register(m);
+        // the replay viewer has no map to look up for a drill: let it ask for a fresh arena instead
+        net.h2020.api.practice.PracticeArenas.install(new net.h2020.api.practice.PracticeArenas.Factory() {
+            @Override public World create(String modeId) {
+                PracticeMode pm = null;
+                for (PracticeMode m : PracticeMode.ALL) if (m.id().equalsIgnoreCase(modeId)) pm = m;
+                if (pm == null) return null;
+                Drill d = drillFor(pm);
+                if (d == null) return null;
+                PracticeArena a = PracticeArena.create(d.id());
+                d.build(a);
+                return a.world();
+            }
+        });
         Bukkit.getPluginManager().registerEvents(this, plugin);
         ticker = Bukkit.getScheduler().runTaskTimer(plugin, new Runnable() {
             @Override public void run() {

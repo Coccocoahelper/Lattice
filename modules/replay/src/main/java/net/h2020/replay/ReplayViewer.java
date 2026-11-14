@@ -252,6 +252,7 @@ public final class ReplayViewer {
         File f = new File(Recorder.dir(), gameId + ".jsonl");
         if (!f.isFile()) { s.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.no-recording-called","p1",gameId)); return; }
         String map = null;
+        String mode = null;                 // the recorded GameMode id: a practice drill has no map to look up
         int frames = 0, rows = 0;
         long last = 0;
         BufferedReader r = null;
@@ -259,7 +260,11 @@ public final class ReplayViewer {
             r = new BufferedReader(new FileReader(f));
             String line;
             while ((line = r.readLine()) != null) {
-                if (line.startsWith("{\"h\":")) { map = field(line, "map"); continue; }
+                if (line.startsWith("{\"h\":")) {
+                    map = field(line, "map");
+                    mode = field(line, "type");
+                    continue;
+                }
                 if (line.startsWith("{\"end\":")) continue;
                 frames++;
                 last = (long) num(line, "t", last);
@@ -314,6 +319,7 @@ public final class ReplayViewer {
         if (!f.isFile()) { p.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.no-recording-called","p1",gameId)); return; }
         stop(p);
         String mapName = null;
+        String modeId = null;         // practice drills have no map: the arena is generated from the mode
         List<long[]> times = new ArrayList<long[]>();
         List<Map<String, double[]>> frames = new ArrayList<Map<String, double[]>>();
         List<Object[]> events = new ArrayList<Object[]>();
@@ -327,6 +333,7 @@ public final class ReplayViewer {
             while ((line = r.readLine()) != null) {
                 if (line.startsWith("{\"h\":")) {
                     mapName = field(line, "map");
+                    modeId = field(line, "type");
                     String npcPart = between(line, "\"npcs\":[", "]");
                     if (npcPart != null && npcPart.contains("[")) {
                         for (String row : npcPart.split(java.util.regex.Pattern.quote("],["))) {
@@ -403,7 +410,7 @@ public final class ReplayViewer {
         // The replay needs the map's world, and only a game-owned world is safe: an instance world created outside a
         // game is ticked by WindSpigot with a chunk provider that was never attached, which crashes the server. So the
         // replay borrows a live game on that map, or creates a host game (never filled, never started) and keeps it.
-        World world = hostWorld(mapName);
+        World world = hostWorld(mapName, modeId);
         if (world == null) {
             p.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.no-map-called-to","p1",mapName));
             return;
@@ -486,7 +493,7 @@ public final class ReplayViewer {
 
 
     /** A game-owned world for this map: a live game if one is running, otherwise a kept-alive host game. */
-    private static World hostWorld(String mapName) {
+    private static World hostWorld(String mapName, String modeId) {
         if (mapName == null) return null;
         // a slime copy is a private world: nobody's game is running in it, so the replay cannot overlap live blocks
         World own = net.h2020.api.map.SlimeWorlds.spawn(mapName, "replay");
@@ -501,7 +508,17 @@ public final class ReplayViewer {
         try {
             net.h2020.api.map.MapService ms = H2020.find(net.h2020.api.map.MapService.class);
             net.h2020.api.map.MapTemplate t = ms == null ? null : ms.byName(mapName);
-            if (t == null) return null;
+            if (t == null) {
+                // a drill has no map: its arena is generated, so ask the practice module for a fresh one
+                if (modeId != null && modeId.startsWith("practice")) {
+                    World drill = net.h2020.api.practice.PracticeArenas.spawn(modeId);
+                    if (drill != null) {
+                        plugin.getLogger().info("[replay] built a practice arena for " + modeId);
+                        return drill;
+                    }
+                }
+                return null;
+            }
             net.h2020.api.game.GameType type = net.h2020.api.game.GameType.BEDWARS_4V4V4V4;
             net.h2020.api.game.Game g = gm.create(type, t);
             if (g == null) return null;

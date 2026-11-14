@@ -36,7 +36,9 @@ public final class PracticeGame implements Game {
     private final PracticeArena arena;
     private final Set<Player> players = new LinkedHashSet<Player>();
     private GameState state = GameState.WAITING;
+    private final long startedAt = System.currentTimeMillis();
     private int hudTick;
+    private int sidebarTick;
     /** Watcher -> the body they are riding. A player watching a bot bridge follows it instead of standing still. */
     private final java.util.Map<UUID, Player> following = new java.util.HashMap<UUID, Player>();
 
@@ -84,6 +86,8 @@ public final class PracticeGame implements Game {
 
     @Override
     public void removePlayer(Player p) {
+        net.h2020.api.core.ScoreboardService boards = H2020.find(net.h2020.api.core.ScoreboardService.class);
+        if (boards != null) boards.clearSidebar(p);
         following.remove(p.getUniqueId());
         if (!players.remove(p)) return;
         drill.onQuit(this, p);
@@ -136,6 +140,9 @@ public final class PracticeGame implements Game {
     void tick() {
         if (state != GameState.PLAYING) return;
         drill.tick(this);
+        // a sidebar of its own: practice is not a match, and the game scoreboard would show teams and beds that do
+        // not exist here. Rebuilt on a slow cadence - a sidebar is far heavier than the action bar.
+        if (++sidebarTick % 20 == 0) updateSidebar();
         for (Player p : new ArrayList<Player>(players)) {
             if (!p.isOnline() || following.containsKey(p.getUniqueId())) continue;
             if (p.getLocation().getY() > 40) continue;
@@ -188,6 +195,31 @@ public final class PracticeGame implements Game {
         GameManager gm = H2020.find(GameManager.class);
         if (gm != null) gm.finished(this);
         arena.destroy();
+    }
+
+    /**
+     * The drill's own sidebar: the technique, its live progress, this session's numbers, and who is in it. Kept apart
+     * from the match scoreboard on purpose - a practice world has no teams, no beds and no game clock, and showing a
+     * match board there reads as a bug.
+     */
+    private void updateSidebar() {
+        net.h2020.api.core.ScoreboardService boards = H2020.find(net.h2020.api.core.ScoreboardService.class);
+        if (boards == null) return;
+        String title = net.h2020.api.core.Messages.raw("practice.sidebar.title");
+        long seconds = Math.max(0, (System.currentTimeMillis() - startedAt) / 1000L);
+        for (Player p : players) {
+            if (!p.isOnline() || following.containsKey(p.getUniqueId())) continue;
+            List<String> lines = new ArrayList<String>();
+            lines.add("");
+            lines.add(ChatColor.GRAY + "Technique  " + ChatColor.AQUA + drill.display());
+            for (String part : drill.hud(this, p).split(" " + (char) 0x7C + " ")) lines.add(part);
+            lines.add("");
+            lines.add(ChatColor.GRAY + "Session  " + ChatColor.WHITE + String.format("%d:%02d", seconds / 60, seconds % 60));
+            lines.add(ChatColor.GRAY + "In drill  " + ChatColor.WHITE + players.size());
+            lines.add("");
+            lines.add(ChatColor.DARK_GRAY + "practice.lattice");
+            boards.setSidebar(p, title == null ? ChatColor.AQUA + "" + ChatColor.BOLD + "PRACTICE" : title, lines);
+        }
     }
 
     /** 1.8 has no action bar API; the packet is the only way to keep a HUD off the chat. */
