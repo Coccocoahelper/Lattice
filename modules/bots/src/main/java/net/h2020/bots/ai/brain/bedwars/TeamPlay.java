@@ -170,6 +170,13 @@ public final class TeamPlay {
      */
     public static TeamColor peelOff(BedwarsBrain brain, Player enemy, double pWin, int blocks) {
         if (brain == null || enemy == null || blocks < 4) return null;
+        // A nearly dead enemy is not a bed to trade for, it is the kill. Peeling off here is how the second bot walks
+        // away from a 2 hp player who then kills the first one and re-heals: two bodies converging is also the only
+        // thing that cuts the retreat.
+        if (!enemy.isDead() && enemy.getHealth() <= 8) {
+            net.h2020.api.stats.CombatStats.inc("fight.peel.blocked");
+            return null;
+        }
         if (teammatesFighting(brain, enemy) < 1) return null;
         if (pWin < 0.62) return null;                       // not a fight we are sure to win without him
         TeamColor enemyTeam = brain.teamColorOf(enemy);

@@ -1172,6 +1172,24 @@ public final class BedwarsBrain extends GameBrain {
     private boolean declineEngagement() {
         Sighting best = ctx.perception.bestThreat();
         if (best == null) return false;
+        // Two fights are never declined, whatever the gear says.
+        //
+        // The first is the one at our own bed: declining is only free when you have ground to give, and on your own
+        // island you do not - a bot that walks away from an intruder is a bot whose bed is dug out behind it.
+        //
+        // The second is the one we are already winning: once the target is under eight health, leaving is how a
+        // 20-health player survives a 2-health fight. Measured against a real player: bots got him to 2 hp and he
+        // killed twenty-five of them anyway.
+        if (color != null && view.bedAlive(color) && threatNearBed(best.player)) {
+            net.h2020.api.stats.CombatStats.inc("fight.commit.bed");
+            return false;
+        }
+        Player engaged = ctx.combat.target();
+        if (engaged != null && !engaged.isDead() && engaged.getHealth() <= 8
+                && engaged.getWorld() == ctx.player.getWorld()) {
+            net.h2020.api.stats.CombatStats.inc("fight.commit.low");
+            return false;
+        }
         if (ctx.tick - best.lastHurtMeTick < 60) return false;
         Location e = best.estimate(ctx.tick);
         if (e == null) return false;

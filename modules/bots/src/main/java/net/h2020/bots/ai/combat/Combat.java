@@ -660,7 +660,14 @@ public final class Combat {
         }
         // retreat when losing - or when the learned model says this fight is usually lost
         boolean doomed = pWin < 0.28 && hp <= 12;
-        retreating = !net.h2020.bots.ai.BotAI.sparMode()
+        // A nearly dead target is the kill, not a reason to leave. Retreating from a 2 hp player is how a 20 hp one
+        // survives: they eat, re-heal and come back, and the bot has given up the only advantage it had. Stay unless
+        // staying is certain death (under four health and still out-traded).
+        boolean finishable = target.getHealth() <= 8 && hp >= 4 && d < 12;
+        if (finishable && (hp <= ctx.persona.retreatHealth || doomed)) {
+            CombatStats.inc("fight.finish.commit");
+        }
+        retreating = !net.h2020.bots.ai.BotAI.sparMode() && !finishable
                 && ((hp <= ctx.persona.retreatHealth && target.getHealth() > hp + 3 && d < 12) || doomed);
         // bait a trap: give ground onto narrow footing, then cut their way back. Owns movement while it runs.
         if (!doomed && !retreating && d < 6.0 && baitTrap.tick(target, d)) {
