@@ -43,6 +43,8 @@ public final class BlockPlacer {
     private Location aimPoint;
     private boolean active;
     private boolean needSight;
+    /** Refuse beds and chests as support: place through a solid neighbour instead of clicking the interactive block. */
+    private boolean avoidInteractive;
     private int hiddenTicks;
     /** Aim profile for the placement: PRECISE for measured building, FLICK for the placements made inside a fight. */
     private boolean fast;
@@ -74,6 +76,14 @@ public final class BlockPlacer {
 
     /** Only use support faces the eye can see, and give a hidden cell up fast instead of staring at it. */
     public void setNeedSight(boolean v) { needSight = v; }
+
+    /**
+     * Do not place against a bed or a chest. A cell whose only neighbour is a bed is then placed through a solid block
+     * put there first - which is how a player builds a roof over a bed without opening it.
+     */
+    public void setAvoidInteractive(boolean v) { avoidInteractive = v; }
+
+    boolean avoidInteractive() { return avoidInteractive; }
 
     /**
      * In a fight a placement has about a third of a second to land, so the crosshair goes there in one movement
@@ -117,6 +127,11 @@ public final class BlockPlacer {
      */
     public static Object[] findSupport(WorldView wv, int x, int y, int z, Location eye, double reach, boolean needSight,
                                        java.util.Set<Long> avoid) {
+        return findSupport(wv, x, y, z, eye, reach, needSight, avoid, false);
+    }
+
+    public static Object[] findSupport(WorldView wv, int x, int y, int z, Location eye, double reach, boolean needSight,
+                                       java.util.Set<Long> avoid, boolean avoidInteractive) {
         Object[] best = null;
         double bestScore = Double.MAX_VALUE;
         for (BlockFace f : FACES) {
@@ -128,6 +143,7 @@ public final class BlockPlacer {
             // an interactive support (a bed, a chest) is placeable while sneaking - right-clicking it without shift
             // opens it instead, which is why the blocks on top of the bed were never going down
             boolean sneakFor = interactable(m);
+            if (sneakFor && avoidInteractive) continue;      // the caller wants a solid face, not the bed's
             double hx = sx + 0.5 + f.getModX() * 0.5, hy = sy + 0.5 + f.getModY() * 0.5, hz = sz + 0.5 + f.getModZ() * 0.5;
             if (s == Shape.LOW && f == BlockFace.UP) hy = sy + wv.height(sx, sy, sz);
             // must face the eye
@@ -255,7 +271,7 @@ public final class BlockPlacer {
         }
         Location eye = ctx.eye();
         if (support == null || ticks % (fast ? 3 : 4) == 0) {
-            Object[] s = findSupport(wv, tx, ty, tz, eye, 4.4, needSight, triedFaces);
+            Object[] s = findSupport(wv, tx, ty, tz, eye, 4.4, needSight, triedFaces, avoidInteractive);
             if (s == null) { active = false; net.h2020.api.stats.CombatStats.inc("place.fail.nosupport"); return Result.FAILED; }
             Block nb = (Block) s[0];
             BlockFace nf = (BlockFace) s[1];

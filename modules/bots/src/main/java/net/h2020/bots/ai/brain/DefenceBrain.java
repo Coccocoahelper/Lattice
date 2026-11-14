@@ -19,6 +19,8 @@ public final class DefenceBrain extends BaseBrain {
     private int retries;
     /** Tick before which the cell list is not restarted after a pass that did not finish the drill. */
     private long nextTry;
+    /** A wool block being placed beside a bed-supported cell, so the cell itself can go in through it. */
+    private int[] helper;
     /** The bed these cells surround, worked out once: the ring's average position. */
     private double anchorX, anchorZ;
 
@@ -55,6 +57,27 @@ public final class DefenceBrain extends BaseBrain {
         if (!Inv.has(ctx.player, Inv.BLOCK)) { ctx.motor.halt(); return; }
 
         if (placer == null) placer = new BlockPlacer(ctx);
+        if (helper != null) {
+            // a cell whose only support is the bed gets a wool block beside it first, and is then placed through that
+            // block's side face - a player's way of roofing a bed without opening it by right-clicking
+            if (!net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(helper[0], helper[1], helper[2]))) {
+                helper = null;                                  // it is there already
+            } else {
+                org.bukkit.Location hl = new org.bukkit.Location(ctx.player.getWorld(),
+                        helper[0] + 0.5, helper[1], helper[2] + 0.5);
+                if (ctx.pos().distance(hl) > 3.4) { ctx.nav.goTo(hl, 1.4); ctx.nav.tick(); return; }
+                if (!placer.active()) {
+                    placer.setFast(true);
+                    placer.setNeedSight(false);
+                    placer.setAvoidInteractive(false);
+                    placer.start(helper[0], helper[1], helper[2], Inv.BLOCK);
+                    CombatStats.inc("drill.defence.helper");
+                }
+                BlockPlacer.Result hr = placer.tick();
+                if (hr == BlockPlacer.Result.FAILED) helper = null;
+                return;
+            }
+        }
         if (placer.active()) {
             BlockPlacer.Result r = placer.tick();
             if (r == BlockPlacer.Result.FAILED) {
@@ -100,8 +123,18 @@ public final class DefenceBrain extends BaseBrain {
         }
         // if it is already there, skip it: the drill leaves a finished wall up until the level changes
         if (!net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(c[0], c[1], c[2]))) { idx++; return; }
+        // a cell sitting directly on the bed: put wool on the block next to it first, then place through that
+        boolean bedTop = c[1] == bedY + 1 && c[2] == bedZ && (c[0] == bedX || c[0] == bedX + 1);
         placer.setFast(true);
         placer.setNeedSight(false);
+        placer.setAvoidInteractive(bedTop);
+        if (bedTop) {
+            int[] side = sideCell(c);
+            if (side != null && net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(side[0], side[1], side[2]))) {
+                helper = side;
+                return;
+            }
+        }
         placer.start(c[0], c[1], c[2], Inv.BLOCK);
         CombatStats.inc("drill.defence.try");
         idx++;
@@ -112,6 +145,17 @@ public final class DefenceBrain extends BaseBrain {
             if (Math.abs(n[0] - c[0]) > 3 || Math.abs(n[2] - c[2]) > 1 || n[1] != c[1]) { idx--; break; }
             placer.queue(n[0], n[1], n[2]);
         }
+    }
+
+    /** A passable cell beside this one that stands on something solid - the block a roof over a bed is built from. */
+    private int[] sideCell(int[] c) {
+        int[][] sides = {{c[0], c[1], c[2] + 1}, {c[0], c[1], c[2] - 1}, {c[0] + 1, c[1], c[2]}, {c[0] - 1, c[1], c[2]}};
+        for (int[] s : sides) {
+            if (!net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(s[0], s[1], s[2]))) continue;
+            if (s[1] == bedY && s[2] == bedZ && (s[0] == bedX || s[0] == bedX + 1)) continue;   // that is the bed
+            return s;
+        }
+        return null;
     }
 
     /** Is this cell part of the wall? */
