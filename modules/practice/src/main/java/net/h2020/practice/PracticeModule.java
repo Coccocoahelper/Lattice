@@ -195,7 +195,10 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
             if (gm != null) gm.sendToLobby(p, null);
             return true;
         }
-        if (sub.equals("beddefence") || sub.equals("defence") || sub.equals("defense")) {
+        // only an editor verb goes to the editor: /practice beddefence on its own starts the drill, the way every
+        // other drill does, instead of printing the sub-command list at somebody who asked to play
+        if ((sub.equals("beddefence") || sub.equals("defence") || sub.equals("defense"))
+                && args.length > 1 && isEditorVerb(args[1])) {
             return bedDefenceCommand(p, sender, args);
         }
         if (sub.equals("stats")) { stats(p); return true; }
@@ -356,6 +359,15 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
      * placed around that bed become the shape. Nothing is read from the player's inventory and nothing is inferred:
      * build it, say save, and that is the template.
      */
+    private static boolean isEditorVerb(String a) {
+        switch (a.toLowerCase(java.util.Locale.ROOT)) {
+            case "edit": case "save": case "cancel": case "list": case "use": case "delete":
+                return true;
+            default:
+                return false;
+        }
+    }
+
     private boolean bedDefenceCommand(Player p, CommandSender sender, String[] args) {
         String action = args.length > 1 ? args[1].toLowerCase(java.util.Locale.ROOT) : "list";
         if (action.equals("list")) {
