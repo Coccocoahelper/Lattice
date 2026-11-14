@@ -26,7 +26,7 @@ public final class BlockPlacer {
     private final BotContext ctx;
     private int tx, ty, tz;
     private Inv.Pred blockPred = Inv.BLOCK;
-    private int ticks, clicks, verifyWait, aimWait;
+    private int ticks, clicks, aimWait;
     private Block support;
     private BlockFace face;
     /** The current support is interactive (bed/chest): the click has to be made while sneaking. */
@@ -48,7 +48,7 @@ public final class BlockPlacer {
     public void start(int x, int y, int z, Inv.Pred blocks) {
         tx = x; ty = y; tz = z;
         blockPred = blocks == null ? Inv.BLOCK : blocks;
-        ticks = 0; clicks = 0; verifyWait = 0; support = null; face = null; aimPoint = null; active = true;
+        ticks = 0; clicks = 0; support = null; face = null; aimPoint = null; active = true;
         aimWait = 0; hiddenTicks = 0;
     }
 
@@ -224,13 +224,12 @@ public final class BlockPlacer {
             return Result.DONE;
         }
         if (ticks > 60) { active = false; net.h2020.api.stats.CombatStats.inc("place.fail.timeout"); return Result.FAILED; }
-        if (verifyWait > 0) { verifyWait--; return Result.RUNNING; }
         if (!Inv.equip(ctx.player, ctx.c, blockPred, 1)) {
             if (!Inv.has(ctx.player, blockPred)) { active = false; net.h2020.api.stats.CombatStats.inc("place.fail.material"); return Result.FAILED; }
             return Result.RUNNING;
         }
         Location eye = ctx.eye();
-        if (support == null || ticks % (fast ? 8 : 10) == 0) {
+        if (support == null || ticks % (fast ? 3 : 4) == 0) {
             Object[] s = findSupport(wv, tx, ty, tz, eye, 4.4, needSight, triedFaces);
             if (s == null) { active = false; net.h2020.api.stats.CombatStats.inc("place.fail.nosupport"); return Result.FAILED; }
             Block nb = (Block) s[0];
@@ -247,22 +246,23 @@ public final class BlockPlacer {
                 aimWait = 0;
             }
         }
-        ctx.motor.aimPoint(Motor.P_TASK, aimPoint, fast ? AimIntent.FLICK : AimIntent.PRECISE);
+        ctx.motor.aimPoint(Motor.P_TASK, aimPoint, fast ? AimIntent.FLICK : AimIntent.PRECISE,
+                fast ? 0.55 : 0.26);
         aimWait++;
         if (!ignoreEntities && !cellFree(new Location(eye.getWorld(), tx, ty, tz), ctx.player)) return Result.RUNNING;
         Block tb = ctx.c.targetedBlock();
         BlockFace tf = ctx.c.targetedFace();
-        if (tb != null && tb.equals(support) && tf == face && aimWait >= (fast ? 0 : 2)) {
+        if (tb != null && tb.equals(support) && tf == face) {
             // placing against a bed or a chest only works while crouched: without shift the client would use the block
             if (sneakFor && !ctx.motor.sneaking()) { ctx.motor.sneak(true); return Result.RUNNING; }
             ctx.c.rightClick();
+            net.h2020.api.stats.CombatStats.inc("place.ok");
             // remember the cell: if it is taken down within three seconds the placement was a miss, not a win
             net.h2020.bots.ai.ml.PlacementPolicy.notePlaced(
                     ctx.player == null ? null : ctx.player.getUniqueId(),
                     tx, ty, tz, System.currentTimeMillis());
             if (sneakFor) { ctx.motor.sneak(false); net.h2020.api.stats.CombatStats.inc("place.oninteractive"); }
             clicks++;
-            verifyWait = fast ? 0 : 1;
             if (clicks > 4) { active = false; net.h2020.api.stats.CombatStats.inc("place.fail.clicks"); return Result.FAILED; }
         } else if (needSight && aimWait > 3 && ctx.c.aimSettled() && ++hiddenTicks > 8) {
             // the crosshair arrived at the aim point but the client says it is on something else: the face is
