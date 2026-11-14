@@ -284,7 +284,10 @@ public final class BlockPlacer {
             if (sneakFor) { ctx.motor.sneak(false); net.h2020.api.stats.CombatStats.inc("place.oninteractive"); }
             clicks++;
             if (clicks > 4) { active = false; net.h2020.api.stats.CombatStats.inc("place.fail.clicks"); return Result.FAILED; }
-        } else if (needSight && aimWait > 3 && ctx.c.aimSettled() && ++hiddenTicks > 8) {
+        } else if (needSight && aimWait > 3 && ctx.c.aimSettled() && ++hiddenTicks > 14) {
+            // A body that keeps walking loses sight of its own build for a moment - the wall it is placing passes a
+            // corner, or the shoulder crosses the ray. Eight ticks gave up on that; fourteen rides it out, which is
+            // what makes moving and placing compatible instead of a choice between them.
             // the crosshair arrived at the aim point but the client says it is on something else: the face is
             // occluded (usually by the block we just put down). Try another face before calling the cell impossible.
             if (++supportTries < 3) {
@@ -293,6 +296,15 @@ public final class BlockPlacer {
                 aimWait = 0;
                 hiddenTicks = 0;
                 net.h2020.api.stats.CombatStats.inc("place.retry.face");
+                return Result.RUNNING;
+            }
+            // The body is moving, so the cell we started on may be behind a shoulder now while another one of the
+            // same build is square in the crosshair. Take that one instead of failing the whole build: a player
+            // walking a wall places whichever block they are looking at, not the one they planned first.
+            int[] swap = pickReachable();
+            if (swap != null) {
+                net.h2020.api.stats.CombatStats.inc("place.swap");
+                beginCell(swap[0], swap[1], swap[2]);
                 return Result.RUNNING;
             }
             active = false;
@@ -318,4 +330,20 @@ public final class BlockPlacer {
     static double dist(Location a, double x, double y, double z) {
         return Math.sqrt(AIMath.hDistSq(a.getX(), a.getZ(), x, z) + (a.getY() - y) * (a.getY() - y));
     }
+    /** A queued cell of this build that can be placed from where the body is now, or null. */
+    private int[] pickReachable() {
+        if (queue.isEmpty()) return null;
+        Block tb = ctx.c.targetedBlock();
+        BlockFace tf = ctx.c.targetedFace();
+        int[] fallback = null;
+        for (int[] c : queue) {
+            if (!Shape.passable(ctx.world().shape(c[0], c[1], c[2]))) continue;      // somebody else filled it
+            Object[] s = findSupport(ctx.world(), c[0], c[1], c[2], ctx.eye(), 4.4, needSight);
+            if (s == null) continue;
+            if (fallback == null) fallback = c;
+            if (tb != null && tb.equals((Block) s[0]) && tf == (BlockFace) s[1]) return c;  // in the crosshair now
+        }
+        return fallback;
+    }
+
 }

@@ -418,7 +418,11 @@ public final class BedwarsBrain extends GameBrain {
             mustFight = false;
         }
         if (planner == null) planner = new net.h2020.bots.ai.combat.PlacementPlanner(this);
-        if (!locked && !ctx.combat.engaged() && !ctx.nav.bridging() && planner.tick()) return;
+        // The placer claims the aim (P_TASK, and an equal priority cannot take it back) but not the body: a player
+        // keeps walking, sprinting and jumping while they scaffold, and a bot that freezes for every block reads as
+        // a statue and loses the race to place it.
+        boolean placing = false;
+        if (!locked && !ctx.combat.engaged() && !ctx.nav.bridging()) placing = planner.tick();
         if (!locked && mustFight && combatPolicy(engageRange())) {
             // two of us on one of them and the fight is already won: the weaker one leaves and takes their bed, the
             // other keeps fighting (TeamPlay claims the hand-off so only one goes)
@@ -453,8 +457,10 @@ public final class BedwarsBrain extends GameBrain {
         // what the team is saying: "inc" pulls us home, "void" gets us out, "drop" hands the valuables over
         if (!locked && handleTeamTalk()) return;
         // blocks while travelling: put a floor block back into a holed bridge, or a head hitter over a contested one
-        if (travelBlocks != null && !ctx.combat.engaged() && !ctx.c.containerOpen()
-                && (task == null || task.interruptible()) && travelBlocks.auto()) return;
+        // A top-up while travelling claims the aim for the tick, not the legs: the bot keeps walking the bridge it is
+        // repairing, which is what the player it is copying does.
+        if (travelBlocks != null && !placing && !ctx.combat.engaged() && !ctx.c.containerOpen()
+                && (task == null || task.interruptible())) travelBlocks.auto();
         idleWatchdog();
         if (task != null) {
             boolean running;
