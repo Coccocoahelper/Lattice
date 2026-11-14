@@ -55,21 +55,29 @@ public final class TravelBlocks {
         Location me = ctx.pos();
         WorldView wv = ctx.world();
         if (me.distance(d.bed[0] == null ? me : new Location(me.getWorld(), d.bed[0][0], d.bed[0][1], d.bed[0][2])) > 9) return false;
+        // Batch: all the open cells in reach go into the placer at once, so the wall goes up as one build instead of
+        // one decision per block. The first starts now, the rest follow the moment each one lands.
+        List<int[]> batch = new java.util.ArrayList<int[]>();
         for (List<int[]> layer : new List[]{d.layer1, d.layer2}) {
             if (layer == null) continue;
             for (int[] c : d.open(layer, wv)) {
+                if (batch.size() >= 8) break;
                 if (me.distanceSquared(new Location(me.getWorld(), c[0] + 0.5, c[1], c[2] + 0.5)) > 36) continue;
                 if (BlockPlacer.findSupport(wv, c[0], c[1], c[2], ctx.eye(), 4.4, true) == null) continue;
-                lastRepair = ctx.tick;
-                started = ctx.tick;
-                placer.setNeedSight(true);
-                placer.start(c[0], c[1], c[2], Inv.BLOCK);
-                mode = REPAIR;
-                net.h2020.api.stats.CombatStats.inc("defence.topup");
-                return true;
+                batch.add(c);
             }
         }
-        return false;
+        if (batch.isEmpty()) return false;
+        lastRepair = ctx.tick;
+        started = ctx.tick;
+        placer.setNeedSight(true);
+        int[] first = batch.get(0);
+        placer.start(first[0], first[1], first[2], Inv.BLOCK);
+        for (int i = 1; i < batch.size(); i++) placer.queue(batch.get(i)[0], batch.get(i)[1], batch.get(i)[2]);
+        mode = REPAIR;
+        net.h2020.api.stats.CombatStats.inc("defence.topup");
+        net.h2020.api.stats.CombatStats.inc("defence.batch." + batch.size());
+        return true;
     }
 
     public boolean busy() { return mode != NONE; }

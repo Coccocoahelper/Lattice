@@ -27,6 +27,8 @@ public final class BlockPlacer {
     private int tx, ty, tz;
     private Inv.Pred blockPred = Inv.BLOCK;
     private int ticks, clicks, aimWait;
+    /** Cells to place straight after this one, in order: one decision, many blocks. */
+    private final java.util.ArrayDeque<int[]> queue = new java.util.ArrayDeque<int[]>();
     private Block support;
     private BlockFace face;
     /** The current support is interactive (bed/chest): the click has to be made while sneaking. */
@@ -46,8 +48,19 @@ public final class BlockPlacer {
     private final java.util.Set<Long> triedFaces = new java.util.HashSet<Long>();
 
     public void start(int x, int y, int z, Inv.Pred blocks) {
-        tx = x; ty = y; tz = z;
         blockPred = blocks == null ? Inv.BLOCK : blocks;
+        queue.clear();
+        beginCell(x, y, z);
+    }
+
+    /** Put a cell behind the current one: it is placed the moment this one lands, without a tick in between. */
+    public void queue(int x, int y, int z) { queue.add(new int[]{x, y, z}); }
+
+    public int queued() { return queue.size(); }
+
+    /** Start one cell of a build: everything a placement needs reset, but not the queue behind it. */
+    private void beginCell(int x, int y, int z) {
+        tx = x; ty = y; tz = z;
         ticks = 0; clicks = 0; support = null; face = null; aimPoint = null; active = true;
         aimWait = 0; hiddenTicks = 0;
     }
@@ -220,8 +233,15 @@ public final class BlockPlacer {
         ticks++;
         WorldView wv = ctx.world();
         if (!Shape.passable(wv.shape(tx, ty, tz))) {
-            active = false;
-            return Result.DONE;
+            if (queue.isEmpty()) {
+                active = false;
+                return Result.DONE;
+            }
+            // the next block of the same build: no task decision, no gap. This is the difference between a defence
+            // that goes up as a wall and one that goes up a block per decision.
+            int[] next = queue.poll();
+            net.h2020.api.stats.CombatStats.inc("place.batch");
+            beginCell(next[0], next[1], next[2]);
         }
         if (ticks > 60) { active = false; net.h2020.api.stats.CombatStats.inc("place.fail.timeout"); return Result.FAILED; }
         if (!Inv.equip(ctx.player, ctx.c, blockPred, 1)) {

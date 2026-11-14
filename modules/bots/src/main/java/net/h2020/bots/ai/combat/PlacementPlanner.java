@@ -49,9 +49,18 @@ public final class PlacementPlanner {
         Player enemy = brain.nearestEnemyPlayer(14);
         if (enemy == null) return false;
 
-        // 1. seal: our own feet-level ground has a hole within three blocks and somebody is close enough to use it
-        Location hole = holeNear(3);
-        if (hole != null) { start(hole, SEAL); return true; }
+        // 1. seal: our own feet-level ground has a hole within three blocks and somebody is close enough to use it.
+        // Every other hole in reach is queued behind it, so a floor with three gaps is one build, not three decisions.
+        java.util.List<Location> holes = holesNear(3, 4);
+        if (!holes.isEmpty()) {
+            start(holes.get(0), SEAL);
+            for (int i = 1; i < holes.size(); i++) {
+                Location h = holes.get(i);
+                placer.queue(h.getBlockX(), h.getBlockY(), h.getBlockZ());
+            }
+            if (holes.size() > 1) CombatStats.inc("place.batch.seal." + holes.size());
+            return true;
+        }
 
         // 2. deny the landing: they are bridging at us and the square they would step onto is open
         if (enemyNearBridge(enemy)) {
@@ -91,6 +100,33 @@ public final class PlacementPlanner {
     }
 
     /** A passable cell at our feet level, within `r`, with solid ground beside it (a hole worth filling). */
+    /** Every hole that matches the seal test within r, nearest first. */
+    private java.util.List<Location> holesNear(int r, int max) {
+        java.util.List<Location> out = new java.util.ArrayList<Location>();
+        Location me = ctx.pos();
+        int y = me.getBlockY();
+        for (int dx = -r; dx <= r; dx++) {
+            for (int dz = -r; dz <= r; dz++) {
+                if (Math.abs(dx) + Math.abs(dz) > r) continue;
+                if (out.size() >= max) return out;
+                int x = me.getBlockX() + dx, z = me.getBlockZ() + dz;
+                if (ctx.world().shape(x, y, z) != Shape.OPEN) continue;
+                if (ctx.world().shape(x, y - 1, z) != Shape.OPEN) continue;
+                if (ctx.world().shape(x, y + 1, z) != Shape.OPEN) continue;
+                if (ctx.world().voidSides(x, y, z) >= 3) continue;
+                boolean face = ctx.world().shape(x + 1, y, z) != Shape.OPEN
+                        || ctx.world().shape(x - 1, y, z) != Shape.OPEN
+                        || ctx.world().shape(x, y, z + 1) != Shape.OPEN
+                        || ctx.world().shape(x, y, z - 1) != Shape.OPEN
+                        || ctx.world().shape(x, y - 1, z) != Shape.OPEN;
+                if (!face) continue;
+                if (Math.hypot(dx, dz) > 2.6) continue;
+                out.add(new Location(me.getWorld(), x, y, z));
+            }
+        }
+        return out;
+    }
+
     private Location holeNear(int r) {
         Location me = ctx.pos();
         int y = me.getBlockY();
