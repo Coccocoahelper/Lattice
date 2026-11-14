@@ -445,13 +445,30 @@ public final class BedwarsBrain extends GameBrain {
             ctx.combat.tick();
             return;
         }
-        // someone at our bed
-        if (color != null && view.bedAlive(color) && ctx.tick > bedAlertCooldown && !(task instanceof GuardTask) && enemyNearBed()) {
-            double d = ctx.pos().distance(view.bedLocation(color));
-            if (d < 45 && (role == Role.DEFENDER || d < 22)) {
-                switchTo(new GuardTask(this, 20 * 25));
-                if (teamMode()) ctx.chat.callout(ctx.rng.nextBoolean() ? "someone at bed" : "bed", 0.4);
-                bedAlertCooldown = ctx.tick + 400;
+        // Somebody is coming for the bed. Detected at 45 blocks, not at 12, and answered by meeting them: the closest
+        // bot intercepts, the next closest converges, everybody else keeps working. Standing near the bed while they
+        // walk in is how a real player killed eight bots island to island without a contest.
+        if (!locked && color != null && view.bedAlive(color)
+                && !(task instanceof net.h2020.bots.ai.brain.bedwars.InterceptTask)) {
+            Player inc = net.h2020.bots.ai.brain.bedwars.Incursion.threat(this);
+            if (inc != null) {
+                int rank = net.h2020.bots.ai.brain.bedwars.Incursion.rank(this, inc);
+                boolean lead = rank == 0;
+                boolean support = rank == 1
+                        && ctx.pos().getWorld() == inc.getWorld()
+                        && ctx.pos().distance(inc.getLocation()) <= net.h2020.bots.ai.brain.bedwars.Incursion.SUPPORT_RANGE;
+                if (lead || support) {
+                    if (ctx.combat.target() != inc && ctx.pos().distance(inc.getLocation()) <= 4.6) {
+                        ctx.combat.engage(inc);
+                    }
+                    if (task != null && !(task instanceof GuardTask)) task.abort();
+                    switchTo(new net.h2020.bots.ai.brain.bedwars.InterceptTask(this, inc));
+                    net.h2020.api.stats.CombatStats.inc(lead ? "incursion.lead" : "incursion.support");
+                    if (teamMode() && lead) ctx.chat.callout(ctx.rng.nextBoolean() ? "inc" : "on them", 0.4);
+                    bedAlertCooldown = ctx.tick + 200;
+                    return;
+                }
+                if (lead || support) return;
             }
         }
         // what the team is saying: "inc" pulls us home, "void" gets us out, "drop" hands the valuables over
