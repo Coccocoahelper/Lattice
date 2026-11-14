@@ -49,7 +49,7 @@ public final class TravelBlocks {
      * rather than only during a defence task.
      */
     private boolean repairDefence() {
-        if (brain == null || ctx.tick - lastRepair < 40) return false;
+        if (brain == null || ctx.tick - lastRepair < 8) return false;
         BedDefense d = brain.defense();
         if (d == null || !brain.bedAliveNow()) return false;
         Location me = ctx.pos();
@@ -110,6 +110,9 @@ public final class TravelBlocks {
     }
 
     private boolean consider() {
+        // Measured: letting this run while a path is being walked made the gap between placements worse (53 -> 106
+        // ticks), because the attempts fail out of reach and each one holds the next try off. The legs are not the
+        // gate after all - the demand is.
         if (ctx.nav.doingAction() || !ctx.c.onGround() || !Inv.has(ctx.player, Inv.BLOCK)) return false;
         Location me = ctx.pos();
         WorldView wv = ctx.world();
@@ -122,7 +125,7 @@ public final class TravelBlocks {
         double speed = Math.sqrt(v.getX() * v.getX() + v.getZ() * v.getZ());
 
         // 1) hole in the line ahead: put the floor block back instead of jumping the gap
-        if (ctx.tick - lastRepair > 40 && speed < 0.34) {
+        if (ctx.tick - lastRepair > 10 && speed < 0.34) {
             int[] dir = heading(v, x, z);
             if (dir != null) {
                 for (int step = 2; step <= 4; step++) {

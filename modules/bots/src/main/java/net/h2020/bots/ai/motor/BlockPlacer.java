@@ -27,6 +27,9 @@ public final class BlockPlacer {
     private int tx, ty, tz;
     private Inv.Pred blockPred = Inv.BLOCK;
     private int ticks, clicks, aimWait;
+    /** Per bot: tick of its last placed block, so the cadence metric is that bot's own gap, not the server's. */
+    private static final java.util.Map<java.util.UUID, Long> LAST_PLACE =
+            new java.util.concurrent.ConcurrentHashMap<java.util.UUID, Long>();
     /** Cells to place straight after this one, in order: one decision, many blocks. */
     private final java.util.ArrayDeque<int[]> queue = new java.util.ArrayDeque<int[]>();
     private Block support;
@@ -277,6 +280,16 @@ public final class BlockPlacer {
             if (sneakFor && !ctx.motor.sneaking()) { ctx.motor.sneak(true); return Result.RUNNING; }
             ctx.c.rightClick();
             net.h2020.api.stats.CombatStats.inc("place.ok");
+            // how long this block waited behind the last one: the number "fewer ticks between placements" means
+            java.util.UUID who = ctx.player.getUniqueId();
+            Long prev = LAST_PLACE.put(who, ctx.tick);
+            if (prev != null && ctx.tick > prev) {
+                long gap = ctx.tick - prev;
+                net.h2020.api.stats.CombatStats.add("place.gap.sum", gap);
+                net.h2020.api.stats.CombatStats.inc("place.gap.n");
+                if (gap <= 3) net.h2020.api.stats.CombatStats.inc("place.gap.chain");
+                else net.h2020.api.stats.CombatStats.inc("place.gap.wait");
+            }
             // remember the cell: if it is taken down within three seconds the placement was a miss, not a win
             net.h2020.bots.ai.ml.PlacementPolicy.notePlaced(
                     ctx.player == null ? null : ctx.player.getUniqueId(),

@@ -96,7 +96,7 @@ public final class PlacementPlanner {
         placer.setNeedSight(true);
         placer.start(at.getBlockX(), at.getBlockY(), at.getBlockZ(), material());
         CombatStats.inc("place.purpose." + name(p) + ".start");
-        nextTry = ctx.tick + 25;
+        nextTry = ctx.tick + 8;      // the gap between one tactical placement and the next decision
     }
 
     /** A passable cell at our feet level, within `r`, with solid ground beside it (a hole worth filling). */
