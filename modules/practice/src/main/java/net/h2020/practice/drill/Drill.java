@@ -59,6 +59,26 @@ public interface Drill {
     /** One line for the action bar: score, streak, whatever this drill counts. */
     String hud(PracticeGame g, Player p);
 
+    // ---- values a sidebar layout can print, as text so a board never has to know the drill ----
+
+    /** The drill's level or stage, or "-" when the drill has none. */
+    default String level(Player p) { return "-"; }
+
+    /** How many levels/stages the drill has, or "-". */
+    default String levels() { return "-"; }
+
+    /** How much is left to do in the current level/stage, or "-". */
+    default String blocksToPlace(Player p) { return "-"; }
+
+    /** The player's best result, formatted, or "-". */
+    default String best(Player p) { return "-"; }
+
+    /** How many completions this session, or "-". */
+    default String completed(Player p) { return "-"; }
+
+    /** Best result in milliseconds, 0 when there is none: used for the board's flags, not for display. */
+    default long bestMillis(Player p) { return 0; }
+
     /** Detail lines for /practice stats. */
     default java.util.List<String> stats(PracticeGame g, Player p) { return java.util.Collections.emptyList(); }
 

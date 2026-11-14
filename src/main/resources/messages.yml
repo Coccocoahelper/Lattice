@@ -425,8 +425,6 @@ practice:
   sense:
     explanation: "&8  {why}"
     scenario: "&b&lScenario&8 (12 s)"
-  sidebar:
-    title: "&b&lPRACTICE"
 replay:
   finished: "&7Replay finished ({blocks} blocks placed{failed})."
   finished-failed: ", {failed} failed"

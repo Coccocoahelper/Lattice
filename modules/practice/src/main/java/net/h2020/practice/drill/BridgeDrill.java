@@ -161,6 +161,13 @@ public final class BridgeDrill implements Drill {
         return out;
     }
 
+    @Override public String level(Player p) { return String.valueOf(length); }
+    @Override public String levels() { return "18"; }
+    @Override public String blocksToPlace(Player p) { return String.valueOf(Math.max(0, length)); }
+    @Override public String best(Player p) { long b = row(p)[2]; return b == 0 ? "-" : b + "ms"; }
+    @Override public String completed(Player p) { return String.valueOf(row(p)[3]); }
+    @Override public long bestMillis(Player p) { return row(p)[2]; }
+
     /** The variant a session is running, for the command output. */
     public Variant variant() { return variant; }
 

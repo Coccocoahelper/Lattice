@@ -44,7 +44,39 @@ public final class Sidebars {
                 // the resource is optional: a server may ship its own sidebar.yml or none at all
             }
         }
+        mergeDefaults(plugin, file);
         reload();
+    }
+
+    /**
+     * Add any board the file does not have yet, from the layout shipped in the jar.
+     *
+     * <p>Without this a new board never reaches an existing install: the file is only written when it is missing, so
+     * adding a layout meant everyone who already had a sidebar.yml never saw it. Existing boards are never touched -
+     * an edited board is the operator's, and only names that are absent are copied in.
+     */
+    private static void mergeDefaults(JavaPlugin plugin, File file) {
+        if (!file.isFile()) return;
+        try (java.io.InputStream in = plugin.getResource(FILE)) {
+            if (in == null) return;
+            YamlConfiguration shipped = YamlConfiguration.loadConfiguration(
+                    new java.io.InputStreamReader(in, java.nio.charset.StandardCharsets.UTF_8));
+            YamlConfiguration mine = YamlConfiguration.loadConfiguration(file);
+            int added = 0;
+            org.bukkit.configuration.ConfigurationSection boards = shipped.getConfigurationSection("boards");
+            if (boards == null) return;
+            for (String name : boards.getKeys(false)) {
+                if (mine.contains("boards." + name)) continue;
+                mine.set("boards." + name, boards.get(name));
+                added++;
+            }
+            if (added > 0) {
+                mine.save(file);
+                plugin.getLogger().info("sidebar.yml: " + added + " board(s) added from the defaults");
+            }
+        } catch (Throwable ignored) {
+            // a broken or absent resource must never stop the server booting
+        }
     }
 
     /** Re-reads the file from disk. A missing/invalid file simply leaves no boards behind. */

@@ -133,3 +133,24 @@ boards:
       - "&fMode: %mode%"
       - ""
       - "&ewww.hypixel.net"
+
+  # Technique practice. %drill% %level% %levels% %blocks% %best% %done% %session% %players% %id% are filled by the
+  # drills; the flags below (beddefence, bridge, fireball, bow, gamesense) let a line belong to one drill only.
+  practice:
+    enabled: true
+    title: "&b&lPRACTICE"
+    lines:
+      - ""
+      - "Technique: &b%drill%"
+      - ""
+      - "%practice_progress%"
+      - ""
+      - { text: "Best: &f%best%", when: [scored] }
+      - { text: "Built: &f%done%", when: [scored] }
+      - { text: "Level: &f%level%&7/&f%levels%", when: [levelled] }
+      - { text: "Blocks: &f%blocks%", when: [levelled] }
+      - ""
+      - "Session: &f%session%"
+      - "In drill: &f%players%"
+      - ""
+      - "&8practice.lattice"

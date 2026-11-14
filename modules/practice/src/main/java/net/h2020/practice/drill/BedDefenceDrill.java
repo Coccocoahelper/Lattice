@@ -213,6 +213,13 @@ public final class BedDefenceDrill implements Drill {
         return out;
     }
 
+    @Override public String level(Player p) { return String.valueOf(level); }
+    @Override public String levels() { return String.valueOf(BedDefenceTemplates.count()); }
+    @Override public String blocksToPlace(Player p) { return String.valueOf(target.size()); }
+    @Override public String best(Player p) { long b = row(p)[3]; return b == 0 ? "-" : b + "ms"; }
+    @Override public String completed(Player p) { return String.valueOf(row(p)[4]); }
+    @Override public long bestMillis(Player p) { return row(p)[3]; }
+
     /** The cells a bot has to fill, for a bot brain handed this drill. */
     public List<int[]> targetCells() {
         List<int[]> out = new ArrayList<int[]>();

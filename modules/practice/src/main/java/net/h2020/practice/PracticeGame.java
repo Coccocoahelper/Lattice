@@ -205,20 +205,37 @@ public final class PracticeGame implements Game {
     private void updateSidebar() {
         net.h2020.api.core.ScoreboardService boards = H2020.find(net.h2020.api.core.ScoreboardService.class);
         if (boards == null) return;
-        String title = net.h2020.api.core.Messages.raw("practice.sidebar.title");
+        net.h2020.api.core.SidebarTemplate template = net.h2020.api.core.Sidebars.get("practice");
         long seconds = Math.max(0, (System.currentTimeMillis() - startedAt) / 1000L);
         for (Player p : players) {
             if (!p.isOnline() || following.containsKey(p.getUniqueId())) continue;
-            List<String> lines = new ArrayList<String>();
-            lines.add("");
-            lines.add(ChatColor.GRAY + "Technique  " + ChatColor.AQUA + drill.display());
-            for (String part : drill.hud(this, p).split(" " + (char) 0x7C + " ")) lines.add(part);
-            lines.add("");
-            lines.add(ChatColor.GRAY + "Session  " + ChatColor.WHITE + String.format("%d:%02d", seconds / 60, seconds % 60));
-            lines.add(ChatColor.GRAY + "In drill  " + ChatColor.WHITE + players.size());
-            lines.add("");
-            lines.add(ChatColor.DARK_GRAY + "practice.lattice");
-            boards.setSidebar(p, title == null ? ChatColor.AQUA + "" + ChatColor.BOLD + "PRACTICE" : title, lines);
+            if (template == null) {                       // sidebar.yml gone or the board switched off: no board at all
+                boards.clearSidebar(p);
+                continue;
+            }
+            java.util.Map<String, String> vars = new java.util.HashMap<String, String>();
+            vars.put("drill", drill.display());
+            vars.put("id", id);
+            vars.put("players", String.valueOf(players.size()));
+            vars.put("session", String.format("%d:%02d", seconds / 60, seconds % 60));
+            String[] hud = drill.hud(this, p).split(" " + (char) 0x7C + " ");
+            // the drill's own line, minus colour, is the progress line; the numbers behind it are named vars so a
+            // layout can put any of them on a line of its own
+            vars.put("practice_progress", hud.length > 0 ? hud[0] : "");
+            vars.put("level", drill.level(p));
+            vars.put("levels", drill.levels());
+            vars.put("blocks", drill.blocksToPlace(p));
+            vars.put("best", drill.best(p));
+            vars.put("done", drill.completed(p));
+            java.util.Set<String> flags = new java.util.HashSet<String>();
+            flags.add("practice");
+            flags.add(drill.id().replace("-", ""));
+            String levels = drill.levels();
+            if (!levels.equals("-")) {
+                try { if (Integer.parseInt(levels) > 1) flags.add("levelled"); } catch (NumberFormatException ignored) { }
+            }
+            if (drill.bestMillis(p) > 0) flags.add("scored");
+            boards.setSidebar(p, template.renderTitle(p, vars), template.render(p, vars, flags, null));
         }
     }
 
