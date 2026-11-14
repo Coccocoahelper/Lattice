@@ -693,7 +693,8 @@ public final class AdminCommand implements TabExecutor {
                 StringBuilder out = new StringBuilder("world=" + w.getName());
                 for (int i = 3; i < a.length; i++) {
                     int y = Integer.parseInt(a[i]);
-                    out.append(" y").append(y).append('=').append(w.getBlockAt(x, y, z).getType());
+                    out.append(" y").append(y).append('=').append(w.getBlockAt(x, y, z).getType())
+                            .append('/').append(w.getBlockAt(x, y, z).getData());
                 }
                 s.sendMessage(g(out.toString()));
                 return true;

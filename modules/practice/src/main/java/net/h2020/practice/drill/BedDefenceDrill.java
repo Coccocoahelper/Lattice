@@ -127,10 +127,13 @@ public final class BedDefenceDrill implements Drill {
     private void buildBed() {
         Block foot = arena.world().getBlockAt(BED_X, BED_Y, BED_Z);
         Block head = arena.world().getBlockAt(BED_X + 1, BED_Y, BED_Z);
+        // Bed data: the low two bits are the direction the head sits in from the foot (0 south, 1 west, 2 north,
+        // 3 east) and 0x8 marks the head block. The head is one block east, so the foot is 3 and the head is 3|8.
+        // Setting the foot north (2) with the head to the east (10) is what made the two halves point different ways.
         foot.setType(Material.BED_BLOCK, false);
-        foot.setData((byte) 2, false);          // facing north, head to +X per the data layout
+        foot.setData((byte) 3, false);
         head.setType(Material.BED_BLOCK, false);
-        head.setData((byte) 10, false);
+        head.setData((byte) 11, false);
     }
 
     /** The copy on the left: the same cells, floating on the glass shelf, always current for this level. */
@@ -144,8 +147,12 @@ public final class BedDefenceDrill implements Drill {
             modelCells.add(new int[]{mx, my, mz});
         }
         // the bed of the model too, so the shape reads as a bed and not as a box
-        arena.world().getBlockAt(BED_X + MODEL_DX, BED_Y, BED_Z).setType(Material.BED_BLOCK, false);
-        arena.world().getBlockAt(BED_X + MODEL_DX + 1, BED_Y, BED_Z).setType(Material.BED_BLOCK, false);
+        Block mFoot = arena.world().getBlockAt(BED_X + MODEL_DX, BED_Y, BED_Z);
+        Block mHead = arena.world().getBlockAt(BED_X + MODEL_DX + 1, BED_Y, BED_Z);
+        mFoot.setType(Material.BED_BLOCK, false);
+        mFoot.setData((byte) 3, false);
+        mHead.setType(Material.BED_BLOCK, false);
+        mHead.setData((byte) 11, false);
     }
 
     @Override public void onJoin(PracticeGame g, Player p) { row(p); }
