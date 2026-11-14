@@ -13,6 +13,7 @@ import net.h2020.api.game.GameModes;
 import net.h2020.api.game.GameProvider;
 import net.h2020.api.game.GameState;
 import net.h2020.api.map.MapTemplate;
+import net.h2020.practice.drill.BedDefenceDrill;
 import net.h2020.practice.drill.BowDrill;
 import net.h2020.practice.drill.BridgeDrill;
 import net.h2020.practice.drill.Drill;
@@ -133,6 +134,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
         if (id.equals(PracticeMode.SENSE.id())) return new GameSenseDrill();
         if (id.equals(PracticeMode.BRIDGE.id())) return new BridgeDrill(BridgeDrill.Variant.STRAIGHT);
         if (id.equals(PracticeMode.BRIDGE_DIAGONAL.id())) return new BridgeDrill(BridgeDrill.Variant.DIAGONAL);
+        if (id.equals(PracticeMode.BED_DEFENCE.id())) return new BedDefenceDrill();
         return null;
     }
 
@@ -232,6 +234,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
             case "bow": case "aim": case "archery": return PracticeMode.BOW;
             case "gamesense": case "sense": case "scenarios": return PracticeMode.SENSE;
             case "bridge": case "bridging": return PracticeMode.BRIDGE;
+            case "beddefence": case "defence": case "defense": return PracticeMode.BED_DEFENCE;
             case "bridge-diagonal": case "diagonal": case "diag": return PracticeMode.BRIDGE_DIAGONAL;
             default: return null;
         }
@@ -288,7 +291,16 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
                 // Outside the bridging drill a bot has nothing to do but stand where the drill put it: a lobby brain
                 // wanders, walks off the rim and spends the session falling, which is what the fireball lane showed
                 // the first time these were spawned (health 2 at y=49, thirteen fireballs taken in twenty seconds).
-                if (!(g.drill() instanceof BridgeDrill)) bot.setBrain(null);
+                // the bed-defence drill hands the bot the cells it wants built, so a bot's run is the same structure
+                // a person builds and the two times sit in one file
+                if (g.drill() instanceof BedDefenceDrill) {
+                    BedDefenceDrill bd = (BedDefenceDrill) g.drill();
+                    java.util.List<int[]> cells = bd.targetCells();
+                    int[][] arr = new int[cells.size()][];
+                    for (int k = 0; k < cells.size(); k++) arr[k] = cells.get(k);
+                    bot.setBrain(bs.bedDefenceBrain(arr));
+                }
+                if (!(g.drill() instanceof BridgeDrill) && !(g.drill() instanceof BedDefenceDrill)) bot.setBrain(null);
                 // a bridging drill is only a benchmark if the bot actually bridges: give it the brain that does
                 if (g.drill() instanceof BridgeDrill) {
                     BridgeDrill bd = (BridgeDrill) g.drill();

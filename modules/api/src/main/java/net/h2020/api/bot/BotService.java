@@ -24,5 +24,11 @@ public interface BotService {
      * a bridging run can be measured; null when this server has no bridging brain.
      */
     default BotBrain bridgeBrain(int dx, int dz, int maxBlocks, String technique) { return BrainFactory.none(); }
+
+    /**
+     * A brain that fills the given cells with blocks, as fast as its placement allows: what the bed-defence drill
+     * hands a bot so its time is measured on the same structure a person builds.
+     */
+    default BotBrain bedDefenceBrain(int[][] cells) { return BrainFactory.none(); }
 }
 

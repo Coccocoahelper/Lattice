@@ -42,7 +42,12 @@ public final class PracticeMode implements GameMode {
             "The same gap on the diagonal, where the stair-step is what keeps you on the line.",
             Material.SANDSTONE);
 
-    public static final PracticeMode[] ALL = {FIREBALL, BOW, SENSE, BRIDGE, BRIDGE_DIAGONAL};
+    public static final PracticeMode BED_DEFENCE = new PracticeMode("practice_beddefence",
+            "Bed Defence", "Build",
+            "You get the blocks and a model of the defence on your left. Build it as fast as you can.",
+            Material.BED);
+
+    public static final PracticeMode[] ALL = {FIREBALL, BOW, SENSE, BRIDGE, BRIDGE_DIAGONAL, BED_DEFENCE};
 
     @Override public String id() { return id; }
     @Override public GameFamily family() { return GameFamily.PRACTICE; }

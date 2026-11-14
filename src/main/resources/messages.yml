@@ -405,6 +405,7 @@ practice:
       - "&7/practice gamesense &8- situations, graded"
       - "&7/practice bridge &8- straight, growing gap"
       - "&7/practice bridge-diagonal &8- the same on the diagonal"
+      - "&7/practice beddefence &8- build the defence shown on your left, against the clock"
       - "&8add &fbots <n>&8 to any of them to bring bots in; &f/practice leave&8 to stop"
       - "&8the bridge drill also takes a method: &f/practice bridge bots 2 ninja2&8 - and you watch the bot it puts in the arena"
   practicegame:
