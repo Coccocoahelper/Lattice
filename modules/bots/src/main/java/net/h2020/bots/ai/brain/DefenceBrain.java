@@ -22,14 +22,15 @@ public final class DefenceBrain extends BaseBrain {
     /** The bed these cells surround, worked out once: the ring's average position. */
     private double anchorX, anchorZ;
 
-    public DefenceBrain(int[][] cells) {
+    private final int bedX, bedY, bedZ;
+
+    public DefenceBrain(int[][] cells, int bedX, int bedY, int bedZ) {
         this.cells = cells == null ? new int[0][] : cells;
+        this.bedX = bedX; this.bedY = bedY; this.bedZ = bedZ;
         // Build the shape the way the best recorded human run did (12 blocks, 3.3 s): the front row right to left,
         // then the back row right to left, then the flanks, then the cells over the bed. A person sweeps a row and
         // moves once; taking the template's own order walked back and forth across the same wall.
-        double sx = 0, sz = 0;
-        for (int[] c : this.cells) { sx += c[0]; sz += c[2]; }
-        if (this.cells.length > 0) { anchorX = sx / this.cells.length + 0.5; anchorZ = sz / this.cells.length + 0.5; }
+        anchorX = bedX + 0.5; anchorZ = bedZ + 0.5;
         java.util.Arrays.sort(this.cells, new java.util.Comparator<int[]>() {
             @Override public int compare(int[] a, int[] b) {
                 int la = layer(a[2]), lb = layer(b[2]);
@@ -86,8 +87,12 @@ public final class DefenceBrain extends BaseBrain {
         // Never place from inside a cell of the wall: standing on the block you are about to fill makes it occupied,
         // and the placer then refuses the click and the pass walks on. Measured: bots parked at (1,65,1), a target
         // cell, with nine blocks "to place" and none of them going down.
-        boolean standingOnTarget = isTarget((int) Math.floor(ctx.pos().getX()),
-                (int) Math.floor(ctx.pos().getY() + 0.01), (int) Math.floor(ctx.pos().getZ()));
+        int px = (int) Math.floor(ctx.pos().getX());
+        int py = (int) Math.floor(ctx.pos().getY() + 0.01);
+        int pz = (int) Math.floor(ctx.pos().getZ());
+        // standing on the bed is the same mistake as standing in the wall: the body occupies a cell that matters
+        boolean standingOnTarget = isTarget(px, py, pz)
+                || (py == bedY && pz == bedZ && (px == bedX || px == bedX + 1));
         if (ctx.pos().getWorld() == at.getWorld() && (standingOnTarget || ctx.pos().distance(at) > 3.4)) {
             ctx.nav.goTo(stand, 1.0);
             ctx.nav.tick();

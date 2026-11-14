@@ -27,6 +27,8 @@ public final class BlockPlacer {
     private int tx, ty, tz;
     private Inv.Pred blockPred = Inv.BLOCK;
     private int ticks, clicks, aimWait;
+    /** Shift was requested on an earlier tick, so the click can go out with it held. */
+    private boolean sneakHeld;
     /** Per bot: tick of its last placed block, so the cadence metric is that bot's own gap, not the server's. */
     private static final java.util.Map<java.util.UUID, Long> LAST_PLACE =
             new java.util.concurrent.ConcurrentHashMap<java.util.UUID, Long>();
@@ -64,7 +66,7 @@ public final class BlockPlacer {
     /** Start one cell of a build: everything a placement needs reset, but not the queue behind it. */
     private void beginCell(int x, int y, int z) {
         tx = x; ty = y; tz = z;
-        ticks = 0; clicks = 0; support = null; face = null; aimPoint = null; active = true;
+        ticks = 0; clicks = 0; support = null; face = null; aimPoint = null; active = true; sneakHeld = false;
         aimWait = 0; hiddenTicks = 0;
     }
 
@@ -276,8 +278,17 @@ public final class BlockPlacer {
         Block tb = ctx.c.targetedBlock();
         BlockFace tf = ctx.c.targetedFace();
         if (tb != null && tb.equals(support) && tf == face) {
-            // placing against a bed or a chest only works while crouched: without shift the client would use the block
-            if (sneakFor && !ctx.motor.sneaking()) { ctx.motor.sneak(true); return Result.RUNNING; }
+            // Placing against a bed or a chest only works while crouched: without shift the client would open it.
+            // The sneak flag is cleared at the start of every tick, so "still sneaking?" can never be true on the
+            // next tick - the placer asked for shift, was told no, and asked again for ever. Measured: every cell
+            // whose only support was the bed stayed empty (0,66,0 and 1,66,0 in the drill). Hold it for one tick,
+            // then click with it held.
+            if (sneakFor) {
+                ctx.motor.sneak(true);
+                if (!sneakHeld) { sneakHeld = true; return Result.RUNNING; }
+            } else {
+                sneakHeld = false;
+            }
             ctx.c.rightClick();
             net.h2020.api.stats.CombatStats.inc("place.ok");
             // how long this block waited behind the last one: the number "fewer ticks between placements" means

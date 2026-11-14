@@ -321,7 +321,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
                     java.util.List<int[]> cells = bd.targetCells();
                     int[][] arr = new int[cells.size()][];
                     for (int k = 0; k < cells.size(); k++) arr[k] = cells.get(k);
-                    bot.setBrain(bs.bedDefenceBrain(arr));
+                    bot.setBrain(bs.bedDefenceBrain(arr, bd.bedX(), bd.bedY(), bd.bedZ()));
                 }
                 if (!(g.drill() instanceof BridgeDrill) && !(g.drill() instanceof BedDefenceDrill)) bot.setBrain(null);
                 // a bridging drill is only a benchmark if the bot actually bridges: give it the brain that does
@@ -474,6 +474,8 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
         if (games.isEmpty()) { net.h2020.api.core.Messages.send(to, "practice.command.no-sessions"); return; }
         for (PracticeGame g : games.values()) {
             to.sendMessage(net.h2020.api.core.Messages.get("practice.practicemodule.state-world-players","p1",g.id(),"p2",g.drill().display(),"p3",g.state(),"p4",g.world().getName(),"p5",g.players().size()));
+            if (g.drill() instanceof BedDefenceDrill) to.sendMessage("  drill: "
+                    + ((BedDefenceDrill) g.drill()).debugLine());
             java.util.Map<String, Integer> counts = new java.util.TreeMap<String, Integer>();
             for (Entity e : g.world().getEntities()) {
                 String n = e.getType().name();

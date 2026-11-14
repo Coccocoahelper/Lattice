@@ -220,6 +220,24 @@ public final class BedDefenceDrill implements Drill {
     @Override public String completed(Player p) { return String.valueOf(row(p)[4]); }
     @Override public long bestMillis(Player p) { return row(p)[3]; }
 
+    /** One debug line: the cells being asked for, and whether each is standing. */
+    public String debugLine() {
+        StringBuilder sb = new StringBuilder("level " + level + " of " + BedDefenceTemplates.count() + ", cells:");
+        int filled = 0;
+        for (Map.Entry<Long, Material> e : target.entrySet()) {
+            int[] c = unkey(e.getKey());
+            Material now = arena.world().getBlockAt(c[0], c[1], c[2]).getType();
+            if (now == e.getValue()) filled++;
+            if (sb.length() < 160) sb.append(' ').append(c[0]).append(',').append(c[1]).append(',').append(c[2])
+                    .append('=').append(now == e.getValue() ? "ok" : now.name());
+        }
+        return sb.append("  filled ").append(filled).append('/').append(target.size()).toString();
+    }
+
+    public int bedX() { return BED_X; }
+    public int bedY() { return BED_Y; }
+    public int bedZ() { return BED_Z; }
+
     /** The cells a bot has to fill, for a bot brain handed this drill. */
     public List<int[]> targetCells() {
         List<int[]> out = new ArrayList<int[]>();

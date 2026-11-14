@@ -181,8 +181,8 @@ public final class BotManager implements BotService, Listener {
     }
 
     @Override
-    public net.h2020.api.bot.BotBrain bedDefenceBrain(int[][] cells) {
-        return new net.h2020.bots.ai.brain.DefenceBrain(cells);
+    public net.h2020.api.bot.BotBrain bedDefenceBrain(int[][] cells, int bedX, int bedY, int bedZ) {
+        return new net.h2020.bots.ai.brain.DefenceBrain(cells, bedX, bedY, bedZ);
     }
 
     @Override

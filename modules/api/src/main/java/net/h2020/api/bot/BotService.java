@@ -29,6 +29,6 @@ public interface BotService {
      * A brain that fills the given cells with blocks, as fast as its placement allows: what the bed-defence drill
      * hands a bot so its time is measured on the same structure a person builds.
      */
-    default BotBrain bedDefenceBrain(int[][] cells) { return BrainFactory.none(); }
+    default BotBrain bedDefenceBrain(int[][] cells, int bedX, int bedY, int bedZ) { return BrainFactory.none(); }
 }
 
