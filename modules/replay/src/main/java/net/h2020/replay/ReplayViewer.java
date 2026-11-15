@@ -494,6 +494,17 @@ public final class ReplayViewer {
 
     /** A game-owned world for this map: a live game if one is running, otherwise a kept-alive host game. */
     private static World hostWorld(String mapName, String modeId) {
+        // A practice drill has no map at all: its arena is generated, so ask for one before any map lookup. Doing the
+        // lookup first meant a drill whose "map" is just a label - "Bridging (diagonal)" - fell through the slime and
+        // template paths and was refused as having no map, which is how a diagonal bridging recording looked like it
+        // did not exist.
+        if (modeId != null && modeId.startsWith("practice")) {
+            World drill = net.h2020.api.practice.PracticeArenas.spawn(modeId);
+            if (drill != null) {
+                plugin.getLogger().info("[replay] built a practice arena for " + modeId);
+                return drill;
+            }
+        }
         if (mapName == null) return null;
         // a slime copy is a private world: nobody's game is running in it, so the replay cannot overlap live blocks
         World own = net.h2020.api.map.SlimeWorlds.spawn(mapName, "replay");
