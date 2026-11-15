@@ -41,12 +41,27 @@ public final class DefenceBrain extends BaseBrain {
         // then the back row right to left, then the flanks, then the cells over the bed. A person sweeps a row and
         // moves once; taking the template's own order walked back and forth across the same wall.
         anchorX = bedX + 0.5; anchorZ = bedZ + 0.5;
+        // Sovacos's route, from 15 recorded runs (the last three are identical to the block):
+        //   front row right to left   (2,1) (1,1) (0,1)
+        //   back row right to left    (2,-1) (1,-1) (0,-1)
+        //   the flanks                (-1,0) then (3,0)
+        //   the bed's own edge        (2,0)
+        //   over the bed right to left (2,0,66) (1,0,66) (0,0,66)
+        // Gaps: 100-150 ms inside a row, 250-750 ms between rows.
         java.util.Arrays.sort(this.cells, new java.util.Comparator<int[]>() {
             @Override public int compare(int[] a, int[] b) {
                 int la = layer(a[2]), lb = layer(b[2]);
                 if (la != lb) return la - lb;
-                if (a[2] != b[2]) return b[2] - a[2];        // far side first within a layer
-                return b[0] - a[0];                          // then right to left
+                if (la != 2) return b[0] - a[0];                  // rows: right to left
+                if (a[1] != b[1]) return a[1] - b[1];             // flanks (y0) before the roof (y1)
+                if (a[1] == 0) {
+                    // the left flank first, then the right side inward: -1, 3, 2
+                    boolean al = a[0] < bedX, bl = b[0] < bedX;
+                    if (al != bl) return al ? -1 : 1;
+                    if (al) return a[0] - b[0];
+                    return b[0] - a[0];
+                }
+                return b[0] - a[0];                               // over the bed: right to left
             }
         });
     }
