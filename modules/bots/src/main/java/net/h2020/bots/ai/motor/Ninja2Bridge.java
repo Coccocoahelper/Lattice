@@ -136,18 +136,10 @@ public final class Ninja2Bridge extends BridgeMethod {
     }
 
     private float rawLookYaw(Bridger b) {
-        if (squaringUp(b)) return AIMath.wrap(travelYaw + 180f);
-        if (!nearEdge(b) && carriedYaw != 0f) return carriedYaw;   // keep the pose between edges
-        float yaw;
-        if (straight) {
-            updateSide(b);
-            yaw = AIMath.wrap(movingYaw + (onRightSide ? 45f : -45f));
-        } else {
-            float axis = snap90(b.ctx.c.yaw());
-            yaw = AIMath.wrap(axis + 45f);                          // their stationary pose: axis + 45, 75 degrees
-        }
-        carriedYaw = yaw;
-        return yaw;
+        // The same rotation policy as ninja: hold the snapped 45-family angle and add at most a degree of human
+        // jitter. The carry and square-up poses were Ninja2's own invention and they are what made its head wander;
+        // a diagonal does not need a different way of looking, only a different place to put the blocks.
+        return AIMath.wrap(movingYaw + Math.max(-1f, Math.min(1f, wobble(b) * 0.25f)));
     }
 
     /**

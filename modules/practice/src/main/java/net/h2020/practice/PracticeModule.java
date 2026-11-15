@@ -14,6 +14,7 @@ import net.h2020.api.game.GameProvider;
 import net.h2020.api.game.GameState;
 import net.h2020.api.map.MapTemplate;
 import net.h2020.practice.drill.BedDefenceDrill;
+import net.h2020.practice.drill.BlockClutchDrill;
 import net.h2020.practice.drill.BlockInDrill;
 import net.h2020.practice.drill.FireballJumpDrill;
 import net.h2020.practice.drill.BedDefenceTemplates;
@@ -160,6 +161,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
         if (id.equals(PracticeMode.BED_DEFENCE.id())) return new BedDefenceDrill();
         if (id.equals(PracticeMode.BLOCK_IN.id())) return new BlockInDrill();
         if (id.equals(PracticeMode.FIREBALL_JUMP.id())) return new FireballJumpDrill();
+        if (id.equals(PracticeMode.BLOCK_CLUTCH.id())) return new BlockClutchDrill();
         return null;
     }
 
@@ -270,6 +272,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
             case "bridge-diagonal": case "diagonal": case "diag": return PracticeMode.BRIDGE_DIAGONAL;
             case "blockin": case "block-in": case "seal": return PracticeMode.BLOCK_IN;
             case "fireballjump": case "fireball-jump": case "fbjump": return PracticeMode.FIREBALL_JUMP;
+            case "blockclutch": case "block-clutch": case "clutch": return PracticeMode.BLOCK_CLUTCH;
             default: return null;
         }
     }
@@ -641,7 +644,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
         public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
             List<String> out = new ArrayList<String>();
             if (args.length == 1) {
-                for (String s : new String[]{"fireball", "fireballjump", "bow", "gamesense", "bridge", "bridge-diagonal", "blockin", "beddefence", "leave", "stats"}) {
+                for (String s : new String[]{"fireball", "fireballjump", "bow", "gamesense", "bridge", "bridge-diagonal", "blockin", "blockclutch", "beddefence", "leave", "stats"}) {
                     if (s.startsWith(args[0].toLowerCase(java.util.Locale.ROOT))) out.add(s);
                 }
             } else if (args.length == 2) {

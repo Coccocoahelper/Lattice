@@ -57,8 +57,13 @@ public final class PracticeMode implements GameMode {
             "A gap, a fireball and your own feet. Ride the blast across before it rides you off the map.",
             Material.FIREBALL);
 
+    public static final PracticeMode BLOCK_CLUTCH = new PracticeMode("practice_blockclutch",
+            "Block Clutching", "Survival",
+            "No ground, a stack of blocks. Place under yourself on the way down and land on it.",
+            Material.WOOL);
+
     public static final PracticeMode[] ALL = {FIREBALL, FIREBALL_JUMP, BOW, SENSE, BRIDGE, BRIDGE_DIAGONAL,
-            BED_DEFENCE, BLOCK_IN};
+            BED_DEFENCE, BLOCK_IN, BLOCK_CLUTCH};
 
     @Override public String id() { return id; }
     @Override public GameFamily family() { return GameFamily.PRACTICE; }
