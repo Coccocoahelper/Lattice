@@ -45,6 +45,10 @@ public final class BlockPlacer {
     private boolean needSight;
     /** Refuse beds and chests as support: place through a solid neighbour instead of clicking the interactive block. */
     private boolean avoidInteractive;
+    /** Why the last placement gave up, for a brain that has to explain itself in the log. */
+    private String lastFailure = "?";
+
+    public String lastFailure() { return lastFailure; }
     private int hiddenTicks;
     /** Aim profile for the placement: PRECISE for measured building, FLICK for the placements made inside a fight. */
     private boolean fast;
@@ -264,7 +268,7 @@ public final class BlockPlacer {
             net.h2020.api.stats.CombatStats.inc("place.batch");
             beginCell(next[0], next[1], next[2]);
         }
-        if (ticks > 60) { active = false; net.h2020.api.stats.CombatStats.inc("place.fail.timeout"); return Result.FAILED; }
+        if (ticks > 60) { active = false; lastFailure = "timeout"; net.h2020.api.stats.CombatStats.inc("place.fail.timeout"); return Result.FAILED; }
         if (!Inv.equip(ctx.player, ctx.c, blockPred, 1)) {
             if (!Inv.has(ctx.player, blockPred)) { active = false; net.h2020.api.stats.CombatStats.inc("place.fail.material"); return Result.FAILED; }
             return Result.RUNNING;
@@ -272,7 +276,7 @@ public final class BlockPlacer {
         Location eye = ctx.eye();
         if (support == null || ticks % (fast ? 3 : 4) == 0) {
             Object[] s = findSupport(wv, tx, ty, tz, eye, 4.4, needSight, triedFaces, avoidInteractive);
-            if (s == null) { active = false; net.h2020.api.stats.CombatStats.inc("place.fail.nosupport"); return Result.FAILED; }
+            if (s == null) { active = false; lastFailure = "nosupport"; net.h2020.api.stats.CombatStats.inc("place.fail.nosupport"); return Result.FAILED; }
             Block nb = (Block) s[0];
             BlockFace nf = (BlockFace) s[1];
             sneakFor = s.length > 3 && Boolean.TRUE.equals(s[3]);
@@ -293,7 +297,15 @@ public final class BlockPlacer {
         if (!ignoreEntities && !cellFree(new Location(eye.getWorld(), tx, ty, tz), ctx.player)) return Result.RUNNING;
         Block tb = ctx.c.targetedBlock();
         BlockFace tf = ctx.c.targetedFace();
-        if (tb != null && tb.equals(support) && tf == face) {
+        // What matters is only that the click fills the cell we want. Demanding the client's ray land on the exact
+        // support and face this side picked made a pocket impossible: a cell at your own feet has one floodlit
+        // support (the floor's top face) and the ray came back on a different-but-equivalent face every tick, so the
+        // placer waited out sixty ticks and gave up. Accept any face whose neighbour is the target.
+        boolean fillsTarget = tb != null && tf != null
+                && tb.getX() + tf.getModX() == tx && tb.getY() + tf.getModY() == ty && tb.getZ() + tf.getModZ() == tz;
+        if (fillsTarget) {
+            // the block actually under the crosshair decides whether shift is needed, not the one we hoped for
+            sneakFor = interactable(tb.getType());
             // Placing against a bed or a chest only works while crouched: without shift the client would open it.
             // The sneak flag is cleared at the start of every tick, so "still sneaking?" can never be true on the
             // next tick - the placer asked for shift, was told no, and asked again for ever. Measured: every cell

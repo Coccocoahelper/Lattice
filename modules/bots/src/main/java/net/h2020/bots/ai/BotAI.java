@@ -273,6 +273,7 @@ public final class BotAI {
         if (b.isRemoved() || b.player() == null || !b.player().isOnline()) return;
         BotBrain cur = b.brain();
         if (cur != null && !(cur instanceof BaseBrain)) return; // someone else (e.g. a command) drives this bot
+
         // A drill assigns its own brain (a bridging run, say) and means it: reconcile must not swap it for a lobby
         // brain a second later, which is exactly what happened the first time this was wired up.
         if (cur instanceof net.h2020.bots.ai.brain.BridgeBrain) return;

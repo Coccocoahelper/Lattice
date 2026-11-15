@@ -326,7 +326,17 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
                     for (int k = 0; k < cells.size(); k++) arr[k] = cells.get(k);
                     bot.setBrain(bs.bedDefenceBrain(arr, bd.bedX(), bd.bedY(), bd.bedZ()));
                 }
-                if (!(g.drill() instanceof BridgeDrill) && !(g.drill() instanceof BedDefenceDrill)) bot.setBrain(null);
+                // a block-in is the defence drill with a much smaller cell set: the holes are what has to be filled,
+                // and the brain that fills given cells already exists
+                if (g.drill() instanceof BlockInDrill) {
+                    BlockInDrill bi = (BlockInDrill) g.drill();
+                    java.util.List<int[]> holes = bi.gapCells();
+                    int[][] arr = new int[holes.size()][];
+                    for (int k = 0; k < holes.size(); k++) arr[k] = holes.get(k);
+                    bot.setBrain(bs.bedDefenceBrain(arr, bi.bedX(), bi.bedY(), bi.bedZ()));
+                }
+                if (!(g.drill() instanceof BridgeDrill) && !(g.drill() instanceof BedDefenceDrill)
+                        && !(g.drill() instanceof BlockInDrill)) bot.setBrain(null);
                 // a bridging drill is only a benchmark if the bot actually bridges: give it the brain that does
                 if (g.drill() instanceof BridgeDrill) {
                     BridgeDrill bd = (BridgeDrill) g.drill();
