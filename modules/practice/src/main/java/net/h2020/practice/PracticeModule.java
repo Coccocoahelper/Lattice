@@ -641,7 +641,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
         public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
             List<String> out = new ArrayList<String>();
             if (args.length == 1) {
-                for (String s : new String[]{"fireball", "bow", "gamesense", "bridge", "bridge-diagonal", "leave", "stats"}) {
+                for (String s : new String[]{"fireball", "fireballjump", "bow", "gamesense", "bridge", "bridge-diagonal", "blockin", "beddefence", "leave", "stats"}) {
                     if (s.startsWith(args[0].toLowerCase(java.util.Locale.ROOT))) out.add(s);
                 }
             } else if (args.length == 2) {

@@ -384,7 +384,7 @@ practice:
   bridgedrill:
     crossed-ms-with-blocks: "&a&lCrossed&r&7  &f{p1} ms&7 with &f{p2}&7 blocks&8  (gap {p3})"
   command:
-    console-usage: "Console: /practice <drill> bots <n>"
+    console-usage: "Console: /practice <drill> bots <n>  &7drills: &ffireball, fireballjump, bow, gamesense, bridge, bridge-diagonal, beddefence, blockin"
     debug-line: "  [{player}] {text}"
     no-sessions: "no practice sessions running"
     start-failed: "Could not start the drill (bots module missing?)"
