@@ -184,6 +184,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
                     try { n = Math.max(1, Math.min(8, Integer.parseInt(args[i + 1]))); } catch (Exception ignored) { }
                 }
             String tech = techniqueArg(args);
+            if (bridgeBots(m)) n = 1;
             PracticeGame g = start(m);
             if (g == null) { net.h2020.api.core.Messages.send(sender, "practice.command.start-failed"); return true; }
             track(g);
@@ -305,7 +306,15 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
     }
 
     /** Bots on the same arena with the same kit: this is the testing ground. */
+    /** Bridging is one bot at a time: a second one shares the lane and neither of them crosses. */
+    private static boolean bridgeBots(PracticeMode m) {
+        return m != null && m.id() != null && m.id().contains("bridge");
+    }
+
     private void spawnBots(PracticeGame g, int n, String technique) {
+        // Bridging is measured one bot at a time: two in the arena share a lane, fight over the same cells and neither
+        // crosses, so "bots 2" was a worse test than "bots 1" while looking like a stronger one.
+        if (g.drill() instanceof BridgeDrill) n = 1;   // see bridgeBots(): one lane, one bot
         BotService bs = H2020.find(BotService.class);
         if (bs == null) {
             for (Player p : g.players()) net.h2020.api.core.Messages.send(p, "practice.practicemodule.bots-are-not-available");
