@@ -50,6 +50,9 @@ public interface Drill {
     /** A player placed a block (used by the bridging drill to count what a crossing cost). */
     default void onPlace(PracticeGame g, Player p, org.bukkit.block.Block b) { }
 
+    /** A block taken out of the arena. The block-in drill learns each player's hole from these. */
+    default void onBreak(PracticeGame g, Player p, org.bukkit.block.Block b) { }
+
     /** A player was hurt. Return true when the drill handled it and the game should not do anything else. */
     default boolean onDamage(PracticeGame g, Player p, EntityDamageEvent e) { return false; }
 

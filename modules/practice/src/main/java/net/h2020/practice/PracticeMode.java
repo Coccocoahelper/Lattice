@@ -49,7 +49,7 @@ public final class PracticeMode implements GameMode {
 
     public static final PracticeMode BLOCK_IN = new PracticeMode("practice_blockin",
             "Block In", "Seal",
-            "Two layers around the bed with one edge block gone. Seal the hole before he follows you in.",
+            "Break into the defence, then seal the hole you made. The first hole a player closes becomes the drill.",
             Material.WOOL);
 
     public static final PracticeMode[] ALL = {FIREBALL, BOW, SENSE, BRIDGE, BRIDGE_DIAGONAL, BED_DEFENCE, BLOCK_IN};

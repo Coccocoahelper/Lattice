@@ -77,6 +77,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
         this.plugin = plugin;
         for (PracticeMode m : PracticeMode.ALL) GameModes.register(m);
         BedDefenceTemplates.load(plugin);
+        BlockInDrill.init(plugin);
         // the replay viewer has no map to look up for a drill: let it ask for a fresh arena instead
         net.h2020.api.practice.PracticeArenas.install(new net.h2020.api.practice.PracticeArenas.Factory() {
             @Override public World create(String modeId) {
@@ -326,16 +327,15 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
                     for (int k = 0; k < cells.size(); k++) arr[k] = cells.get(k);
                     bot.setBrain(bs.bedDefenceBrain(arr, bd.bedX(), bd.bedY(), bd.bedZ()));
                 }
-                // a block-in is the defence drill with a much smaller cell set: the holes are what has to be filled,
-                // and the brain that fills given cells already exists
+                // a block-in is the defence drill with a smaller cell list: the hole the last person made. No
+                // learned hole means no bot run - the drill waits for a human to define what a good hole is.
                 if (g.drill() instanceof BlockInDrill) {
                     BlockInDrill bi = (BlockInDrill) g.drill();
-                    java.util.List<int[]> holes = bi.gapCells();
+                    bi.openLearnedHole();
+                    java.util.List<int[]> holes = bi.holeCells();
                     int[][] arr = new int[holes.size()][];
                     for (int k = 0; k < holes.size(); k++) arr[k] = holes.get(k);
-                    // outside the wall, like the player: the hole is in the front face and a bot standing in front
-                    // of it is a bot that can reach it
-                    bot.setBrain(bs.bedDefenceBrain(arr, bi.bedX(), bi.bedY(), bi.bedZ(), false));
+                    bot.setBrain(holes.isEmpty() ? null : bs.bedDefenceBrain(arr, bi.bedX(), bi.bedY(), bi.bedZ(), false));
                 }
                 if (!(g.drill() instanceof BridgeDrill) && !(g.drill() instanceof BedDefenceDrill)
                         && !(g.drill() instanceof BlockInDrill)) bot.setBrain(null);
@@ -549,6 +549,13 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
         PracticeGame g = byPlayer.get(e.getPlayer().getUniqueId());
         if (g == null || !g.world().equals(e.getBlock().getWorld())) return;
         g.drill().onPlace(g, e.getPlayer(), e.getBlock());
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onBreak(org.bukkit.event.block.BlockBreakEvent e) {
+        PracticeGame g = byPlayer.get(e.getPlayer().getUniqueId());
+        if (g == null || !g.world().equals(e.getBlock().getWorld())) return;
+        g.drill().onBreak(g, e.getPlayer(), e.getBlock());
     }
 
     @EventHandler
