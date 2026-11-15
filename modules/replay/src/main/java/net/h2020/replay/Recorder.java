@@ -71,7 +71,12 @@ public final class Recorder {
             String id = g.id();
             Long start = START.get(id);
             if (start == null) {
-                if (!hasBot(g, bs)) continue;                    // lobby-only games are not worth the disk
+                // A practice drill is worth recording whoever is in it: a run with no bots is a person practising,
+                // and a person practising is the only source of what "good" looks like. Gating on bots meant a drill
+                // played alone left no replay at all - which is why there were no diagonal bridging recordings from a
+                // player, only the ones where bots happened to be standing in the arena.
+                boolean practice = g.type() != null && g.type().family() == net.h2020.api.game.GameFamily.PRACTICE;
+                if (!hasBot(g, bs) && !(practice && !g.players().isEmpty())) continue;
                 start = now;
                 START.put(id, start);
                 open(id, g);
