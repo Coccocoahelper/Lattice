@@ -163,14 +163,14 @@ public final class DefenceBrain extends BaseBrain {
             switch (stanceMode) {
                 case 1: return new org.bukkit.Location(ctx.player.getWorld(), cx, bedY + 1, bedZ + 1.5);
                 case 2: return new org.bukkit.Location(ctx.player.getWorld(), cx, bedY + 1, bedZ - 1.5);
-                default: return new org.bukkit.Location(ctx.player.getWorld(), cx, bedY, bedZ + 2.9);
+                default: return new org.bukkit.Location(ctx.player.getWorld(), cx, bedY, bedZ + 2.2);
             }
         }
         double dx = cx - anchorX, dz = cz - anchorZ;
         double len = Math.hypot(dx, dz);
         if (len < 1e-6) { dx = 0; dz = 1; len = 1; }
         double y = Math.min(c[1], bedY);                 // a roof cell has no floor at its own height
-        return new org.bukkit.Location(ctx.player.getWorld(), cx + dx / len * 1.9, y, cz + dz / len * 1.9);
+        return new org.bukkit.Location(ctx.player.getWorld(), cx + dx / len * 1.35, y, cz + dz / len * 1.35);
     }
 
 
