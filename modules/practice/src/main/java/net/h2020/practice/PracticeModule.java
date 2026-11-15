@@ -327,15 +327,12 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
                     for (int k = 0; k < cells.size(); k++) arr[k] = cells.get(k);
                     bot.setBrain(bs.bedDefenceBrain(arr, bd.bedX(), bd.bedY(), bd.bedZ()));
                 }
-                // a block-in is the defence drill with a smaller cell list: the hole the last person made. No
-                // learned hole means no bot run - the drill waits for a human to define what a good hole is.
+                // a block-in bot breaks its own hole open and seals it again, using the holes people have done. No
+                // learned hole means no bot run: the drill does not invent one, for a bot or anybody else.
                 if (g.drill() instanceof BlockInDrill) {
                     BlockInDrill bi = (BlockInDrill) g.drill();
-                    bi.openLearnedHole();
-                    java.util.List<int[]> holes = bi.holeCells();
-                    int[][] arr = new int[holes.size()][];
-                    for (int k = 0; k < holes.size(); k++) arr[k] = holes.get(k);
-                    bot.setBrain(holes.isEmpty() ? null : bs.bedDefenceBrain(arr, bi.bedX(), bi.bedY(), bi.bedZ(), false));
+                    java.util.List<int[][]> holes = bi.holeSets();
+                    bot.setBrain(holes.isEmpty() ? null : bs.blockInBrain(holes));
                 }
                 if (!(g.drill() instanceof BridgeDrill) && !(g.drill() instanceof BedDefenceDrill)
                         && !(g.drill() instanceof BlockInDrill)) bot.setBrain(null);

@@ -40,47 +40,90 @@ public final class BlockInDrill implements Drill {
 
     private static File file;
     /** The hole as a person left it: cells relative to the bed, with the material they were made of. */
-    private static final List<Object[]> LEARNED = new ArrayList<Object[]>();
+    private static final List<List<Object[]>> HOLES = new ArrayList<List<Object[]>>();
 
     public static void init(JavaPlugin plugin) {
-        file = new File(plugin.getDataFolder(), "block-in-hole.yml");
+        // beside the defence templates, not next to the plugin jar: the practice plugin's own data folder is
+        // plugins/LatticePractice while everything this server owns lives in plugins/Lattice
+        file = new File(plugin.getDataFolder().getParentFile(), "Lattice/block-in-hole.yml");
         loadLearned();
     }
 
     private static void loadLearned() {
-        LEARNED.clear();
+        HOLES.clear();
         if (file == null || !file.isFile()) return;
         try {
             YamlConfiguration y = YamlConfiguration.loadConfiguration(file);
-            for (String s : y.getStringList("cells")) {
-                String[] p = s.split(",");
-                if (p.length < 4) continue;
-                LEARNED.add(new Object[]{Integer.parseInt(p[0].trim()), Integer.parseInt(p[1].trim()),
-                        Integer.parseInt(p[2].trim()), Material.valueOf(p[3].trim())});
+            List<Map<?, ?>> list = y.getMapList("holes");
+            for (Map<?, ?> m : list) {
+                List<Object[]> cells = new ArrayList<Object[]>();
+                Object raw = m.get("cells");
+                if (raw instanceof List) {
+                    for (Object o : (List<?>) raw) {
+                        String[] p = String.valueOf(o).split(",");
+                        if (p.length < 4) continue;
+                        cells.add(new Object[]{Integer.parseInt(p[0].trim()), Integer.parseInt(p[1].trim()),
+                                Integer.parseInt(p[2].trim()), Material.valueOf(p[3].trim())});
+                    }
+                }
+                if (!cells.isEmpty()) HOLES.add(cells);
             }
-        } catch (Throwable ignored) { }
+            java.util.logging.Logger.getLogger("LatticePractice").info("[blockin] learned " + HOLES.size()
+                    + " hole(s) from " + file.getName());
+        } catch (Throwable t) {
+            java.util.logging.Logger.getLogger("LatticePractice").warning("[blockin] could not read " + file + ": " + t);
+        }
     }
 
+    /** A hole a person closed. Kept, appended to the ones already known - there is more than one place to block in. */
     private static void saveLearned(Player by, long ms, Map<Long, Material> cells) {
         if (file == null) return;
+        List<String> rows = new ArrayList<String>();
+        for (Map.Entry<Long, Material> e : cells.entrySet()) {
+            rows.add((unkeyX(e.getKey()) - BED_X) + "," + (unkeyY(e.getKey()) - BED_Y) + ","
+                    + (unkeyZ(e.getKey()) - BED_Z) + "," + e.getValue());
+        }
+        java.util.Set<String> known = new java.util.HashSet<String>();
+        for (List<Object[]> h : HOLES) {
+            java.util.List<String> k = new ArrayList<String>();
+            for (Object[] c : h) k.add(c[0] + "," + c[1] + "," + c[2]);
+            java.util.Collections.sort(k);
+            known.add(k.toString());
+        }
+        java.util.List<String> mine = new ArrayList<String>();
+        for (Object[] c : new ArrayList<Object[]>(rowsToCells(rows))) mine.add(c[0] + "," + c[1] + "," + c[2]);
+        java.util.Collections.sort(mine);
         try {
             YamlConfiguration y = new YamlConfiguration();
-            List<String> rows = new ArrayList<String>();
-            for (Map.Entry<Long, Material> e : cells.entrySet()) {
-                rows.add((unkeyX(e.getKey()) - BED_X) + "," + (unkeyY(e.getKey()) - BED_Y) + ","
-                        + (unkeyZ(e.getKey()) - BED_Z) + "," + e.getValue());
+            List<Map<?, ?>> all = new ArrayList<Map<?, ?>>();
+            if (file.isFile()) all.addAll(YamlConfiguration.loadConfiguration(file).getMapList("holes"));
+            if (!known.contains(mine.toString())) {
+                Map<String, Object> entry = new LinkedHashMap<String, Object>();
+                entry.put("by", by == null ? "?" : by.getName());
+                entry.put("ms", ms);
+                entry.put("cells", rows);
+                all.add(entry);
             }
-            y.set("by", by == null ? "?" : by.getName());
-            y.set("ms", ms);
-            y.set("cells", rows);
+            y.set("holes", all);
             if (file.getParentFile() != null && !file.getParentFile().isDirectory()) file.getParentFile().mkdirs();
             y.save(file);
         } catch (Throwable ignored) { }
         loadLearned();
     }
 
-    /** The hole a person left, so a bot - or the next run - has the same shape to close. */
-    public static List<Object[]> learnedHole() { return new ArrayList<Object[]>(LEARNED); }
+    private static List<Object[]> rowsToCells(List<String> rows) {
+        List<Object[]> out = new ArrayList<Object[]>();
+        for (String s : rows) {
+            String[] p = s.split(",");
+            if (p.length < 4) continue;
+            out.add(new Object[]{Integer.parseInt(p[0].trim()), Integer.parseInt(p[1].trim()),
+                    Integer.parseInt(p[2].trim()), Material.valueOf(p[3].trim())});
+        }
+        return out;
+    }
+
+    /** Every hole a person has closed, so the bots learn all of them rather than one. */
+    public static List<List<Object[]>> learnedHoles() { return new ArrayList<List<Object[]>>(HOLES); }
 
     private PracticeArena arena;
     private Location spawn;
@@ -209,19 +252,14 @@ public final class BlockInDrill implements Drill {
         for (Long k : h.keySet()) {
             if (arena.world().getBlockAt(unkeyX(k), unkeyY(k), unkeyZ(k)).getType() == Material.AIR) open++;
         }
-        String learned = LEARNED.isEmpty() ? "" : ChatColor.DARK_GRAY + " | " + ChatColor.GRAY + "hole by "
-                + ChatColor.WHITE + learnedBy();
+        String learned = HOLES.isEmpty() ? "" : ChatColor.DARK_GRAY + " | " + ChatColor.GRAY + "holes learned "
+                + ChatColor.WHITE + HOLES.size();
         return ChatColor.AQUA + "Block in" + ChatColor.DARK_GRAY + " | " + ChatColor.WHITE + h.size()
                 + ChatColor.GRAY + " broken" + ChatColor.DARK_GRAY + ", " + ChatColor.WHITE + (h.size() - open)
                 + ChatColor.GRAY + "/" + h.size() + " sealed"
                 + ChatColor.DARK_GRAY + " | " + ChatColor.YELLOW + "Best " + ChatColor.WHITE
                 + (r[3] == 0 ? "-" : r[3] + "ms")
                 + ChatColor.DARK_GRAY + " | " + ChatColor.GREEN + "Done " + ChatColor.WHITE + r[4] + learned;
-    }
-
-    private static String learnedBy() {
-        if (file == null || !file.isFile()) return "-";
-        try { return YamlConfiguration.loadConfiguration(file).getString("by", "-"); } catch (Throwable t) { return "-"; }
     }
 
     /** Is this cell part of the standing defence? */
@@ -232,21 +270,18 @@ public final class BlockInDrill implements Drill {
         return true;
     }
 
-    /** Absolute cells of the last hole a person made, for a bot brain to fill. */
-    public List<int[]> holeCells() {
-        List<int[]> out = new ArrayList<int[]>();
-        for (Object[] c : LEARNED) {
-            out.add(new int[]{BED_X + (Integer) c[0], BED_Y + (Integer) c[1], BED_Z + (Integer) c[2]});
+    /** Every learned hole in absolute cells, for a bot to open and close itself. */
+    public List<int[][]> holeSets() {
+        List<int[][]> out = new ArrayList<int[][]>();
+        for (List<Object[]> h : HOLES) {
+            int[][] cells = new int[h.size()][];
+            for (int i = 0; i < h.size(); i++) {
+                Object[] c = h.get(i);
+                cells[i] = new int[]{BED_X + (Integer) c[0], BED_Y + (Integer) c[1], BED_Z + (Integer) c[2]};
+            }
+            out.add(cells);
         }
         return out;
-    }
-
-    /** Open the learned hole, so a bot has something to close. */
-    public void openLearnedHole() {
-        for (Object[] c : LEARNED) {
-            arena.world().getBlockAt(BED_X + (Integer) c[0], BED_Y + (Integer) c[1], BED_Z + (Integer) c[2])
-                    .setType(Material.AIR, false);
-        }
     }
 
     public int bedX() { return BED_X; }

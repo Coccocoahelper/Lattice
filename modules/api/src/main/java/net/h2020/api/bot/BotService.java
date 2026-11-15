@@ -40,5 +40,11 @@ public interface BotService {
     default BotBrain bedDefenceBrain(int[][] cells, int bedX, int bedY, int bedZ, boolean indoor) {
         return BrainFactory.none();
     }
+
+    /**
+     * A bot that repeats a block-in: it breaks the hole open itself, then seals it. Each hole is a cell list, so the
+     * bot learns every place a person has done it rather than one.
+     */
+    default BotBrain blockInBrain(java.util.List<int[][]> holes) { return BrainFactory.none(); }
 }
 

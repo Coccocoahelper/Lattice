@@ -191,6 +191,11 @@ public final class BotManager implements BotService, Listener {
     }
 
     @Override
+    public net.h2020.api.bot.BotBrain blockInBrain(java.util.List<int[][]> holes) {
+        return new net.h2020.bots.ai.brain.BlockInBrain(holes);
+    }
+
+    @Override
     public Bot bot(Player p) {
         if (p == null) return null;
         FakeBot b = bots.get(p.getUniqueId());
