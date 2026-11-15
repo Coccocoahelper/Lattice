@@ -377,6 +377,8 @@ end:
   requeue-wait: "Wait {seconds}s before playing again."
   won: "You won!"
 practice:
+  blockindrill:
+    sealed: "&aSealed&7 in &f{p1} ms&7  &8(&f{p2}&7 blocks)"
   bowdrill:
     hit-at-m-hits: "&aHit&7 at &f{p1}m&7  ({p2} hits, {p3}% of shots)"
   bridgedrill:

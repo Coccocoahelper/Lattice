@@ -47,7 +47,12 @@ public final class PracticeMode implements GameMode {
             "You get the blocks and a model of the defence on your left. Build it as fast as you can.",
             Material.BED);
 
-    public static final PracticeMode[] ALL = {FIREBALL, BOW, SENSE, BRIDGE, BRIDGE_DIAGONAL, BED_DEFENCE};
+    public static final PracticeMode BLOCK_IN = new PracticeMode("practice_blockin",
+            "Block In", "Seal",
+            "Two blocks on the side the attacker is coming from, before he reaches you. Small move, won fights.",
+            Material.WOOL);
+
+    public static final PracticeMode[] ALL = {FIREBALL, BOW, SENSE, BRIDGE, BRIDGE_DIAGONAL, BED_DEFENCE, BLOCK_IN};
 
     @Override public String id() { return id; }
     @Override public GameFamily family() { return GameFamily.PRACTICE; }

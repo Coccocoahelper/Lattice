@@ -33,6 +33,8 @@ public final class FireballDrill implements Drill {
     private static final int LANE = 26;          // blocks from the launcher to the player
     private static final int MIN_GAP = 26;       // ticks between fireballs at the calmest
     private static final int MAX_GAP = 46;
+    /** Blocks per tick down the lane. 0.55 is eleven blocks a second, about two seconds of travel. */
+    private static final double FIREBALL_SPEED = 0.55;
 
     private PracticeArena arena;
     private Location spawn;
@@ -96,7 +98,10 @@ public final class FireballDrill implements Drill {
         Vector dir = t.clone().add(target.getVelocity().multiply(lead)).toVector()
                 .subtract(muzzle.toVector()).normalize();
         f.setDirection(dir);
-        f.setVelocity(dir.multiply(0.9));
+        // 0.9 blocks a tick was eighteen blocks a second down a twenty-six block lane: a second and a half from
+        // launch to your chest, which left no time to read the line. Slower is not easier to deflect, it is
+        // actually practice - you get to see the approach and choose the swing.
+        f.setVelocity(dir.multiply(FIREBALL_SPEED));
         launched++;
         next = MIN_GAP + (int) (Math.random() * (MAX_GAP - MIN_GAP));
     }

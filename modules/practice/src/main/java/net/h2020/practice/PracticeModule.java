@@ -14,6 +14,7 @@ import net.h2020.api.game.GameProvider;
 import net.h2020.api.game.GameState;
 import net.h2020.api.map.MapTemplate;
 import net.h2020.practice.drill.BedDefenceDrill;
+import net.h2020.practice.drill.BlockInDrill;
 import net.h2020.practice.drill.BedDefenceTemplates;
 import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
@@ -152,6 +153,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
         if (id.equals(PracticeMode.BRIDGE.id())) return new BridgeDrill(BridgeDrill.Variant.STRAIGHT);
         if (id.equals(PracticeMode.BRIDGE_DIAGONAL.id())) return new BridgeDrill(BridgeDrill.Variant.DIAGONAL);
         if (id.equals(PracticeMode.BED_DEFENCE.id())) return new BedDefenceDrill();
+        if (id.equals(PracticeMode.BLOCK_IN.id())) return new BlockInDrill();
         return null;
     }
 
@@ -259,6 +261,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
             case "bridge": case "bridging": return PracticeMode.BRIDGE;
             case "beddefence": case "defence": case "defense": return PracticeMode.BED_DEFENCE;
             case "bridge-diagonal": case "diagonal": case "diag": return PracticeMode.BRIDGE_DIAGONAL;
+            case "blockin": case "block-in": case "seal": return PracticeMode.BLOCK_IN;
             default: return null;
         }
     }
