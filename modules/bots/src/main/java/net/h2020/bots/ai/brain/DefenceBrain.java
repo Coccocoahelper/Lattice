@@ -20,9 +20,12 @@ public final class DefenceBrain extends BaseBrain {
     /** Tick before which the cell list is not restarted after a pass that did not finish the drill. */
     private long nextTry;
     /** A wool block being placed beside a bed-supported cell, so the cell itself can go in through it. */
-    private int[] helper;
     /** The bed these cells surround, worked out once: the ring's average position. */
     private double anchorX, anchorZ;
+    /** The cell currently being placed, the one the retry re-starts, and the approach point held for it. */
+    private int[] curCell = {0, 0, 0};
+    private int standFor = -1;
+    private org.bukkit.Location standCache;
 
     private final int bedX, bedY, bedZ;
 
@@ -78,114 +81,65 @@ public final class DefenceBrain extends BaseBrain {
     protected void think() {
         if (cells.length == 0) { ctx.motor.halt(); return; }
         if (!Inv.has(ctx.player, Inv.BLOCK)) { ctx.motor.halt(); return; }
-
         if (placer == null) placer = new BlockPlacer(ctx);
-        if (helper != null) {
-            // a cell whose only support is the bed gets a wool block beside it first, and is then placed through that
-            // block's side face - a player's way of roofing a bed without opening it by right-clicking
-            if (!net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(helper[0], helper[1], helper[2]))) {
-                helper = null;                                  // it is there already
-            } else {
-                org.bukkit.Location hl = new org.bukkit.Location(ctx.player.getWorld(),
-                        helper[0] + 0.5, helper[1], helper[2] + 0.5);
-                if (!indoor && ctx.pos().distance(hl) > 3.4) { ctx.nav.goTo(hl, 1.4); ctx.nav.tick(); return; }
-                if (!placer.active()) {
-                    placer.setFast(true);
-                    placer.setNeedSight(false);
-                    placer.setAvoidInteractive(false);
-                    placer.start(helper[0], helper[1], helper[2], Inv.BLOCK);
-                    CombatStats.inc("drill.defence.helper");
-                }
-                BlockPlacer.Result hr = placer.tick();
-                if (hr == BlockPlacer.Result.FAILED) helper = null;
-                return;
-            }
-        }
+
         if (placer.active()) {
             BlockPlacer.Result r = placer.tick();
             if (r == BlockPlacer.Result.FAILED) {
-                // one failed attempt is not a verdict: the support face may be behind the body's own arm for a tick
-                if (++retries < 3) { placer.start(cells[Math.max(0, idx - 1)][0], cells[Math.max(0, idx - 1)][1], cells[Math.max(0, idx - 1)][2], Inv.BLOCK); }
+                if (++retries < 3) { placer.start(curCell[0], curCell[1], curCell[2], Inv.BLOCK); }
                 else { retries = 0; idx++; CombatStats.inc("drill.defence.skip"); }
             }
             return;
         }
         if (idx >= cells.length) {
-            // a finished list that did not complete the drill means a cell refused. Re-run it, but not sixty thousand
-            // times a second: measured at 60,370 sweeps in ninety seconds before this pause.
+            // a finished list that did not complete the drill means a cell refused; re-run it, but not once a tick
             idx = 0;
             if (ctx.tick < nextTry) { ctx.motor.halt(); return; }
             nextTry = ctx.tick + 10;
             CombatStats.inc("drill.defence.sweep");
         }
         int[] c = cells[idx];
-        // the cells are around a bed the bot starts six blocks away from, so most of the drill is walking to the wall.
-        // Placement only works inside reach; without this the brain asked to place from out of range and skipped
-        // every cell in turn.
-        // Stand beside the cell, never on it: walking to the cell's own centre put the body inside the block it was
-        // about to place, so the placement was refused as occupied and the list walked on for ever.
-        org.bukkit.Location at = new org.bukkit.Location(ctx.player.getWorld(), c[0] + 0.5, c[1], c[2] + 0.5);
-        double dx = at.getX() - bedX(), dz = at.getZ() - bedZ();
-        double len = Math.hypot(dx, dz);
-        if (len < 1e-6) { dx = 0; dz = 1; len = 1; }
-        org.bukkit.Location stand = new org.bukkit.Location(ctx.player.getWorld(),
-                at.getX() + dx / len * 1.7, c[1], at.getZ() + dz / len * 1.7);
-        // Never place from inside a cell of the wall: standing on the block you are about to fill makes it occupied,
-        // and the placer then refuses the click and the pass walks on. Measured: bots parked at (1,65,1), a target
-        // cell, with nine blocks "to place" and none of them going down.
+        if (!net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(c[0], c[1], c[2]))) { idx++; retries = 0; return; }
+
+        // One approach point per cell, held while that cell is the one being built. Recomputing it every tick had the
+        // bot chasing a point it never reached, so it walked in place for the rest of the run: measured four cells
+        // attempted out of nine with the body parked three blocks off the wall.
+        if (standFor != idx) { standCache = standFor(c); standFor = idx; }
         int px = (int) Math.floor(ctx.pos().getX());
         int py = (int) Math.floor(ctx.pos().getY() + 0.01);
         int pz = (int) Math.floor(ctx.pos().getZ());
-        // standing on the bed is the same mistake as standing in the wall: the body occupies a cell that matters
-        boolean standingOnTarget = isTarget(px, py, pz)
-                || (py == bedY && pz == bedZ && (px == bedX || px == bedX + 1));
-        // Position for every cell, not just the far ones. At 2-3 blocks the bot used to place from wherever it
-        // happened to stand, which on a defence is the wrong side of the wall: measured 2 of 9 cells with the rest
-        // failing as unreachable, while the two it did fill were the ones it was already facing.
-        if (!indoor && ctx.pos().getWorld() == at.getWorld()
-                && (standingOnTarget || ctx.pos().distance(stand) > 1.2 || ctx.pos().distance(at) > 3.4)) {
-            ctx.nav.goTo(stand, 1.0);
+        boolean onCell = px == c[0] && py == c[1] && pz == c[2];
+        if (!indoor && (onCell || ctx.pos().distance(standCache) > 1.5)) {
+            ctx.nav.goTo(standCache, 1.2);
             ctx.nav.tick();
             return;
         }
-        // if it is already there, skip it: the drill leaves a finished wall up until the level changes
-        if (!net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(c[0], c[1], c[2]))) { idx++; return; }
-        // a cell sitting directly on the bed: put wool on the block next to it first, then place through that
-        // Every cell at roof level is placed through a neighbour, not against the bed: the bed's top face is a
-        // right-click on a bed, and the third roof cell (2,66,0) has no bed under it at all.
-        boolean bedTop = c[1] == bedY + 1;
+        // the bed is a legitimate support for the roof: the placer sneaks, so the click places instead of opening it
         placer.setFast(true);
         placer.setNeedSight(false);
-        placer.setAvoidInteractive(bedTop);
-        if (bedTop) {
-            int[] side = sideCell(c);
-            if (side != null && net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(side[0], side[1], side[2]))) {
-                helper = side;
-                return;
-            }
-        }
+        placer.setAvoidInteractive(false);
+        curCell = c;
         placer.start(c[0], c[1], c[2], Inv.BLOCK);
         CombatStats.inc("drill.defence.try");
         idx++;
-        // the rest of this row goes in behind it: four blocks within reach of the one just started, which the placer
-        // then lays back to back without another decision or another step
-        for (int j = 0; j < 4 && idx < cells.length; j++, idx++) {
+        // the rest of this row goes in behind it: four blocks within reach of the one just started
+        for (int q = 0; q < 4 && idx < cells.length; q++, idx++) {
             int[] n = cells[idx];
             if (Math.abs(n[0] - c[0]) > 3 || Math.abs(n[2] - c[2]) > 1 || n[1] != c[1]) { idx--; break; }
             placer.queue(n[0], n[1], n[2]);
         }
     }
 
-    /** A passable cell beside this one that stands on something solid - the block a roof over a bed is built from. */
-    private int[] sideCell(int[] c) {
-        int[][] sides = {{c[0], c[1], c[2] + 1}, {c[0], c[1], c[2] - 1}, {c[0] + 1, c[1], c[2]}, {c[0] - 1, c[1], c[2]}};
-        for (int[] s : sides) {
-            if (!net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(s[0], s[1], s[2]))) continue;
-            if (s[1] == bedY && s[2] == bedZ && (s[0] == bedX || s[0] == bedX + 1)) continue;   // that is the bed
-            return s;
-        }
-        return null;
+    /** Where to stand to build one cell: on the floor, outside the wall, on that cell's own side of the bed. */
+    private org.bukkit.Location standFor(int[] c) {
+        double cx = c[0] + 0.5, cz = c[2] + 0.5;
+        double dx = cx - anchorX, dz = cz - anchorZ;
+        double len = Math.hypot(dx, dz);
+        if (len < 1e-6) { dx = 0; dz = 1; len = 1; }
+        double y = Math.min(c[1], bedY);                 // a roof cell has no floor at its own height
+        return new org.bukkit.Location(ctx.player.getWorld(), cx + dx / len * 1.9, y, cz + dz / len * 1.9);
     }
+
 
     /** Is this cell part of the wall? */
     private boolean isTarget(int x, int y, int z) {
