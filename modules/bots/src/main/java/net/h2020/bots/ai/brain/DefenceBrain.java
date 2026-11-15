@@ -107,11 +107,14 @@ public final class DefenceBrain extends BaseBrain {
         // One approach point per cell, held while that cell is the one being built. Recomputing it every tick had the
         // bot chasing a point it never reached, so it walked in place for the rest of the run: measured four cells
         // attempted out of nine with the body parked three blocks off the wall.
-        if (standFor != idx) { stanceMode = 0; standCache = standFor(c); standFor = idx; standAt = ctx.tick; }
+        if (standFor != idx) {
+            stanceMode = 0; standCache = standFor(c); standFor = idx; standAt = ctx.tick;
+            if (standCache == null) { idx++; retries = 0; CombatStats.inc("drill.defence.nostance"); return; }
+        }
         // A roof stance that the body cannot climb to leaves it walking into the wall for the rest of the run. Give
         // it two seconds, then take the other stance rather than stalling: measured 8 of 9 with one, 7 with the
         // other, and which one the nav manages is not reliable from run to run.
-        else if (c[1] == bedY + 1 && ctx.tick - standAt > 40) {
+        else if (c[1] == bedY + 1 && c[2] == bedZ && (c[0] == bedX || c[0] == bedX + 1) && ctx.tick - standAt > 40) {
             stanceMode = (stanceMode + 1) % 3;
             standCache = standFor(c);
             standAt = ctx.tick;
@@ -134,7 +137,7 @@ public final class DefenceBrain extends BaseBrain {
         // the bed is a legitimate support for the roof: the placer sneaks, so the click places instead of opening it
         placer.setFast(true);
         placer.setNeedSight(false);
-        placer.setAvoidInteractive(c[1] == bedY + 1);
+        placer.setAvoidInteractive(overBed(c));
         curCell = c;
         placer.start(c[0], c[1], c[2], Inv.BLOCK);
         CombatStats.inc("drill.defence.try");
@@ -153,7 +156,11 @@ public final class DefenceBrain extends BaseBrain {
         // A roof cell is built from the front, standing on the floor: from the side or the back the top face of the
         // block underneath is at eye level and the click goes out over it. Measured: every y65 cell in, all three
         // roof cells refused, from a stance out on the flank.
-        if (c[1] == bedY + 1) {
+        // Only a cell directly over a bed is a roof cell. Level two's second layer sits at the same height as level
+        // one's roof, and treating it as a roof sent every cell of that layer to a stance in front of the bed, which
+        // is why level two stalled at two cells of twenty-six.
+        boolean overBed = c[1] == bedY + 1 && c[2] == bedZ && (c[0] == bedX || c[0] == bedX + 1);
+        if (overBed) {
             // A bed's collision box is nine sixteenths high, so its "top face" is inside its own cell: clicking it
             // places nothing at all, which is what kept the two cells over the bed empty through every attempt.
             // The first roof cell stands on wool and is built from the floor; the two over the bed are built from
@@ -175,15 +182,34 @@ public final class DefenceBrain extends BaseBrain {
         double dx = cx - anchorX, dz = cz - anchorZ;
         double len = Math.hypot(dx, dz);
         if (len < 1e-6) { dx = 0; dz = 1; len = 1; }
-        // Stand on the floor for every layer. A cell above the floor line is reached upward: its support is the top
-        // face of the block below it, which a body on the ground can see. Standing at the cell's own height needs
-        // something to stand on at that height, which a defence still being built does not have - level two (26
-        // cells, layers up to y67) never got past one cell.
-        double y = bedY;
-        double out = c[1] > bedY ? 2.2 : 1.35;
-        return new org.bukkit.Location(ctx.player.getWorld(), cx + dx / len * out, y, cz + dz / len * out);
+        // A cell one level above the floor is reached from the floor: its support is the top face of the block
+        // below it, at eye level and in view. Anything higher is not. To click the top face of the block at y66 -
+        // the surface at y67.0 - the eye has to be above that surface, so the feet have to be at y66, which means
+        // standing on a block at y65. That is the layer underneath, so the layers have to go up in order and the
+        // stance for a high cell is a spot on top of the layer below it. With no such spot yet the cell is skipped
+        // this pass and taken on the next sweep, once the layer under it exists.
+        if (c[1] > bedY) {
+            org.bukkit.World w = ctx.player.getWorld();
+            int sy = c[1] - 1;                       // feet height: eye at sy + 1.62 is above the y = c[1] surface
+            int[][] dirs = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1},
+                            {2, 0}, {-2, 0}, {0, 2}, {0, -2}};
+            for (int[] d : dirs) {
+                int sx = c[0] + d[0], sz = c[2] + d[1];
+                boolean floor = !net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(sx, sy - 1, sz));
+                boolean clear = net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(sx, sy, sz))
+                        && net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(sx, sy + 1, sz));
+                if (floor && clear) return new org.bukkit.Location(w, sx + 0.5, sy, sz + 0.5);
+            }
+            return null;                             // nothing to stand on yet: build the layer below first
+        }
+        return new org.bukkit.Location(ctx.player.getWorld(), cx + dx / len * 1.35, bedY, cz + dz / len * 1.35);
     }
 
+
+    /** A cell directly above a bed block: the only kind whose support is a bed. */
+    private boolean overBed(int[] c) {
+        return c[1] == bedY + 1 && c[2] == bedZ && (c[0] == bedX || c[0] == bedX + 1);
+    }
 
     /** Is this cell part of the wall? */
     private boolean isTarget(int x, int y, int z) {
