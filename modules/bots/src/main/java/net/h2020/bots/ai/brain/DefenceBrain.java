@@ -175,8 +175,13 @@ public final class DefenceBrain extends BaseBrain {
         double dx = cx - anchorX, dz = cz - anchorZ;
         double len = Math.hypot(dx, dz);
         if (len < 1e-6) { dx = 0; dz = 1; len = 1; }
-        double y = Math.min(c[1], bedY);                 // a roof cell has no floor at its own height
-        return new org.bukkit.Location(ctx.player.getWorld(), cx + dx / len * 1.35, y, cz + dz / len * 1.35);
+        // Stand on the floor for every layer. A cell above the floor line is reached upward: its support is the top
+        // face of the block below it, which a body on the ground can see. Standing at the cell's own height needs
+        // something to stand on at that height, which a defence still being built does not have - level two (26
+        // cells, layers up to y67) never got past one cell.
+        double y = bedY;
+        double out = c[1] > bedY ? 2.2 : 1.35;
+        return new org.bukkit.Location(ctx.player.getWorld(), cx + dx / len * out, y, cz + dz / len * out);
     }
 
 
