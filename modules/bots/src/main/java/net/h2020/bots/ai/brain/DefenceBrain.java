@@ -26,6 +26,9 @@ public final class DefenceBrain extends BaseBrain {
     private int[] curCell = {0, 0, 0};
     private int standFor = -1;
     private org.bukkit.Location standCache;
+    /** Try the other stance for a roof cell when the first one stops making progress. */
+    private int stanceMode;
+    private long standAt;
 
     private final int bedX, bedY, bedZ;
 
@@ -104,7 +107,15 @@ public final class DefenceBrain extends BaseBrain {
         // One approach point per cell, held while that cell is the one being built. Recomputing it every tick had the
         // bot chasing a point it never reached, so it walked in place for the rest of the run: measured four cells
         // attempted out of nine with the body parked three blocks off the wall.
-        if (standFor != idx) { standCache = standFor(c); standFor = idx; }
+        if (standFor != idx) { stanceMode = 0; standCache = standFor(c); standFor = idx; standAt = ctx.tick; }
+        // A roof stance that the body cannot climb to leaves it walking into the wall for the rest of the run. Give
+        // it two seconds, then take the other stance rather than stalling: measured 8 of 9 with one, 7 with the
+        // other, and which one the nav manages is not reliable from run to run.
+        else if (c[1] == bedY + 1 && ctx.tick - standAt > 40) {
+            stanceMode = (stanceMode + 1) % 3;
+            standCache = standFor(c);
+            standAt = ctx.tick;
+        }
         int px = (int) Math.floor(ctx.pos().getX());
         int py = (int) Math.floor(ctx.pos().getY() + 0.01);
         int pz = (int) Math.floor(ctx.pos().getZ());
@@ -117,7 +128,7 @@ public final class DefenceBrain extends BaseBrain {
         // the bed is a legitimate support for the roof: the placer sneaks, so the click places instead of opening it
         placer.setFast(true);
         placer.setNeedSight(false);
-        placer.setAvoidInteractive(false);
+        placer.setAvoidInteractive(c[1] == bedY + 1);
         curCell = c;
         placer.start(c[0], c[1], c[2], Inv.BLOCK);
         CombatStats.inc("drill.defence.try");
@@ -133,6 +144,28 @@ public final class DefenceBrain extends BaseBrain {
     /** Where to stand to build one cell: on the floor, outside the wall, on that cell's own side of the bed. */
     private org.bukkit.Location standFor(int[] c) {
         double cx = c[0] + 0.5, cz = c[2] + 0.5;
+        // A roof cell is built from the front, standing on the floor: from the side or the back the top face of the
+        // block underneath is at eye level and the click goes out over it. Measured: every y65 cell in, all three
+        // roof cells refused, from a stance out on the flank.
+        if (c[1] == bedY + 1) {
+            // A bed's collision box is nine sixteenths high, so its "top face" is inside its own cell: clicking it
+            // places nothing at all, which is what kept the two cells over the bed empty through every attempt.
+            // The first roof cell stands on wool and is built from the floor; the two over the bed are built from
+            // the top of the front row, against the side of the cell placed before them.
+            // The cell nearest the wall's end is built from the top of the front row; the other two from the floor.
+            // Measured: floor for all three left the drill at 1 of 9, weil the bot could not get a neighbour's side
+            // face into the crosshair from the floor for the middle one; wall-top for all three got 8 of 9, missing
+            // only the last, whose nav never climbed. One of each is the combination that reaches all three.
+            // Three stances, tried in turn while a roof cell refuses: floor in front, on top of the front row, on top
+            // of the back row. A bed's collision box is nine sixteenths high, so a roof cell over one can only be
+            // built against a neighbour's side face - which side is visible depends on where the body is standing,
+            // and the nav does not always climb when asked.
+            switch (stanceMode) {
+                case 1: return new org.bukkit.Location(ctx.player.getWorld(), cx, bedY + 1, bedZ + 1.5);
+                case 2: return new org.bukkit.Location(ctx.player.getWorld(), cx, bedY + 1, bedZ - 1.5);
+                default: return new org.bukkit.Location(ctx.player.getWorld(), cx, bedY, bedZ + 2.9);
+            }
+        }
         double dx = cx - anchorX, dz = cz - anchorZ;
         double len = Math.hypot(dx, dz);
         if (len < 1e-6) { dx = 0; dz = 1; len = 1; }

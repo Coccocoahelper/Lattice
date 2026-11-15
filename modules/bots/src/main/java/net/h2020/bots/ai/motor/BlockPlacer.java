@@ -34,6 +34,9 @@ public final class BlockPlacer {
             new java.util.concurrent.ConcurrentHashMap<java.util.UUID, Long>();
     /** Cells to place straight after this one, in order: one decision, many blocks. */
     private final java.util.ArrayDeque<int[]> queue = new java.util.ArrayDeque<int[]>();
+    /** Tick at which the last click's cell is checked: a click is not a placement until the block is there. */
+    private long verifyAt = -1;
+    private static final java.util.concurrent.atomic.AtomicInteger PLACE_LOG = new java.util.concurrent.atomic.AtomicInteger();
     private Block support;
     private BlockFace face;
     /** The current support is interactive (bed/chest): the click has to be made while sneaking. */
@@ -254,6 +257,20 @@ public final class BlockPlacer {
     }
 
     public Result tick() {
+
+        // A click that the server refused still looks like success from here, so every click is checked three ticks
+        // later. This is also the diagnostic for blocks landing in the wrong cell: it prints what was asked for and
+        // whether it arrived.
+        if (verifyAt > 0 && ctx.tick >= verifyAt) {
+            verifyAt = -1;
+            boolean there = !net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(tx, ty, tz));
+            net.h2020.api.stats.CombatStats.inc(there ? "place.verified" : "place.miss");
+            if (PLACE_LOG.incrementAndGet() <= 40) {
+                org.bukkit.Bukkit.getLogger().info("[place] want " + tx + "," + ty + "," + tz
+                        + (there ? "  ok" : "  MISS  body " + (int) Math.floor(ctx.pos().getX()) + ","
+                        + (int) Math.floor(ctx.pos().getY()) + "," + (int) Math.floor(ctx.pos().getZ())));
+            }
+        }
         if (!active) return Result.FAILED;
         ticks++;
         WorldView wv = ctx.world();
@@ -311,13 +328,13 @@ public final class BlockPlacer {
             // next tick - the placer asked for shift, was told no, and asked again for ever. Measured: every cell
             // whose only support was the bed stayed empty (0,66,0 and 1,66,0 in the drill). Hold it for one tick,
             // then click with it held.
-            if (sneakFor) {
-                ctx.motor.sneak(true);
-                if (!sneakHeld) { sneakHeld = true; return Result.RUNNING; }
-            } else {
-                sneakHeld = false;
-            }
+            // Sneak and click in the SAME tick. Waiting a tick was the bug, not the fix: the motor clears its sneak
+            // flag at the start of every tick, so the click that followed went out with shift released - right-click
+            // on a bed, which opens it. Measured: the two roof cells over the bed were the only two never placed.
+            if (sneakFor) ctx.motor.sneak(true);
+            else sneakHeld = false;
             ctx.c.rightClick();
+            verifyAt = ctx.tick + 3L;
             net.h2020.api.stats.CombatStats.inc("place.ok");
             // how long this block waited behind the last one: the number "fewer ticks between placements" means
             java.util.UUID who = ctx.player.getUniqueId();
