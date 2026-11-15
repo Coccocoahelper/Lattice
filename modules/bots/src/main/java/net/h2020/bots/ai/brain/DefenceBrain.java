@@ -139,7 +139,11 @@ public final class DefenceBrain extends BaseBrain {
         // standing on the bed is the same mistake as standing in the wall: the body occupies a cell that matters
         boolean standingOnTarget = isTarget(px, py, pz)
                 || (py == bedY && pz == bedZ && (px == bedX || px == bedX + 1));
-        if (!indoor && ctx.pos().getWorld() == at.getWorld() && (standingOnTarget || ctx.pos().distance(at) > 3.4)) {
+        // Position for every cell, not just the far ones. At 2-3 blocks the bot used to place from wherever it
+        // happened to stand, which on a defence is the wrong side of the wall: measured 2 of 9 cells with the rest
+        // failing as unreachable, while the two it did fill were the ones it was already facing.
+        if (!indoor && ctx.pos().getWorld() == at.getWorld()
+                && (standingOnTarget || ctx.pos().distance(stand) > 1.2 || ctx.pos().distance(at) > 3.4)) {
             ctx.nav.goTo(stand, 1.0);
             ctx.nav.tick();
             return;
@@ -147,7 +151,9 @@ public final class DefenceBrain extends BaseBrain {
         // if it is already there, skip it: the drill leaves a finished wall up until the level changes
         if (!net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(c[0], c[1], c[2]))) { idx++; return; }
         // a cell sitting directly on the bed: put wool on the block next to it first, then place through that
-        boolean bedTop = c[1] == bedY + 1 && c[2] == bedZ && (c[0] == bedX || c[0] == bedX + 1);
+        // Every cell at roof level is placed through a neighbour, not against the bed: the bed's top face is a
+        // right-click on a bed, and the third roof cell (2,66,0) has no bed under it at all.
+        boolean bedTop = c[1] == bedY + 1;
         placer.setFast(true);
         placer.setNeedSight(false);
         placer.setAvoidInteractive(bedTop);
