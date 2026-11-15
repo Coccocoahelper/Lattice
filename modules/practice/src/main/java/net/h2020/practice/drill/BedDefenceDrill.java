@@ -79,6 +79,7 @@ public final class BedDefenceDrill implements Drill {
     public void kit(Player p) {
         p.getInventory().setItem(0, new ItemStack(Material.WOOL, 64, colour()));
         p.getInventory().setItem(1, new ItemStack(Material.ENDER_STONE, 64));   // the second layer's material
+        p.getInventory().setItem(2, new ItemStack(Material.WOOD, 64));          // oak planks: the wood layer
         p.getInventory().setItem(8, new ItemStack(Material.WOOD_PICKAXE));
     }
 
