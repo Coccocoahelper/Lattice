@@ -2,6 +2,7 @@ package net.h2020.practice;
 
 import net.h2020.practice.drill.BedDefenceDrill;
 import net.h2020.practice.drill.BlockInDrill;
+import net.h2020.practice.drill.FireballJumpDrill;
 import net.h2020.practice.drill.BowDrill;
 import net.h2020.practice.drill.BridgeDrill;
 import net.h2020.practice.drill.Drill;
@@ -26,9 +27,10 @@ public final class Drills {
         if (k.equals("gamesense") || k.equals("sense") || k.equals("scenarios")) return new GameSenseDrill();
         if (k.equals("bridge") || k.equals("bridging")) return new BridgeDrill();
         if (k.equals("beddefence") || k.equals("defence") || k.equals("defense")) return new BedDefenceDrill();
+        if (k.equals("fireballjump") || k.equals("fireball-jump") || k.equals("fbjump")) return new FireballJumpDrill();
         if (k.equals("blockin") || k.equals("block-in") || k.equals("block-in-drill") || k.equals("seal")) return new BlockInDrill();
         return null;
     }
 
-    public static String[] ids() { return new String[]{"fireball", "bow", "gamesense", "bridge", "beddefence", "blockin"}; }
+    public static String[] ids() { return new String[]{"fireball", "fireballjump", "bow", "gamesense", "bridge", "beddefence", "blockin"}; }
 }

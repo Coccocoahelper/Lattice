@@ -15,6 +15,7 @@ import net.h2020.api.game.GameState;
 import net.h2020.api.map.MapTemplate;
 import net.h2020.practice.drill.BedDefenceDrill;
 import net.h2020.practice.drill.BlockInDrill;
+import net.h2020.practice.drill.FireballJumpDrill;
 import net.h2020.practice.drill.BedDefenceTemplates;
 import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
@@ -78,6 +79,9 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
         for (PracticeMode m : PracticeMode.ALL) GameModes.register(m);
         BedDefenceTemplates.load(plugin);
         BlockInDrill.init(plugin);
+        net.h2020.api.practice.PracticeMenus.install(new net.h2020.api.practice.PracticeMenus.Opener() {
+            @Override public void open(Player p) { menu(p); }
+        });
         // the replay viewer has no map to look up for a drill: let it ask for a fresh arena instead
         net.h2020.api.practice.PracticeArenas.install(new net.h2020.api.practice.PracticeArenas.Factory() {
             @Override public World create(String modeId) {
@@ -155,6 +159,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
         if (id.equals(PracticeMode.BRIDGE_DIAGONAL.id())) return new BridgeDrill(BridgeDrill.Variant.DIAGONAL);
         if (id.equals(PracticeMode.BED_DEFENCE.id())) return new BedDefenceDrill();
         if (id.equals(PracticeMode.BLOCK_IN.id())) return new BlockInDrill();
+        if (id.equals(PracticeMode.FIREBALL_JUMP.id())) return new FireballJumpDrill();
         return null;
     }
 
@@ -263,6 +268,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
             case "beddefence": case "defence": case "defense": return PracticeMode.BED_DEFENCE;
             case "bridge-diagonal": case "diagonal": case "diag": return PracticeMode.BRIDGE_DIAGONAL;
             case "blockin": case "block-in": case "seal": return PracticeMode.BLOCK_IN;
+            case "fireballjump": case "fireball-jump": case "fbjump": return PracticeMode.FIREBALL_JUMP;
             default: return null;
         }
     }
@@ -349,8 +355,34 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
         }
     }
 
+    /**
+     * /practice with no argument: the drills as a select menu, one icon each, exactly the entry the lobby's game menu
+     * opens. Clicking starts the drill the same way typing its name does.
+     */
     private void menu(Player p) {
-        for (String line : net.h2020.api.core.Messages.lines("practice.menu.lines")) p.sendMessage(line);
+        net.h2020.api.gui.Menu m = new net.h2020.api.gui.Menu("Practice", 3);
+        int slot = 0;
+        for (final PracticeMode mode : PracticeMode.ALL) {
+            if (slot >= 26) break;
+            m.set(slot, new net.h2020.api.gui.ItemBuilder(mode.icon())
+                    .name(org.bukkit.ChatColor.GREEN + mode.displayName())
+                    .lore(org.bukkit.ChatColor.DARK_GRAY + mode.menuSubtitle(), "",
+                            org.bukkit.ChatColor.GRAY + mode.description())
+                    .lore("", org.bukkit.ChatColor.YELLOW + "\u25B8 Click to start")
+                    .hideAll().build(), new net.h2020.api.gui.Menu.Click() {
+                @Override public void click(Player pl, org.bukkit.event.inventory.ClickType type) {
+                    pl.closeInventory();
+                    PracticeMode mine = modeFor(mode.id().startsWith("practice_")
+                            ? mode.id().substring("practice_".length()) : mode.id());
+                    if (mine == null) return;
+                    PracticeGame g = start(mine);
+                    if (g != null) { track(g); pl.sendMessage(net.h2020.api.core.Messages.get(
+                            "practice.practicemodule.started-with-bot-s", "p1", mine.displayName(), "p2", 0, "p3", g.id())); }
+                }
+            });
+            slot++;
+        }
+        m.open(p);
     }
 
     // ---------------------------------------------------------------- bed defence template editor
@@ -546,6 +578,15 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
         PracticeGame g = byPlayer.get(e.getPlayer().getUniqueId());
         if (g == null || !g.world().equals(e.getBlock().getWorld())) return;
         g.drill().onPlace(g, e.getPlayer(), e.getBlock());
+    }
+
+    @EventHandler
+    public void onInteract(org.bukkit.event.player.PlayerInteractEvent e) {
+        if (e.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_AIR
+                && e.getAction() != org.bukkit.event.block.Action.RIGHT_CLICK_BLOCK) return;
+        PracticeGame g = byPlayer.get(e.getPlayer().getUniqueId());
+        if (g == null || !g.world().equals(e.getPlayer().getWorld())) return;
+        g.drill().onInteract(g, e.getPlayer(), e.getItem());
     }
 
     @EventHandler(ignoreCancelled = true)

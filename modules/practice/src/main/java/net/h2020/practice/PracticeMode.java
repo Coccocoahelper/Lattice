@@ -52,7 +52,13 @@ public final class PracticeMode implements GameMode {
             "Break into the defence, then seal the hole you made. The first hole a player closes becomes the drill.",
             Material.WOOL);
 
-    public static final PracticeMode[] ALL = {FIREBALL, BOW, SENSE, BRIDGE, BRIDGE_DIAGONAL, BED_DEFENCE, BLOCK_IN};
+    public static final PracticeMode FIREBALL_JUMP = new PracticeMode("practice_fireballjump",
+            "Fireball Jumping", "Movement",
+            "A gap, a fireball and your own feet. Ride the blast across before it rides you off the map.",
+            Material.FIREBALL);
+
+    public static final PracticeMode[] ALL = {FIREBALL, FIREBALL_JUMP, BOW, SENSE, BRIDGE, BRIDGE_DIAGONAL,
+            BED_DEFENCE, BLOCK_IN};
 
     @Override public String id() { return id; }
     @Override public GameFamily family() { return GameFamily.PRACTICE; }

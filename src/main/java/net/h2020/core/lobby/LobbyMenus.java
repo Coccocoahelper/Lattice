@@ -55,6 +55,21 @@ public final class LobbyMenus {
                 core.counts.count(GameFamily.SKYWARS), true), new Menu.Click() {
             @Override public void click(Player pl, ClickType type) { pl.closeInventory(); core.lobby.connectFamily(pl, GameFamily.SKYWARS); }
         });
+        // practice, when the practice plugin is loaded: the same select menu /practice opens
+        if (net.h2020.api.practice.PracticeMenus.available()) {
+            m.set(12, new ItemBuilder(Material.IRON_SWORD)
+                    .name(ChatColor.GREEN + "Practice")
+                    .lore(ChatColor.DARK_GRAY + "Mechanics", "",
+                            ChatColor.GRAY + "Fireball jumping, deflecting, bridging, bed defence,",
+                            ChatColor.GRAY + "block-ins and game sense. Drills, timed and recorded.",
+                            "", CONNECT)
+                    .hideAll().build(), new Menu.Click() {
+                @Override public void click(Player pl, ClickType type) {
+                    pl.closeInventory();
+                    net.h2020.api.practice.PracticeMenus.open(pl);
+                }
+            });
+        }
         m.set(15, deco(new ItemBuilder(Material.SAPLING, 1, 3), "SkyBlock", "Sandbox", "Collect resources, craft items, and grow your island in the brand-new SkyBlock world!", 31000, 1));
 
         m.set(19, deco(new ItemBuilder(Material.BOW), "Murder Mystery", "Social Deduction", "Can you find the Murderer before everyone is killed?", 12500, 2));

@@ -50,6 +50,9 @@ public interface Drill {
     /** A player placed a block (used by the bridging drill to count what a crossing cost). */
     default void onPlace(PracticeGame g, Player p, org.bukkit.block.Block b) { }
 
+    /** Right-click with an item from the kit. The fireball drill launches on this. */
+    default void onInteract(PracticeGame g, Player p, org.bukkit.inventory.ItemStack item) { }
+
     /** A block taken out of the arena. The block-in drill learns each player's hole from these. */
     default void onBreak(PracticeGame g, Player p, org.bukkit.block.Block b) { }
 
