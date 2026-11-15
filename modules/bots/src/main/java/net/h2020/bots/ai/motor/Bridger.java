@@ -688,14 +688,20 @@ public final class Bridger {
                 rayWasOn = true;
                 // reaction: usually on the beat, sometimes a tick or two late (then the last-instant crouch saves it)
                 // (sneakless bridgers live on that timing: only their sloppiness shows, as a save-crouch)
-                clickWait = ctx.rng.nextDouble() < sloppy ? AIMath.range(ctx.rng, 1, 3)
-                        : (crouch != BridgeMethod.Crouch.NONE && ctx.rng.nextDouble() < 0.25 ? 1 : 0);
+                // Ninja places the tick the ray is on the face: the method exists to be fast, and a reaction delay
+                // plus a per-persona click cooldown stacked up into two to four ticks of nothing happening. Every
+                // other technique keeps its human hesitation.
+                boolean instant = tech == Tech.NINJA || tech == Tech.NINJA2;
+                clickWait = instant ? 0
+                        : (ctx.rng.nextDouble() < sloppy ? AIMath.range(ctx.rng, 1, 3)
+                        : (crouch != BridgeMethod.Crouch.NONE && ctx.rng.nextDouble() < 0.25 ? 1 : 0));
             }
             if (clickWait > 0) clickWait--;
             else if (clickCooldown == 0) {
                 ctx.c.rightClick();
                 clicked = true;
-                clickCooldown = Math.max(1, AIMath.msToTicks(ctx.rng, ctx.persona.bridgeClickMs) - 1);
+                clickCooldown = (tech == Tech.NINJA || tech == Tech.NINJA2) ? 0
+                        : Math.max(1, AIMath.msToTicks(ctx.rng, ctx.persona.bridgeClickMs) - 1);
             }
         }
         if (duoTicks > 0) {
