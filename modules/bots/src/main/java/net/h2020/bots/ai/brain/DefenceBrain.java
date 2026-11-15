@@ -120,6 +120,12 @@ public final class DefenceBrain extends BaseBrain {
         int py = (int) Math.floor(ctx.pos().getY() + 0.01);
         int pz = (int) Math.floor(ctx.pos().getZ());
         boolean onCell = px == c[0] && py == c[1] && pz == c[2];
+        // Walk only when the cell is out of reach, or when the body is standing in the cell being filled. Walking
+        // whenever the approach point is further than 1.5 away meant a step for every block of every row: measured
+        // 78% of the brain's ticks spent in nav, 21% placing.
+        // Keep walking to the approach point. Tried placing from wherever the body stood instead (footprint in
+        // reach, no step): the drill stalled at 3 of 9 with four thousand clicks and nothing landing, so the short
+        // walk is what makes the placement legal - the body has to be square to the face it is filling.
         if (!indoor && (onCell || ctx.pos().distance(standCache) > 1.5)) {
             ctx.nav.goTo(standCache, 1.2);
             ctx.nav.tick();

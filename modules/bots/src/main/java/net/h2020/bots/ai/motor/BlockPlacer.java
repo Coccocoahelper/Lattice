@@ -36,6 +36,7 @@ public final class BlockPlacer {
     private final java.util.ArrayDeque<int[]> queue = new java.util.ArrayDeque<int[]>();
     /** Tick at which the last click's cell is checked: a click is not a placement until the block is there. */
     private long verifyAt = -1;
+    private double lastX, lastZ;
     private static final java.util.concurrent.atomic.AtomicInteger PLACE_LOG = new java.util.concurrent.atomic.AtomicInteger();
     private Block support;
     private BlockFace face;
