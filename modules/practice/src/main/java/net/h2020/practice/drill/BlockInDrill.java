@@ -39,11 +39,11 @@ public final class BlockInDrill implements Drill {
      * 0,0,-2 the outer layer behind it, so the first two levels are the same hole opened one layer at a time.
      */
     private static final int[][][] GAPS = {
-            {{0, 0, -1}},
-            {{0, 0, -1}, {0, 0, -2}},
-            {{0, 0, -1}, {-1, 0, 0}},
-            {{0, 0, -1}, {0, 0, -2}, {2, 0, 0}},
-            {{0, 0, -1}, {0, 0, -2}, {-1, 0, 0}, {2, 0, 0}}
+            {{0, 0, -2}},
+            {{0, 0, -2}, {0, 1, -1}},
+            {{0, 0, -2}, {1, 0, -2}},
+            {{0, 0, -2}, {1, 0, -2}, {0, 1, -1}, {1, 1, -1}},
+            {{0, 0, -2}, {1, 0, -2}, {0, 1, -1}, {1, 1, -1}, {0, 0, -1}}
     };
 
     private PracticeArena arena;
@@ -58,18 +58,17 @@ public final class BlockInDrill implements Drill {
     @Override public String display() { return "Block In"; }
 
     @Override public String hint() {
-        return "the defence is up with one edge block missing - seal the hole before he follows you in";
+        return "the defence is up with an edge block gone - break back in, then seal the hole behind you";
     }
 
     @Override
     public void build(PracticeArena a) {
         this.arena = a;
-        a.platform(BED_X, BED_Y - 1, BED_Z, 5, Material.SANDSTONE);
+        a.platform(BED_X, BED_Y - 1, BED_Z, 6, Material.SANDSTONE);
         placeBed();
-        twoLayerDefence();
-        // stand on the bed, inside the defence, looking out through the hole
-        this.spawn = a.at(BED_X + 0.5, BED_Y + 1, BED_Z + 0.5, 180f);
         layoutGaps();
+        // stand outside on the attacking side, looking at the hole you have to shut
+        this.spawn = a.at(BED_X + 0.5, BED_Y, BED_Z - 4.5, 0f);
     }
 
     private void placeBed() {
@@ -81,27 +80,32 @@ public final class BlockInDrill implements Drill {
         head.setData((byte) 10, false);
     }
 
-    /** Two rings around the bed: wool inside, wood outside, exactly the shape the holes are cut into. */
-    private void twoLayerDefence() {
-        for (int x = BED_X - 1; x <= BED_X + 2; x++) {
-            for (int z = BED_Z - 1; z <= BED_Z + 1; z++) {
-                if (x >= BED_X && x <= BED_X + 1 && z == BED_Z) continue;      // the bed itself
-                arena.world().getBlockAt(x, BED_Y, z).setType(Material.WOOL, false);
+    /**
+     * The second defence from the bed-defence trainer, built as the trainer has it - same cells, same materials, not
+     * a shape invented here. A drill that cuts its hole into a made-up wall teaches the wrong wall.
+     */
+    private void standDefence() {
+        for (int x = BED_X - 3; x <= BED_X + 5; x++) {
+            for (int z = BED_Z - 3; z <= BED_Z + 3; z++) {
+                for (int dy = 0; dy <= 3; dy++) {
+                    if (x >= BED_X && x <= BED_X + 1 && z == BED_Z && dy == 0) continue;   // the bed itself
+                    arena.world().getBlockAt(x, BED_Y + dy, z).setType(Material.AIR, false);
+                }
             }
         }
-        for (int x = BED_X - 2; x <= BED_X + 3; x++) {
-            for (int z = BED_Z - 2; z <= BED_Z + 2; z++) {
-                boolean edge = x == BED_X - 2 || x == BED_X + 3 || z == BED_Z - 2 || z == BED_Z + 2;
-                if (!edge) continue;                                          // the inner ring covers the rest
-                arena.world().getBlockAt(x, BED_Y, z).setType(Material.WOOD, false);
-            }
+        List<Object[]> cells = BedDefenceTemplates.get("2");
+        if (cells == null || cells.isEmpty()) cells = BedDefenceTemplates.at(2);
+        for (Object[] c : cells) {
+            arena.world().getBlockAt(BED_X + (Integer) c[0], BED_Y + (Integer) c[1], BED_Z + (Integer) c[2])
+                    .setType((Material) c[3], false);
         }
+        placeBed();
     }
 
     /** Cut this level's holes into the standing defence. */
     private void layoutGaps() {
         gaps.clear();
-        twoLayerDefence();                                                    // undoes the last level's sealing
+        standDefence();                                                       // undoes the last level's sealing
         int[][] set = GAPS[Math.min(GAPS.length, Math.max(1, level)) - 1];
         for (int[] g : set) {
             int x = BED_X + g[0], y = BED_Y + g[1], z = BED_Z + g[2];

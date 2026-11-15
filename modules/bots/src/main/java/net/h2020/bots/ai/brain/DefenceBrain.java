@@ -26,9 +26,17 @@ public final class DefenceBrain extends BaseBrain {
 
     private final int bedX, bedY, bedZ;
 
+    /** Build from inside a standing defence: never walk, because every cell is already in reach. */
+    private final boolean indoor;
+
     public DefenceBrain(int[][] cells, int bedX, int bedY, int bedZ) {
+        this(cells, bedX, bedY, bedZ, false);
+    }
+
+    public DefenceBrain(int[][] cells, int bedX, int bedY, int bedZ, boolean indoor) {
         this.cells = cells == null ? new int[0][] : cells;
         this.bedX = bedX; this.bedY = bedY; this.bedZ = bedZ;
+        this.indoor = indoor;
         // Build the shape the way the best recorded human run did (12 blocks, 3.3 s): the front row right to left,
         // then the back row right to left, then the flanks, then the cells over the bed. A person sweeps a row and
         // moves once; taking the template's own order walked back and forth across the same wall.
@@ -65,7 +73,7 @@ public final class DefenceBrain extends BaseBrain {
             } else {
                 org.bukkit.Location hl = new org.bukkit.Location(ctx.player.getWorld(),
                         helper[0] + 0.5, helper[1], helper[2] + 0.5);
-                if (ctx.pos().distance(hl) > 3.4) { ctx.nav.goTo(hl, 1.4); ctx.nav.tick(); return; }
+                if (!indoor && ctx.pos().distance(hl) > 3.4) { ctx.nav.goTo(hl, 1.4); ctx.nav.tick(); return; }
                 if (!placer.active()) {
                     placer.setFast(true);
                     placer.setNeedSight(false);
@@ -116,7 +124,7 @@ public final class DefenceBrain extends BaseBrain {
         // standing on the bed is the same mistake as standing in the wall: the body occupies a cell that matters
         boolean standingOnTarget = isTarget(px, py, pz)
                 || (py == bedY && pz == bedZ && (px == bedX || px == bedX + 1));
-        if (ctx.pos().getWorld() == at.getWorld() && (standingOnTarget || ctx.pos().distance(at) > 3.4)) {
+        if (!indoor && ctx.pos().getWorld() == at.getWorld() && (standingOnTarget || ctx.pos().distance(at) > 3.4)) {
             ctx.nav.goTo(stand, 1.0);
             ctx.nav.tick();
             return;

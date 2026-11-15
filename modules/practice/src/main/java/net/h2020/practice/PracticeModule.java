@@ -333,7 +333,9 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
                     java.util.List<int[]> holes = bi.gapCells();
                     int[][] arr = new int[holes.size()][];
                     for (int k = 0; k < holes.size(); k++) arr[k] = holes.get(k);
-                    bot.setBrain(bs.bedDefenceBrain(arr, bi.bedX(), bi.bedY(), bi.bedZ()));
+                    // outside the wall, like the player: the hole is in the front face and a bot standing in front
+                    // of it is a bot that can reach it
+                    bot.setBrain(bs.bedDefenceBrain(arr, bi.bedX(), bi.bedY(), bi.bedZ(), false));
                 }
                 if (!(g.drill() instanceof BridgeDrill) && !(g.drill() instanceof BedDefenceDrill)
                         && !(g.drill() instanceof BlockInDrill)) bot.setBrain(null);

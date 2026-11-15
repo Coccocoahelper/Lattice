@@ -57,11 +57,71 @@ public final class BedDefenceTemplates {
         save(plugin);
     }
 
-    /** The four shapes the drill shipped with, so the first run is not an empty list. */
+    /**
+     * The shapes the drill ships with - the five that were tuned in-game and written to
+     * plugins/Lattice/bed-defence-templates.yml. Kept here verbatim so a fresh install starts from the same
+     * defences the live one has, instead of the three placeholder rings this used to seed.
+     */
+    private static final String[][] SHIPPED = {
+        {   // 1
+            "-1,0,0,WOOL", "0,0,-1,WOOL", "0,1,0,WOOL",
+            "0,0,1,WOOL", "1,0,-1,WOOL", "1,1,0,WOOL",
+            "1,0,1,WOOL", "2,0,0,WOOL", "2,1,0,WOOL",
+        },
+        {   // 2
+            "-2,0,0,WOOL", "-1,0,-1,WOOL", "-1,0,0,WOOL",
+            "-1,1,0,WOOL", "-1,0,1,WOOL", "0,0,-2,WOOL",
+            "0,0,-1,WOOL", "0,1,-1,WOOL", "0,1,0,WOOL",
+            "0,2,0,WOOL", "0,0,1,WOOL", "0,1,1,WOOL",
+            "0,0,2,WOOL", "1,0,-2,WOOL", "1,0,-1,WOOL",
+            "1,1,-1,WOOL", "1,1,0,WOOL", "1,2,0,WOOL",
+            "1,0,1,WOOL", "1,1,1,WOOL", "1,0,2,WOOL",
+            "2,0,-1,WOOL", "2,0,0,WOOL", "2,1,0,WOOL",
+            "2,0,1,WOOL", "3,0,0,WOOL",
+        },
+        {   // 3
+            "-2,0,0,WOOD", "-1,0,-1,WOOD", "-1,0,0,WOOD",
+            "-1,1,0,WOOD", "-1,0,1,WOOD", "0,0,-2,WOOL",
+            "0,0,-1,WOOD", "0,1,-1,WOOL", "0,1,0,WOOD",
+            "0,2,0,WOOL", "0,0,1,WOOD", "0,1,1,WOOL",
+            "0,0,2,WOOL", "1,0,-2,WOOL", "1,0,-1,WOOD",
+            "1,1,-1,WOOL", "1,1,0,WOOD", "1,2,0,WOOL",
+            "1,0,1,WOOD", "1,1,1,WOOL", "1,0,2,WOOL",
+            "2,0,-1,WOOD", "2,0,0,WOOD", "2,1,0,WOOD",
+            "2,0,1,WOOD", "3,0,0,WOOD",
+        },
+        {   // 4
+            "-2,0,0,WOOL", "-1,0,-1,WOOL", "-1,0,0,ENDER_STONE",
+            "-1,1,0,WOOL", "-1,0,1,WOOL", "0,0,-2,WOOL",
+            "0,0,-1,ENDER_STONE", "0,1,-1,WOOL", "0,1,0,ENDER_STONE",
+            "0,2,0,WOOL", "0,0,1,ENDER_STONE", "0,1,1,WOOL",
+            "0,0,2,WOOL", "1,0,-2,WOOL", "1,0,-1,ENDER_STONE",
+            "1,1,-1,WOOL", "1,1,0,ENDER_STONE", "1,2,0,WOOL",
+            "1,0,1,ENDER_STONE", "1,1,1,WOOL", "1,0,2,WOOL",
+            "2,0,-2,WOOL", "2,0,-1,ENDER_STONE", "2,1,-1,WOOL",
+            "2,0,0,ENDER_STONE", "2,1,0,ENDER_STONE", "2,2,0,WOOL",
+            "2,0,1,ENDER_STONE", "2,1,1,WOOL", "2,0,2,WOOL",
+            "3,0,-1,WOOL", "3,0,0,ENDER_STONE", "3,1,0,WOOL",
+            "3,0,1,WOOL", "4,0,0,WOOL",
+        },
+        {   // 5
+            "-1,0,0,ENDER_STONE", "0,0,-1,ENDER_STONE", "0,1,0,ENDER_STONE",
+            "0,0,1,ENDER_STONE", "1,0,-1,ENDER_STONE", "1,1,0,ENDER_STONE",
+            "1,0,1,ENDER_STONE", "2,0,-1,ENDER_STONE", "2,0,0,ENDER_STONE",
+            "2,1,0,ENDER_STONE", "2,0,1,ENDER_STONE", "3,0,0,ENDER_STONE",
+        },
+    };
+
     private static void defaults() {
-        TEMPLATES.put("front-row", row(-1, 1, 2, 2));
-        TEMPLATES.put("ring", ring());
-        TEMPLATES.put("ring-roof", roofed());
+        for (int i = 0; i < SHIPPED.length; i++) {
+            List<Object[]> cells = new ArrayList<Object[]>();
+            for (String s : SHIPPED[i]) {
+                String[] parts = s.split(",");
+                cells.add(new Object[]{Integer.parseInt(parts[0].trim()), Integer.parseInt(parts[1].trim()),
+                        Integer.parseInt(parts[2].trim()), Material.valueOf(parts[3].trim())});
+            }
+            TEMPLATES.put(String.valueOf(i + 1), cells);
+        }
     }
 
     private static List<Object[]> row(int x1, int z, int x2, int pad) {
