@@ -31,8 +31,13 @@ import org.bukkit.Location;
 public final class Ninja2Bridge extends BridgeMethod {
 
     // ---- LibreBounce god-bridge rotation mode ----
-    /** The pitch the ray needs to meet the support's face at this method's edge distance. */
-    private static final float PITCH = 79.5f;
+    /**
+     * The pitch the ray needs to meet the support's face at this method's edge distance, and the pitch the best
+     * recorded diagonal run used. Measured from Sovacos's prac97E: 1,145 moving frames, pitch a mode of 79 with the
+     * bulk between 78 and 80, and his y never left the platform level - so the look-down is 79, and there is no jump
+     * in the technique at all.
+     */
+    private static final float PITCH = 79.0f;
     /** Only commit to a god-bridge angle this close to an edge. */
     private static final float EDGE_LIMIT = 2.5f;
 
