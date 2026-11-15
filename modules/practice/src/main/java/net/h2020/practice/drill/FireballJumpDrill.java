@@ -38,6 +38,8 @@ public final class FireballJumpDrill implements Drill {
     private Location landing;
     private final Map<UUID, long[]> rows = new HashMap<UUID, long[]>();      // {start, crossings, boosts, best, done}
     private final Map<UUID, Long> lastThrow = new HashMap<UUID, Long>();
+    /** Fireballs in flight, kept at the Bed Wars constant speed: vanilla 1.8 adds 0.1 a tick otherwise. */
+    private final List<Fireball> held = new ArrayList<Fireball>();
 
     @Override public String id() { return "fireballjump"; }
     @Override public String display() { return "Fireball Jumping"; }
@@ -73,12 +75,15 @@ public final class FireballJumpDrill implements Drill {
     public void onInteract(PracticeGame g, Player p, ItemStack item) {
         if (item == null || item.getType() != Material.FIREBALL) return;
         if (p.getLocation().getZ() < -(GAP + PLATFORM * 2) - 2) { p.teleport(spawn); return; }   // already across
+        // exactly what a Bed Wars fireball is: same yield, same constant speed, same cooldown. A drill that throws a
+        // different projectile teaches a different jump.
         Fireball f = p.launchProjectile(Fireball.class);
         f.setIsIncendiary(false);
-        f.setYield(1.2f);
+        f.setYield(2.0f);
         Vector dir = p.getEyeLocation().getDirection().normalize();
         f.setDirection(dir);
-        f.setVelocity(dir.clone().multiply(1.2));
+        f.setVelocity(dir.clone().multiply(net.h2020.api.game.Projectiles.FIREBALL));
+        held.add(f);
         lastThrow.put(p.getUniqueId(), System.currentTimeMillis());
         p.playSound(p.getLocation(), Sound.GHAST_FIREBALL, 0.7f, 1.2f);
         if (item.getAmount() <= 1) p.setItemInHand(null);
@@ -87,6 +92,13 @@ public final class FireballJumpDrill implements Drill {
 
     @Override
     public void tick(PracticeGame g) {
+        for (int i = held.size() - 1; i >= 0; i--) {
+            Fireball f = held.get(i);
+            if (!f.isValid()) { held.remove(i); continue; }
+            Vector v = f.getVelocity();
+            double len = v.length();
+            if (len > 1e-4) f.setVelocity(v.multiply(net.h2020.api.game.Projectiles.FIREBALL / len));
+        }
         for (Player p : g.alivePlayers()) {
             if (g.isFollowing(p)) continue;
             long[] r = row(p);
