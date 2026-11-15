@@ -142,6 +142,7 @@ boards:
     lines:
       - ""
       - "Technique: &b%drill%"
+      - "Game: &f%id%"
       - ""
       - "%practice_progress%"
       - ""
