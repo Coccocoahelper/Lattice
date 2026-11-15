@@ -1,5 +1,7 @@
 package net.h2020.bots.ai.motor;
 
+import net.h2020.api.stats.CombatStats;
+
 import net.h2020.bots.ai.util.AIMath;
 import net.h2020.bots.ai.world.Shape;
 import org.bukkit.Location;
@@ -87,7 +89,15 @@ public final class Ninja2Bridge extends BridgeMethod {
         crouch = Crouch.TAP;
         // direction is the facing: the movement is backwards along the travel, so the pose looks back down the bridge
         movingYaw = snap45(AIMath.wrap(travelYaw + 180f));
-        straight = Math.abs(mod90(movingYaw)) < 0.01f;
+        // On a diagonal the head must sit on the 45 family - 45, 135, 225, 315 - and never on an axis. snap45 rounds to
+        // the nearest multiple of 45, which lands on 0/90/180/270 whenever the travel is diagonal, and that pose looks
+        // straight across its own bridge: the ray then meets the face at a right angle and the click never lands.
+        // Unconditionally, because ninja2 is the diagonal method: its head sits on the 45 family every time it is
+        // configured. The travel vector arrives axis-snapped often enough that testing it decided nothing, and an
+        // axis-aligned look is the one pose this method must never take.
+        movingYaw = AIMath.wrap(90f * Math.round((movingYaw - 45f) / 90f) + 45f);   // nearest odd multiple of 45
+        CombatStats.inc("bridge.ninja2.diag45");
+        straight = false;
         onRightSide = b.ctx.rng.nextBoolean();
         carriedYaw = AIMath.wrap(movingYaw);
         offset = 0f;
