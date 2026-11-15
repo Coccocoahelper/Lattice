@@ -384,6 +384,11 @@ public final class Bridger {
             lastStepDx = dx; lastStepDz = dz;
             sx = nx; sz = nz;
             placed++;
+            // A diagonal step is two blocks from one crouched stance, and Sovacos's prac86C puts them down 50 ms
+            // apart - the pair members are one tick, never a walk. duoTicks was declared, decremented and reset but
+            // never once opened, so the "same stance" second placement had never happened: every pair cost a full
+            // step-out. One tick is inside the 100 ms the recording shows.
+            if (diag) duoTicks = 1;
             CombatStats.inc("bridge.block." + tech.name().toLowerCase(java.util.Locale.ROOT));
             method.afterPlacement(this, wasSneaking);
             if (!wasSneaking) pendingSneak = true;                 // ninja timing: sneak after this click
