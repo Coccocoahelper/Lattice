@@ -33,9 +33,9 @@ public final class Ninja2Bridge extends BridgeMethod {
     // ---- LibreBounce god-bridge rotation mode ----
     /**
      * The pitch the ray needs to meet the support's face at this method's edge distance, and the pitch the best
-     * angles two real diagonal runs were recorded at: prac97E sat at 79 for a thousand frames, prac86C - the run
-     * with the blocks in it - measures 80 to 81 at every one of the seventeen placements. 80 is the joint answer, and
-     * his y never left the platform level in either run: there is no jump in this technique.
+     * angle three real diagonal runs were recorded at: prac97E 79, prac86C 80-81, prac72C a flat 78 at all sixteen
+     * placements. 78 is the cleanest of the three - one value across every block - so the pitch takes that, and his y
+     * never left the platform level in any run: there is no jump in this technique.
      *
      * prac86C's blocks, the shape to copy (x,z per placement, sandstone, 17 of them):
      *   (1,1) (1,2) (2,2) (2,3) (2,4) (3,4) (3,5) (4,5) (4,6) (5,6) (5,7) (6,7) (6,8) (7,8) (7,9) (8,9) (8,10)
@@ -44,7 +44,7 @@ public final class Ninja2Bridge extends BridgeMethod {
      * pair goes down from the edge, the second after one step forward, and then he walks back out to 1.2. Timing is
      * 50 ms inside a pair and 300-350 ms between pairs.
      */
-    private static final float PITCH = 80.0f;
+    private static final float PITCH = 78.0f;
     /** Only commit to a god-bridge angle this close to an edge. */
     private static final float EDGE_LIMIT = 2.5f;
 
@@ -58,7 +58,7 @@ public final class Ninja2Bridge extends BridgeMethod {
      * seven ticks) to walk back out to the edge for the next pair.
      */
     private static final int PAIR_TICKS = 1;
-    private static final int STEP_TICKS = 7;
+    private static final int STEP_TICKS = 8;      // prac72C: 50 ms inside a pair, then exactly 400 ms to the next
 
     private float movingYaw;
     private boolean straight;          // travel along an axis, so the head takes the 45 degree carry
