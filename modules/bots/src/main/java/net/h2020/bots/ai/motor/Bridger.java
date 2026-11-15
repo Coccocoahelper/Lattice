@@ -814,11 +814,11 @@ public final class Bridger {
         if (h <= hTarget + 0.04 && !(lateTicks > 3 && h > hTarget - 0.02)) return pitch;
         double drop = pos.getY() + 1.58 - (sy + 0.5);
         double p = Math.toDegrees(Math.atan(drop * Math.cos(Math.toRadians(offset)) / h));
-        // The floor was 79, so a technique configured at the recorded 78 was silently aimed at 79 instead - and on a
-        // diagonal that is the difference between the ray meeting the support's face and missing it. prac72C places
-        // all sixteen blocks at 78. 494 floor events against 1 placed block is what that cost.
-        if (p < 78.0) { CombatStats.inc("bridge.pitch.floor"); p = 78.0; }
-        return (float) AIMath.clamp(p, 78, 89);
+        // The pitch band is 78 to 80 and it is not a tuning knob: every recorded diagonal run sits inside it (prac72C
+        // a flat 78, prac86C 80-81 at the placements, prac97E 79) and no run ever looked further down than that. The
+        // model's own geometry only proposes the angle; it is clamped into the band, never past it.
+        if (p < 78.0 || p > 80.0) CombatStats.inc("bridge.pitch.clamped");
+        return (float) AIMath.clamp(p, 78, 80);
     }
 
     /** Giving up mid-bridge: first crouch-walk back onto the support, never just let go of shift over the void. */

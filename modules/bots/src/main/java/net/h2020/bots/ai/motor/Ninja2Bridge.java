@@ -44,9 +44,15 @@ public final class Ninja2Bridge extends BridgeMethod {
      * pair goes down from the edge, the second after one step forward, and then he walks back out to 1.2. Timing is
      * 50 ms inside a pair and 300-350 ms between pairs.
      */
-    private static final float PITCH = 78.0f;
+    private static final float PITCH = 79.0f;      // the middle of the 78-80 band; the band itself never moves
     /** Only commit to a god-bridge angle this close to an edge. */
     private static final float EDGE_LIMIT = 2.5f;
+    /**
+     * On a diagonal the travel look is 45 degrees off the axis - a real 45, within a degree either way - and it is
+     * never 90: a right-angle look means the bot is facing straight across its own bridge, which is the pose that
+     * misses the support face entirely.
+     */
+    private static final double DIAGONAL_OFFSET = 45.0;
 
     // ---- IllusionClient BridgeAssist ----
     private static final double EDGE_OFFSET = 0.24;
