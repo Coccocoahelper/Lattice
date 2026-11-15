@@ -144,6 +144,10 @@ public final class Recorder {
 
     private static void open(String id, Game g) {
         try {
+            // Every recording says who it is for. Without this line, "no replay" and "no game seen by the recorder"
+            // look identical from the outside, which is exactly how a player's drills went missing unnoticed.
+            plugin.getLogger().info("[replay] recording " + id + " type=" + (g.type() == null ? "?" : g.type().id())
+                    + " players=" + g.players().size());
             File f = new File(dir, id + ".jsonl");
             BufferedWriter w = new BufferedWriter(new FileWriter(f, false));
             StringBuilder h = new StringBuilder("{\"h\":1,\"g\":\"" + id + "\",\"map\":\"" + g.mapName()
