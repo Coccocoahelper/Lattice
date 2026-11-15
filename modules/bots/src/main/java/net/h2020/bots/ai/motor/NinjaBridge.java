@@ -46,7 +46,10 @@ public final class NinjaBridge extends BridgeMethod {
 
     @Override
     public float lookYaw(Bridger b) {
-        return AIMath.wrap(ninjaYaw + Math.max(-3f, Math.min(3f, wobble(b) * 0.5f)));
+        // At most one degree of wobble each way: the head has to stay inside two degrees of the 45 family, and the
+        // old three-degree jitter broke that budget on its own before anything else was added to it.
+        float jitter = Math.max(-1f, Math.min(1f, wobble(b) * 0.25f));
+        return AIMath.wrap(ninjaYaw + jitter);
     }
 
     /** Backwards with one strafe: the diagonal is the habit. */
@@ -58,7 +61,9 @@ public final class NinjaBridge extends BridgeMethod {
     /** A ninja click waits for the head to be on the diagonal; the body has to wait crouched with it. */
     @Override
     public boolean angleHeld(Bridger b) {
-        return Math.abs(AIMath.angleDiff(b.ctx.c.yaw(), ninjaYaw)) <= 10f;
+        // Two degrees, not ten: a ten-degree tolerance is what let the head sit "close enough" while the ray was
+        // already off the face. The click now waits for a genuinely on-angle head.
+        return Math.abs(AIMath.angleDiff(b.ctx.c.yaw(), ninjaYaw)) <= 2f;
     }
 
     /** Kept for the engine: the diagonal the head is pinned to. */

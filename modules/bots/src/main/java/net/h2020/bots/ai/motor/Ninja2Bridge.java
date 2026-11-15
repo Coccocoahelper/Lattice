@@ -120,6 +120,22 @@ public final class Ninja2Bridge extends BridgeMethod {
      */
     @Override
     public float lookYaw(Bridger b) {
+        // Whatever the carry or the square-up asks for, the head stays within two degrees of the 45 family: that is the
+        // rule this method exists to obey, and a 10 degree drift was showing up as bridge.ninja.offangle.
+        return clampToFamily(rawLookYaw(b));
+    }
+
+    private float clampToFamily(float yaw) {
+        float family = AIMath.wrap(90f * Math.round((yaw - 45f) / 90f) + 45f);
+        float diff = AIMath.angleDiff(yaw, family);
+        if (Math.abs(diff) > 2f) {
+            CombatStats.inc("bridge.ninja2.clamped2");
+            return AIMath.wrap(family + Math.signum(diff) * 2f);
+        }
+        return yaw;
+    }
+
+    private float rawLookYaw(Bridger b) {
         if (squaringUp(b)) return AIMath.wrap(travelYaw + 180f);
         if (!nearEdge(b) && carriedYaw != 0f) return carriedYaw;   // keep the pose between edges
         float yaw;
