@@ -33,11 +33,18 @@ public final class Ninja2Bridge extends BridgeMethod {
     // ---- LibreBounce god-bridge rotation mode ----
     /**
      * The pitch the ray needs to meet the support's face at this method's edge distance, and the pitch the best
-     * recorded diagonal run used. Measured from Sovacos's prac97E: 1,145 moving frames, pitch a mode of 79 with the
-     * bulk between 78 and 80, and his y never left the platform level - so the look-down is 79, and there is no jump
-     * in the technique at all.
+     * angles two real diagonal runs were recorded at: prac97E sat at 79 for a thousand frames, prac86C - the run
+     * with the blocks in it - measures 80 to 81 at every one of the seventeen placements. 80 is the joint answer, and
+     * his y never left the platform level in either run: there is no jump in this technique.
+     *
+     * prac86C's blocks, the shape to copy (x,z per placement, sandstone, 17 of them):
+     *   (1,1) (1,2) (2,2) (2,3) (2,4) (3,4) (3,5) (4,5) (4,6) (5,6) (5,7) (6,7) (6,8) (7,8) (7,9) (8,9) (8,10)
+     * so a step is two blocks - one along x, one along z - and the yaw rotates 2 degrees a step, from -217 to -224.
+     * Distance from the player to the block he was placing alternates: 1.2, 0.5, 1.2, 0.5 ... - the first block of a
+     * pair goes down from the edge, the second after one step forward, and then he walks back out to 1.2. Timing is
+     * 50 ms inside a pair and 300-350 ms between pairs.
      */
-    private static final float PITCH = 79.0f;
+    private static final float PITCH = 80.0f;
     /** Only commit to a god-bridge angle this close to an edge. */
     private static final float EDGE_LIMIT = 2.5f;
 
@@ -46,6 +53,12 @@ public final class Ninja2Bridge extends BridgeMethod {
     /** How long the sneak stays down after leaving the edge: 85 ms, the assist's default. */
     private static final int UNSNEAK_TICKS = 2;
     private static final int PLACEMENT_TICKS = 20;
+    /**
+     * Measured cadence from prac86C: 50 ms (one tick) between the two blocks of a diagonal step, 300-350 ms (six to
+     * seven ticks) to walk back out to the edge for the next pair.
+     */
+    private static final int PAIR_TICKS = 1;
+    private static final int STEP_TICKS = 7;
 
     private float movingYaw;
     private boolean straight;          // travel along an axis, so the head takes the 45 degree carry
