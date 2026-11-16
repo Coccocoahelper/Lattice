@@ -150,7 +150,10 @@ public final class RushTask extends BwTask {
                 // 4 emeralds buy a pearl straight onto the bed island when the bridge is the problem
                 if (brain.blocks() < 8 && pearlToBed(bedC)) return true;
                 NavOptions o = NavOptions.bridging(brain.blocks());
-                o.maxNodes = 12000;
+                // A* over a whole map is a planning problem a player never solves: he walks to the edge and lays
+                // blocks. Cap the search so it returns the best partial route in a couple of ticks and the body
+                // starts moving; the next replan sees the new position and extends it.
+                o.maxNodes = 3000;
                 o.breakBlocks = true;
                 o.breakable = DEFENSE;
                 o.extraVoidAversion = brain.finalLife() ? 0.8 : 0;

@@ -947,9 +947,11 @@ public final class Navigator {
             PathPoint a = path.points.get(idx);
             wp = String.format("%s#%d/%d %.1f,%.2f,%.1f", a.move, idx, path.size(), a.x, a.y, a.z);
         }
-        org.bukkit.Bukkit.getLogger().info(String.format("[navtrace] %s t=%d %s pos=%.2f,%.3f,%.2f v=%.2f,%.2f,%.2f g=%s colH=%s gui=%s wp=%s steer=%.2f,%.2f stuck=%d",
+        org.bukkit.Bukkit.getLogger().info(String.format("[navtrace] %s t=%d %s pos=%.2f,%.3f,%.2f v=%.2f,%.2f,%.2f g=%s colH=%s gui=%s wp=%s steer=%.2f,%.2f stuck=%d ticket=%s q=%d fail=%d age=%d exp=%d us=%d",
                 ctx.player.getName(), ctx.tick, state, p.getX(), p.getY(), p.getZ(), v.getX(), v.getY(), v.getZ(), ctx.c.onGround(),
-                ctx.c.collidedHorizontally(), ctx.c.containerOpen(), wp, steerX, steerZ, stuckLevel));
+                ctx.c.collidedHorizontally(), ctx.c.containerOpen(), wp, steerX, steerZ, stuckLevel,
+                ticket == null ? "-" : (ticket.done() ? "done" : "run"), PathService.pending(), failures, ctx.tick - planTick,
+                ticket == null ? 0 : ticket.expanded(), ticket == null ? 0 : ticket.spentMicros()));
     }
 
     /**

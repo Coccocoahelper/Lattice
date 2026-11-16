@@ -16,23 +16,38 @@ public final class WorldView {
 
     private final World world;
     private final boolean caching;
-    // open addressing long -> byte (shape) + double (low-floor height) cache
-    private long[] keys;
-    private byte[] vals;
-    private float[] heights;
-    private int size;
+    /**
+     * Classification of every (id &lt;&lt; 4 | data) pair, built once: a path search asks for the shape of a cell a
+     * few hundred thousand times, and the switch over Material plus the Bukkit block lookup it replaced was the whole
+     * cost of a search node. Now it is one char read from the section array and one array index.
+     */
+    private static final byte[] SHAPE_BY_CELL = new byte[65536];
+    private static final float[] HEIGHT_BY_CELL = new float[65536];
+    /** Cells whose walkability comes from their real collision boxes (stairs, slabs, panes...) rather than the table. */
+    private static final boolean[] BOXY_BY_CELL = new boolean[65536];
+    private static final Material[] MATERIAL_BY_ID = new Material[4096];
+
+    static {
+        for (int id = 0; id < 4096; id++) {
+            Material m = Material.getMaterial(id);
+            if (m == null) m = Material.AIR;
+            MATERIAL_BY_ID[id] = m;
+            for (int data = 0; data < 16; data++) {
+                byte sh = Shape.classify(m, data);
+                SHAPE_BY_CELL[(id << 4) | data] = sh;
+                HEIGHT_BY_CELL[(id << 4) | data] = (float) Shape.topHeight(m, data);
+                BOXY_BY_CELL[(id << 4) | data] = Shape.fromBoxes(sh, m) && !m.isOccluding();
+            }
+        }
+    }
+
     private int lastChunkX = Integer.MIN_VALUE, lastChunkZ = Integer.MIN_VALUE;
     private boolean lastChunkLoaded;
 
     public WorldView(World world, boolean caching) {
         this.world = world;
         this.caching = caching;
-        if (caching) {
-            keys = new long[1 << 14];
-            vals = new byte[1 << 14];
-            heights = new float[1 << 14];
-            Arrays.fill(keys, Long.MIN_VALUE);
-        }
+        if (caching) Arrays.fill(voidKeys, Long.MIN_VALUE);
     }
 
     public World world() { return world; }
@@ -46,11 +61,55 @@ public final class WorldView {
         return lastChunkLoaded;
     }
 
+    // ---- raw section reads: a path search expands thousands of nodes per second, and CraftBlock per cell is 16 us.
+    // The chunk section already holds the canonical (id << 4 | data) char per cell, so read that instead.
+    private net.minecraft.server.v1_8_R3.Chunk nmsChunk;
+    private int nmsChunkX = Integer.MIN_VALUE, nmsChunkZ = Integer.MIN_VALUE;
+    private char[] sectionBlocks;
+    private int sectionIndex = Integer.MIN_VALUE;
+
+    /** The (id << 4 | data) byte of this cell, or -1 when the chunk is not loaded / not readable. */
+    private int cell(int x, int y, int z) {
+        if (nms == null) {
+            try { nms = ((org.bukkit.craftbukkit.v1_8_R3.CraftWorld) world).getHandle(); }
+            catch (Throwable t) { return -1; }
+        }
+        int cx = x >> 4, cz = z >> 4;
+        if (cx != nmsChunkX || cz != nmsChunkZ) {
+            nmsChunk = nms.getChunkIfLoaded(cx, cz);
+            nmsChunkX = cx; nmsChunkZ = cz;
+            sectionBlocks = null; sectionIndex = Integer.MIN_VALUE;
+        }
+        if (nmsChunk == null) return -1;
+        int sy = y >> 4;
+        if (sy != sectionIndex) {
+            sectionIndex = sy;
+            net.minecraft.server.v1_8_R3.ChunkSection[] secs = nmsChunk.getSections();
+            net.minecraft.server.v1_8_R3.ChunkSection sec = sy >= 0 && sy < secs.length ? secs[sy] : null;
+            sectionBlocks = sec == null ? null : sec.getIdArray();
+        }
+        if (sectionBlocks == null) return 0;         // an empty section is air
+        return sectionBlocks[((y & 15) << 8) | ((z & 15) << 4) | (x & 15)];
+    }
+
+    /** Shape + height of one cell from the chunk section array. False when it cannot be read this way. */
+    private boolean computeFromSection(int x, int y, int z, byte[] outShape, float[] outHeight) {
+        int c = cell(x, y, z);
+        if (c < 0) return false;
+        byte s = SHAPE_BY_CELL[c];
+        outShape[0] = s;
+        outHeight[0] = HEIGHT_BY_CELL[c];
+        if (BOXY_BY_CELL[c] && (net.h2020.bots.ai.nav.NavStats.fix & net.h2020.bots.ai.nav.NavStats.FIX_BOXES) != 0)
+            boxShape(x, y, z, outShape, outHeight);
+        return true;
+    }
+
     @SuppressWarnings("deprecation")
     private void compute(int x, int y, int z, byte[] outShape, float[] outHeight) {
         if (y < 0) { outShape[0] = Shape.OPEN; outHeight[0] = 0f; return; }
         if (y > 255) { outShape[0] = Shape.OPEN; outHeight[0] = 0f; return; }
         if (!loaded(x, z)) { outShape[0] = Shape.UNKNOWN; outHeight[0] = 1f; return; }
+        if (computeFromSection(x, y, z, outShape, outHeight)) return;
         Block b = world.getBlockAt(x, y, z);
         Material m = b.getType();
         int data = b.getData();
@@ -121,26 +180,6 @@ public final class WorldView {
     private final byte[] tmpS = new byte[1];
     private final float[] tmpH = new float[1];
 
-    private int slot(int x, int y, int z) {
-        long k = AIMath.pack(x, y, z);
-        int mask = keys.length - 1;
-        int i = (int) (mix(k) & mask);
-        while (true) {
-            long kk = keys[i];
-            if (kk == k) return i;
-            if (kk == Long.MIN_VALUE) {
-                if (size * 2 >= keys.length) { grow(); return slot(x, y, z); }
-                keys[i] = k;
-                compute(x, y, z, tmpS, tmpH);
-                vals[i] = tmpS[0];
-                heights[i] = tmpH[0];
-                size++;
-                return i;
-            }
-            i = (i + 1) & mask;
-        }
-    }
-
     private static long mix(long k) {
         k ^= (k >>> 33);
         k *= 0xff51afd7ed558ccdL;
@@ -148,30 +187,12 @@ public final class WorldView {
         return k;
     }
 
-    private void grow() {
-        long[] ok = keys; byte[] ov = vals; float[] oh = heights;
-        keys = new long[ok.length * 2];
-        vals = new byte[ok.length * 2];
-        heights = new float[ok.length * 2];
-        Arrays.fill(keys, Long.MIN_VALUE);
-        int mask = keys.length - 1;
-        for (int j = 0; j < ok.length; j++) {
-            if (ok[j] == Long.MIN_VALUE) continue;
-            int i = (int) (mix(ok[j]) & mask);
-            while (keys[i] != Long.MIN_VALUE) i = (i + 1) & mask;
-            keys[i] = ok[j]; vals[i] = ov[j]; heights[i] = oh[j];
-        }
-    }
-
     public byte shape(int x, int y, int z) {
-        // slot() may grow (replace) the arrays, so resolve the index before reading the field
-        if (caching) { int i = slot(x, y, z); return vals[i]; }
         compute(x, y, z, tmpS, tmpH);
         return tmpS[0];
     }
 
     public double height(int x, int y, int z) {
-        if (caching) { int i = slot(x, y, z); return heights[i]; }
         compute(x, y, z, tmpS, tmpH);
         return tmpH[0];
     }
@@ -211,20 +232,43 @@ public final class WorldView {
 
     /** Nothing to land on in the next `depth` blocks below the feet cell (void / huge fall). */
     public boolean voidBelow(int x, int y, int z, int depth) {
-        // a path search asks this (voidSides, depth 24) for every neighbour of every node it links: memoize
-        if (caching && depth == 24) {
-            long k = AIMath.pack(x, y, z);
-            Boolean c = voidCache.get(k);
-            if (c != null) return c;
-            boolean r = voidBelowScan(x, y, z, depth);
-            voidCache.put(k, r);
-            return r;
+        // every node asks this for its four neighbours: a column scan is cheap but not free, and it is the same
+        // answer for every node on that column, so memoise it in a flat table (no boxing, fixed size)
+        if (!caching || depth != 24) return voidBelowScan(x, y, z, depth);
+        long k = AIMath.pack(x, y, z);
+        int mask = voidKeys.length - 1;
+        int i = (int) (mix(k) & mask);
+        while (true) {
+            long kk = voidKeys[i];
+            if (kk == k) return voidVals[i];
+            if (kk == Long.MIN_VALUE) {
+                boolean r = voidBelowScan(x, y, z, depth);
+                if (voidCount * 2 >= voidKeys.length) { growVoid(); return r; }
+                voidKeys[i] = k; voidVals[i] = r; voidCount++;
+                return r;
+            }
+            i = (i + 1) & mask;
         }
-        return voidBelowScan(x, y, z, depth);
     }
 
-    private final java.util.HashMap<Long, Boolean> voidCache = new java.util.HashMap<>();
-    private final java.util.HashMap<Long, Boolean> lavaCache = new java.util.HashMap<>();
+    private long[] voidKeys = new long[1 << 12];
+    private boolean[] voidVals = new boolean[1 << 12];
+    private int voidCount;
+
+    private void growVoid() {
+        long[] ok = voidKeys; boolean[] ov = voidVals;
+        voidKeys = new long[ok.length * 2];
+        voidVals = new boolean[ok.length * 2];
+        Arrays.fill(voidKeys, Long.MIN_VALUE);
+        int mask = voidKeys.length - 1;
+        for (int j = 0; j < ok.length; j++) {
+            if (ok[j] == Long.MIN_VALUE) continue;
+            int i = (int) (mix(ok[j]) & mask);
+            while (voidKeys[i] != Long.MIN_VALUE) i = (i + 1) & mask;
+            voidKeys[i] = ok[j]; voidVals[i] = ov[j];
+        }
+    }
+
 
     private boolean voidBelowScan(int x, int y, int z, int depth) {
         int min = Math.max(0, y - depth);
@@ -237,19 +281,9 @@ public final class WorldView {
 
     /** First cell (feet y) at or below startY where one can stand, scanning down maxScan cells. Integer.MIN_VALUE if none. */
     public int landing(int x, int startY, int z, int maxScan) {
-        // drop/bridge expansion asks this (depth 32) for every open neighbour over the void: memoize per search
-        if (caching && maxScan == 32) {
-            long k = AIMath.pack(x, startY, z);
-            Integer c = landingCache.get(k);
-            if (c != null) return c;
-            int r = landingScan(x, startY, z, maxScan);
-            landingCache.put(k, r);
-            return r;
-        }
         return landingScan(x, startY, z, maxScan);
     }
 
-    private final java.util.HashMap<Long, Integer> landingCache = new java.util.HashMap<>();
 
     private int landingScan(int x, int startY, int z, int maxScan) {
         for (int yy = startY; yy >= Math.max(0, startY - maxScan); yy--) {
@@ -276,14 +310,6 @@ public final class WorldView {
     }
 
     public boolean lavaNear(int x, int y, int z) {
-        if (caching) {
-            long k = AIMath.pack(x, y, z);
-            Boolean c = lavaCache.get(k);
-            if (c != null) return c;
-            boolean r = lavaNearScan(x, y, z);
-            lavaCache.put(k, r);
-            return r;
-        }
         return lavaNearScan(x, y, z);
     }
 

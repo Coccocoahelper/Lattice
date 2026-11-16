@@ -26,7 +26,10 @@ public final class PathFinder {
 
     private final PathRequest req;
     private final WorldView wv;
-    private final Map<Long, PathNode> nodes = new HashMap<>(4096);
+    // long -> PathNode, open addressing: a boxed HashMap of 12k entries per search was a third of the search cost
+    private long[] nodeKeys = new long[1 << 12];
+    private PathNode[] nodeVals = new PathNode[1 << 12];
+    private int nodeCount;
     private PathNode[] heap = new PathNode[1024];
     private int heapSize;
     private PathNode best;
@@ -38,6 +41,7 @@ public final class PathFinder {
     public PathFinder(PathRequest req) {
         this.req = req;
         this.wv = new WorldView(req.world, true);
+        java.util.Arrays.fill(nodeKeys, Long.MIN_VALUE);
         PathNode start = node(req.sx, req.sy, req.sz);
         double s = wv.stand(req.sx, req.sy, req.sz);
         if (Double.isNaN(s)) { s = req.sy; start.virtualFloor = true; }
@@ -50,6 +54,7 @@ public final class PathFinder {
     }
 
     public Status status() { return status; }
+    public PathRequest request() { return req; }
     public Path result() { return result; }
     public int expanded() { return expanded; }
     public org.bukkit.World world() { return req.world; }
@@ -335,9 +340,42 @@ public final class PathFinder {
 
     private PathNode node(int x, int y, int z) {
         long k = AIMath.pack(x, y, z);
-        PathNode n = nodes.get(k);
-        if (n == null) { n = new PathNode(x, y, z, k); n.g = Double.MAX_VALUE; nodes.put(k, n); }
-        return n;
+        int mask = nodeKeys.length - 1;
+        int i = (int) (mix(k) & mask);
+        while (true) {
+            long kk = nodeKeys[i];
+            if (kk == k) return nodeVals[i];
+            if (kk == Long.MIN_VALUE) {
+                if (nodeCount * 2 >= nodeKeys.length) { growNodes(); return node(x, y, z); }
+                PathNode n = new PathNode(x, y, z, k);
+                n.g = Double.MAX_VALUE;
+                nodeKeys[i] = k; nodeVals[i] = n; nodeCount++;
+                return n;
+            }
+            i = (i + 1) & mask;
+        }
+    }
+
+    private void growNodes() {
+        long[] ok = nodeKeys; PathNode[] ov = nodeVals;
+        nodeKeys = new long[ok.length * 2];
+        nodeVals = new PathNode[ok.length * 2];
+        if (nodeKeys.length == 0) return;
+        java.util.Arrays.fill(nodeKeys, Long.MIN_VALUE);
+        int mask = nodeKeys.length - 1;
+        for (int j = 0; j < ok.length; j++) {
+            if (ok[j] == Long.MIN_VALUE) continue;
+            int i = (int) (mix(ok[j]) & mask);
+            while (nodeKeys[i] != Long.MIN_VALUE) i = (i + 1) & mask;
+            nodeKeys[i] = ok[j]; nodeVals[i] = ov[j];
+        }
+    }
+
+    private static long mix(long k) {
+        k ^= (k >>> 33);
+        k *= 0xff51afd7ed558ccdL;
+        k ^= (k >>> 33);
+        return k;
     }
 
     private PathNode link(PathNode from, int x, int y, int z, double stand, MoveType move, double cost, boolean virtual, int bridgeDir) {
