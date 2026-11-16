@@ -40,6 +40,7 @@ public final class BlockPlacer {
     private int verifyX, verifyY, verifyZ;
     private double lastX, lastZ;
     private static final java.util.concurrent.atomic.AtomicInteger PLACE_LOG = new java.util.concurrent.atomic.AtomicInteger();
+    private static volatile long lastLogMs;
     private Block support;
     private BlockFace face;
     /** The current support is interactive (bed/chest): the click has to be made while sneaking. */
@@ -85,6 +86,12 @@ public final class BlockPlacer {
         tx = x; ty = y; tz = z;
         ticks = 0; clicks = 0; support = null; face = null; aimPoint = null; active = true; sneakHeld = false;
         aimWait = 0; hiddenTicks = 0;
+        // These belong to one cell, not to the placer: a face blacklisted while filling one block, and the three
+        // face retries it took, were following every later cell around. After the third cell the placer would fail
+        // a cell instead of trying another face, and a face that was hidden once was hidden for the rest of the
+        // run - which is how the roof cells went from placeable to nosupport half a minute in.
+        triedFaces.clear();
+        supportTries = 0;
     }
 
     public boolean active() { return active; }
@@ -273,7 +280,10 @@ public final class BlockPlacer {
             verifyAt = -1;
             boolean there = !net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(verifyX, verifyY, verifyZ));
             net.h2020.api.stats.CombatStats.inc(there ? "place.verified" : "place.miss");
-            if (PLACE_LOG.incrementAndGet() <= 60) {
+            int nth = PLACE_LOG.incrementAndGet();
+            long nowMs = System.currentTimeMillis();
+            if (!there || nth <= 40 || nowMs - lastLogMs > 2000) {
+                lastLogMs = nowMs;
                 org.bukkit.Bukkit.getLogger().info("[place] want " + verifyX + "," + verifyY + "," + verifyZ
                         + (there ? "  ok" : "  MISS  body " + (int) Math.floor(ctx.pos().getX()) + ","
                         + (int) Math.floor(ctx.pos().getY()) + "," + (int) Math.floor(ctx.pos().getZ()))
@@ -294,7 +304,18 @@ public final class BlockPlacer {
             net.h2020.api.stats.CombatStats.inc("place.batch");
             beginCell(next[0], next[1], next[2]);
         }
-        if (ticks > 60) { active = false; lastFailure = "timeout"; net.h2020.api.stats.CombatStats.inc("place.fail.timeout"); return Result.FAILED; }
+        if (ticks > 60) {
+            active = false;
+            // Say what the placer was aiming at and what the crosshair was on. A bare "timeout" cannot tell an
+            // occluded support from a click the server ignored, and late in a long run those are the only failures.
+            lastFailure = "timeout sup=" + (support == null ? "-" : support.getType() + "@" + support.getX() + ","
+                    + support.getY() + "," + support.getZ() + ":" + face)
+                    + " aim=" + (aimPoint == null ? "-" : String.format("%.2f,%.2f,%.2f",
+                            aimPoint.getX(), aimPoint.getY(), aimPoint.getZ()))
+                    + " hit=" + lastHit;
+            net.h2020.api.stats.CombatStats.inc("place.fail.timeout");
+            return Result.FAILED;
+        }
         if (!Inv.equip(ctx.player, ctx.c, blockPred, 1)) {
             if (!Inv.has(ctx.player, blockPred)) { active = false; net.h2020.api.stats.CombatStats.inc("place.fail.material"); return Result.FAILED; }
             return Result.RUNNING;

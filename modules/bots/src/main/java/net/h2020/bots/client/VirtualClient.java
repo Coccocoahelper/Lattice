@@ -114,6 +114,9 @@ public final class VirtualClient implements BotController, FakeNetworkManager.Si
     @Override public void setTickPurpose(boolean purpose) { clientTickHasPurpose = purpose; }
     private boolean rightHeld;
     private int pendingRightClicks;
+    /** Refused client-side placements, for the bounded [refuse] trace. */
+    private static final java.util.concurrent.atomic.AtomicInteger REFUSED =
+            new java.util.concurrent.atomic.AtomicInteger();
     private BlockPosition forcedUseBlock;
 
     // ---- movement input after MovementInputFromOptions ----
@@ -1090,7 +1093,20 @@ public final class VirtualClient implements BotController, FakeNetworkManager.Si
             IBlockData st = w.getType(pos);
             if ((!phys.sneaking || stack == null) && ClientBlocks.activates(st.getBlock())) flag = true;
             if (!flag && stack != null && stack.getItem() instanceof ItemBlock) {
-                if (!canPlaceBlockOnSide((ItemBlock) stack.getItem(), pos, face, stack)) return false;
+                if (!canPlaceBlockOnSide((ItemBlock) stack.getItem(), pos, face, stack)) {
+                    // A refused client check is a click that never reaches the server: the placer sees the crosshair
+                    // on the right face, "clicks", and nothing happens. Print why, because the answer decides the fix.
+                    if (REFUSED.incrementAndGet() <= 40) {
+                        Block at = w.getType(pos).getBlock();
+                        BlockPosition to = at.getMaterial().isReplaceable() ? pos : pos.shift(face);
+                        org.bukkit.Bukkit.getLogger().info("[refuse] click " + pos.getX() + "," + pos.getY() + ","
+                                + pos.getZ() + " " + face + " -> cell " + to.getX() + "," + to.getY() + "," + to.getZ()
+                                + " there=" + w.getType(to).getBlock().getMaterial()
+                                + " body=" + String.format("%.2f,%.2f,%.2f", phys.posX, phys.posY, phys.posZ)
+                                + " sneak=" + phys.sneaking);
+                    }
+                    return false;
+                }
             }
         }
         send(PacketCodec.place(pos, face.a(), heldStack(), fx, fy, fz));

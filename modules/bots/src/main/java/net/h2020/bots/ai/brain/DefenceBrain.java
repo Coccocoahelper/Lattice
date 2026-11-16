@@ -39,6 +39,15 @@ public final class DefenceBrain extends BaseBrain {
 
     private final int bedX, bedY, bedZ;
 
+    /** Walking to a stance: the superset of walk that insists on arriving at its height, not near it. */
+    private static final net.h2020.bots.ai.nav.NavOptions STANCE = stanceOptions();
+
+    private static net.h2020.bots.ai.nav.NavOptions stanceOptions() {
+        net.h2020.bots.ai.nav.NavOptions o = net.h2020.bots.ai.nav.NavOptions.walk();
+        o.exactY = true;
+        return o;
+    }
+
     /** Build from inside a standing defence: never walk, because every cell is already in reach. */
     private final boolean indoor;
 
@@ -65,16 +74,25 @@ public final class DefenceBrain extends BaseBrain {
             @Override public int compare(int[] a, int[] b) {
                 int la = layer(a[2]), lb = layer(b[2]);
                 if (la != lb) return la - lb;
-                if (la != 2) return b[0] - a[0];                  // rows: right to left
-                if (a[1] != b[1]) return a[1] - b[1];             // flanks (y0) before the roof (y1)
-                if (a[1] == 0) {
-                    // the left flank first, then the right side inward: -1, 3, 2
+                // The row above the bed is a chain: every block is clicked on the west face of the one placed to its
+                // east, so it has to be built east to west, after the rest of its layer.
+                boolean ar = isRoofRow(a), br = isRoofRow(b);
+                if (ar && br) return b[0] - a[0];
+                if (ar != br) return ar ? 1 : -1;
+                if (a[1] != b[1]) return a[1] - b[1];             // a row goes up before it goes sideways
+                // From the bed outwards. The stance for a cell is a spot further out on the same side, so the cell
+                // in front of it must not be there yet: the outer ring went up first and then stood between the bot
+                // and every inner cell (0,65,-1 and 1,65,-1 read AIR with the body at their stance and no face in
+                // the crosshair, and the left flank was walled in by -2,65,0 the same way).
+                int da = la == 2 ? Math.abs(a[0] - bedX) : Math.abs(a[2] - bedZ);
+                int db = la == 2 ? Math.abs(b[0] - bedX) : Math.abs(b[2] - bedZ);
+                if (da != db) return da - db;
+                if (la == 2 && a[1] == 0 && b[1] == 0) {
                     boolean al = a[0] < bedX, bl = b[0] < bedX;
                     if (al != bl) return al ? -1 : 1;
                     if (al) return a[0] - b[0];
-                    return b[0] - a[0];
                 }
-                return b[0] - a[0];                               // over the bed: right to left
+                return b[0] - a[0];                               // right to left
             }
         });
     }
@@ -88,6 +106,23 @@ public final class DefenceBrain extends BaseBrain {
         Material m = Material.getMaterial(c[3]);
         return m == null ? Inv.BLOCK : Inv.type(m);
     }
+
+    /**
+     * Is the cell between this one and the bed still empty? Only rows are ordered this way; the roof row is a chain
+     * built the other way round and the cells above the bed have no inner cell at all.
+     */
+    private boolean innerPending(int[] c) {
+        int dz = c[2] - bedZ, dx = c[0] - bedX;
+        int ix = c[0], iz = c[2];
+        if (dz != 0) iz -= Integer.signum(dz);
+        else if (dx != 0) ix -= Integer.signum(dx);
+        else return false;                                   // beside the bed: nothing in between
+        if (!isTarget(ix, c[1], iz)) return false;            // not a cell of this shape
+        return net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(ix, c[1], iz));
+    }
+
+    /** The row over the bed itself, built as a side-face chain east to west. */
+    private boolean isRoofRow(int[] c) { return c[1] == bedY + 1 && c[2] == bedZ; }
 
     /** 0 = in front of the bed, 1 = behind it, 2 = the flanks and the cells over it. */
     private static int layer(int dz) { return dz > 0 ? 0 : (dz < 0 ? 1 : 2); }
@@ -114,7 +149,10 @@ public final class DefenceBrain extends BaseBrain {
                 lastFail = placer.lastFailure();
                 fails++;
                 if (++retries < 3) { placer.start(curCell[0], curCell[1], curCell[2], blockFor(curCell)); }
-                else { retries = 0; idx++; skips++; CombatStats.inc("drill.defence.skip"); }
+                // the next attempt at this cell must choose its stance again: the wall has changed since the last
+                // sweep (the outer ring may be standing where the old stance was), and a cached stance chosen
+                // before it existed is a spot with no face in view
+                else { retries = 0; idx++; skips++; standFor = -1; CombatStats.inc("drill.defence.skip"); }
             }
             return;
         }
@@ -127,6 +165,13 @@ public final class DefenceBrain extends BaseBrain {
         }
         int[] c = cells[idx];
         if (!net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(c[0], c[1], c[2]))) { idx++; retries = 0; return; }
+        // Wait for the cell between this one and the bed. Every row is built outwards because the stance for a cell
+        // is the spot its outer neighbour will occupy: place the outer block first and it hides the floor the inner
+        // cell has to be clicked on, leaving a cell that can never be filled again (0,65,1 sat AIR while all four of
+        // its neighbours were solid).
+        if (!isRoofRow(c) && innerPending(c)) {
+            idx++; retries = 0; standFor = -1; CombatStats.inc("drill.defence.waitinner"); return;
+        }
 
         // One approach point per cell, held while that cell is the one being built. Recomputing it every tick had the
         // bot chasing a point it never reached, so it walked in place for the rest of the run: measured four cells
@@ -134,7 +179,7 @@ public final class DefenceBrain extends BaseBrain {
         boolean newStance = standFor != idx;
         if (newStance) {
             stanceMode = 0; standCache = standFor(c); standFor = idx; standAt = ctx.tick; cellSince = ctx.tick;
-            if (standCache == null) { idx++; retries = 0; nullStands++; CombatStats.inc("drill.defence.nostance"); return; }
+            if (standCache == null) { idx++; retries = 0; standFor = -1; nullStands++; CombatStats.inc("drill.defence.nostance"); return; }
         }
         // A roof stance that the body cannot climb to leaves it walking into the wall for the rest of the run. Give
         // it two seconds, then take the other stance rather than stalling: measured 8 of 9 with one, 7 with the
@@ -160,8 +205,23 @@ public final class DefenceBrain extends BaseBrain {
         // never attempted. Measured: level one sat on 1 of 9 for a minute and a half, body at distance 1.52, with
         // two placement attempts and no sweep in between - not an aim problem, a deadlock between two thresholds.
         double gap = ctx.pos().distance(standCache);
-        boolean reached = (!newStance && ctx.nav.arrived()) || gap <= 1.5;
-        if (!indoor && (onCell || !reached)) {
+        // Standing at the stance means standing at its height. The old test accepted the navigator's arrival, and the
+        // navigator's arrival allows two blocks of vertical error: a body on the floor called itself arrived at a
+        // wall-top stance, the placer looked for a face from the wrong eye height, found none, and the cell was
+        // dropped. Measured: the body parked at 2.49,65,1.19 for ninety seconds with nav=ARRIVED, gap=1.01, every
+        // cell on the sweep failing nosupport.
+        // Geometrically: are we standing at the stance? Not "did the navigator say it arrived" - that state belongs to
+        // whatever goal it was last given, and the brain reads it while the body is six blocks away (measured body
+        // -1.38,2.82 with nav=ARRIVED for a stance at 3.5,-1.5).
+        boolean reached = gap <= 0.75;
+        // The body is 0.6 wide and a block is 1.0: a bot that has drifted to within 0.8 of the cell's centre is
+        // standing in the cell it is trying to fill, and neither the client nor the server will place a block inside
+        // a player. This is not an aim problem and no number of clicks fixes it (measured: 90 clicks on the correct
+        // face of -1,65,1 from a body whose edge was 0.17 inside -1,65,0, every one refused).
+        boolean bodyInCell = Math.abs(ctx.pos().getX() - cxOf(c)) < 0.8
+                && Math.abs(ctx.pos().getZ() - czOf(c)) < 0.8
+                && Math.abs(ctx.pos().getY() - c[1]) < 0.99;
+        if (!indoor && (onCell || !reached || bodyInCell)) {
             // A stance the body cannot get to must not eat the run. Six seconds without arriving and the cell goes
             // back into the queue for the next sweep, which re-picks a stance; the alternative is a brain asking to
             // walk to the same unreachable spot until the drill is closed.
@@ -169,13 +229,17 @@ public final class DefenceBrain extends BaseBrain {
                 idx++; retries = 0; standFor = -1; CombatStats.inc("drill.defence.unreached");
                 return;
             }
-            ctx.nav.goTo(standCache, 1.2);
+            ctx.nav.goTo(standCache, 0.6, STANCE);
             ctx.nav.tick();
             return;
         }
         // the bed is a legitimate support for the roof: the placer sneaks, so the click places instead of opening it
         placer.setFast(true);
-        placer.setNeedSight(false);
+        // Only faces the eye can see. Without this the placer picks the top of the floor block under a cell even
+        // when the row in front of it hides that floor from the stance: the crosshair then lands on the neighbour's
+        // side face, nothing fills the cell, and the placer re-picks the same hidden face until it times out.
+        // Measured: 1,65,-1 with sup=SANDSTONE@1,64,-1:UP aimed at 1.43,65.00,-0.74 and hit 1,65,0 NORTH.
+        placer.setNeedSight(true);
         placer.setAvoidInteractive(overBed(c));
         curCell = c;
         placer.start(c[0], c[1], c[2], blockFor(c));
@@ -206,70 +270,76 @@ public final class DefenceBrain extends BaseBrain {
         org.bukkit.Bukkit.getLogger().info("[defence] cells=" + cells.length + " idx=" + idx + " cell=" + cell
                 + " stand=" + stand + " noStance=" + nullStands + " skipped=" + skips + " fails=" + fails
                 + " lastFail=" + lastFail + " retries=" + retries
-                + " body=" + (int) Math.floor(ctx.pos().getX()) + "," + (int) Math.floor(ctx.pos().getY()) + ","
-                + (int) Math.floor(ctx.pos().getZ()));
+                + " body=" + String.format("%.2f,%.2f,%.2f", ctx.pos().getX(), ctx.pos().getY(), ctx.pos().getZ())
+                + " nav=" + ctx.nav.describe() + " gap=" + String.format("%.2f", standCache == null ? -1
+                        : ctx.pos().distance(standCache))
+                + (c == null ? "" : fresh(c)));
     }
 
-    /** Where to stand to build one cell: on the floor, outside the wall, on that cell's own side of the bed. */
+    /**
+     * Where to stand to build one cell. A stance is only usable if the body fits there and a face that fills the
+     * cell is in view from its eye - anything else is a spot the bot walks to and then cannot place from, which
+     * reads in the log as a cell that times out with no visible reason.
+     *
+     * <p>Candidates are tried in the order the recorded human runs use: straight out from the bed on the floor,
+     * then further out, then a neighbouring column, then the same ring again with the feet one level up, which is
+     * how the row above the bed is chained (each block is clicked on the side of the one placed before it).
+     */
     private org.bukkit.Location standFor(int[] c) {
+        org.bukkit.World w = ctx.player.getWorld();
         double cx = c[0] + 0.5, cz = c[2] + 0.5;
-        // A roof cell is built from the front, standing on the floor: from the side or the back the top face of the
-        // block underneath is at eye level and the click goes out over it. Measured: every y65 cell in, all three
-        // roof cells refused, from a stance out on the flank.
-        // Only a cell directly over a bed is a roof cell. Level two's second layer sits at the same height as level
-        // one's roof, and treating it as a roof sent every cell of that layer to a stance in front of the bed, which
-        // is why level two stalled at two cells of twenty-six.
-        boolean overBed = c[1] == bedY + 1 && c[2] == bedZ && (c[0] == bedX || c[0] == bedX + 1);
-        // The whole row one level above the bed is a chain, not just the two cells over it: the first block stands on
-        // wool below, and every block after it is clicked on the WEST face of the block just placed to its east. That
-        // face is only visible from the west of it, so each cell of the row is built from the floor directly in front
-        // of itself and the row grows east to west. Measured: with the general stance the row was approached from the
-        // east end, where the face it needs is behind the body, and the chain stopped on its second block (level two
-        // held at 21 of 26, missing only this row, the two cells above it, and 2,65,0).
-        boolean roofRow = c[1] == bedY + 1 && c[2] == bedZ;
-        if (roofRow) {
-            // A bed's collision box is nine sixteenths high, so its "top face" is inside its own cell: clicking it
-            // places nothing at all, which is what kept the two cells over the bed empty through every attempt.
-            // The first roof cell stands on wool and is built from the floor; the two over the bed are built from
-            // the top of the front row, against the side of the cell placed before them.
-            // The cell nearest the wall's end is built from the top of the front row; the other two from the floor.
-            // Measured: floor for all three left the drill at 1 of 9, weil the bot could not get a neighbour's side
-            // face into the crosshair from the floor for the middle one; wall-top for all three got 8 of 9, missing
-            // only the last, whose nav never climbed. One of each is the combination that reaches all three.
-            // Three stances, tried in turn while a roof cell refuses: floor in front, on top of the front row, on top
-            // of the back row. A bed's collision box is nine sixteenths high, so a roof cell over one can only be
-            // built against a neighbour's side face - which side is visible depends on where the body is standing,
-            // and the nav does not always climb when asked.
-            switch (stanceMode) {
-                case 1: return new org.bukkit.Location(ctx.player.getWorld(), cx, bedY + 1, bedZ + 1.5);
-                case 2: return new org.bukkit.Location(ctx.player.getWorld(), cx, bedY + 1, bedZ - 1.5);
-                default: return new org.bukkit.Location(ctx.player.getWorld(), cx, bedY, bedZ + 2.2);
-            }
-        }
         double dx = cx - anchorX, dz = cz - anchorZ;
         double len = Math.hypot(dx, dz);
         if (len < 1e-6) { dx = 0; dz = 1; len = 1; }
-        // A cell one level above the floor is reached from the floor: its support is the top face of the block
-        // below it, at eye level and in view. Anything higher is not. To click the top face of the block at y66 -
-        // the surface at y67.0 - the eye has to be above that surface, so the feet have to be at y66, which means
-        // standing on a block at y65. That is the layer underneath, so the layers have to go up in order and the
-        // stance for a high cell is a spot on top of the layer below it. With no such spot yet the cell is skipped
-        // this pass and taken on the next sweep, once the layer under it exists.
-        if (c[1] > bedY) {
-            org.bukkit.World w = ctx.player.getWorld();
-            int sy = c[1] - 1;                       // feet height: eye at sy + 1.62 is above the y = c[1] surface
-            int[][] dirs = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1},
-                            {2, 0}, {-2, 0}, {0, 2}, {0, -2}};
-            for (int[] d : dirs) {
-                int sx = c[0] + d[0], sz = c[2] + d[1];
-                boolean floor = !net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(sx, sy - 1, sz));
-                boolean clear = net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(sx, sy, sz))
-                        && net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(sx, sy + 1, sz));
-                if (floor && clear) return new org.bukkit.Location(w, sx + 0.5, sy, sz + 0.5);
+        double ux = dx / len, uz = dz / len;
+        java.util.List<org.bukkit.Location> cands = new java.util.ArrayList<org.bukkit.Location>();
+        for (int feet : new int[]{c[1] - 1, c[1], c[1] + 1}) {
+            // 1.75 rather than 1.35: the stance has to stay clear of the cell by more than the walking tolerance,
+        // or a normal arrival leaves the shoulder inside the block's space and the placement is refused.
+        for (double d : new double[]{1.75, 2.4, 3.0}) {
+                cands.add(new org.bukkit.Location(w, cx + ux * d, feet, cz + uz * d));
             }
-            return null;                             // nothing to stand on yet: build the layer below first
+            for (int ox = -2; ox <= 2; ox++) {
+                for (int oz = -2; oz <= 2; oz++) {
+                    if (ox == 0 && oz == 0) continue;
+                    cands.add(new org.bukkit.Location(w, c[0] + ox + 0.5, feet, c[2] + oz + 0.5));
+                }
+            }
         }
-        return new org.bukkit.Location(ctx.player.getWorld(), cx + dx / len * 1.35, bedY, cz + dz / len * 1.35);
+        org.bukkit.Location fallback = null;
+        for (org.bukkit.Location st : cands) {
+            int sx = (int) Math.floor(st.getX()), sy = (int) Math.floor(st.getY()), sz = (int) Math.floor(st.getZ());
+            boolean fits = net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(sx, sy, sz))
+                    && net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(sx, sy + 1, sz));
+            boolean floor = !net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(sx, sy - 1, sz));
+            if (!fits || !floor) continue;
+            if (fallback == null) fallback = st;
+            if (seesSupport(c, st)) return st;
+        }
+        return fallback;
+    }
+
+    private static double cxOf(int[] c) { return c[0] + 0.5; }
+    private static double czOf(int[] c) { return c[2] + 0.5; }
+
+    /** What the stance chooser would pick for this cell right now, and the face it can see from there. */
+    private String fresh(int[] c) {
+        org.bukkit.Location st = standFor(c);
+        if (st == null) return " pick=-";
+        org.bukkit.Location eye = new org.bukkit.Location(st.getWorld(), st.getX(), st.getY() + 1.62, st.getZ());
+        Object[] sup = BlockPlacer.findSupport(ctx.world(), c[0], c[1], c[2], eye, 4.4, true, null, true);
+        String face = sup == null ? "-" : ((org.bukkit.block.Block) sup[0]).getX() + "," + ((org.bukkit.block.Block) sup[0]).getY()
+                + "," + ((org.bukkit.block.Block) sup[0]).getZ() + ":" + sup[1];
+        return " pick=" + String.format("%.2f,%.2f,%.2f", st.getX(), st.getY(), st.getZ()) + " sees=" + face;
+    }
+
+    /** Can a block in this cell be placed from that stance at all: is some face of a neighbour in view from its eye? */
+    private boolean seesSupport(int[] c, org.bukkit.Location stance) {
+        org.bukkit.Location eye = new org.bukkit.Location(stance.getWorld(), stance.getX(), stance.getY() + 1.62,
+                stance.getZ());
+        // Not a bed: clicking one places nothing (its collision box sits inside its own cell), so a stance whose
+        // only view is a bed is a stance that cannot build this cell.
+        return BlockPlacer.findSupport(ctx.world(), c[0], c[1], c[2], eye, 4.4, true, null, true) != null;
     }
 
 

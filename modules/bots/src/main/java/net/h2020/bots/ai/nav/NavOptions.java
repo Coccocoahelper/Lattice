@@ -30,6 +30,12 @@ public final class NavOptions {
     public boolean weave = true;
     /** Add known enemies (from perception) as path costs. Off when chasing someone. */
     public boolean avoidEnemies = true;
+    /**
+     * The goal is a spot to stand on, not an area to be near: arrive with your feet on it instead of two blocks
+     * under it. Placement stances depend on the eye being at one exact height - a body that "arrived" a block below
+     * its stance cannot see the face it is meant to click, and the build stalls without a single failed click.
+     */
+    public boolean exactY;
     /** Express the player-placed rule explicitly (defaults to the world's registry). */
     public PlacedTest placed;
     public interface PlacedTest { boolean isPlaced(int x, int y, int z); }

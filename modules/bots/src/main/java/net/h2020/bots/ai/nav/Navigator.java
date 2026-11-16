@@ -131,7 +131,12 @@ public final class Navigator {
         if (sameGoal) {
             if (active()) return;
             // terminal states stick for the same goal (callers poll arrived()/failed()), unless pushed away / cooled down
-            if (state == State.ARRIVED && AIMath.hDist(ctx.pos(), goal) <= radius + 1.5) return;
+            // The 1.5 of slack is for area goals, where drifting a step off a doorway is not worth a new path.
+            // A stance has no slack: 1.5 was most of the distance to the wall, so a body two blocks from its stance
+            // was "arrived" and the brain placed from there for ever.
+            double slack = opts.exactY ? 0.35 : 1.5;
+            if (state == State.ARRIVED && AIMath.hDist(ctx.pos(), goal) <= radius + slack
+                    && (!opts.exactY || Math.abs(ctx.pos().getY() - goal.getY()) <= 0.55)) return;
             if (state == State.FAILED && ctx.tick - failTick < 100) return;
         }
         boolean moved = goal == null || goal.getWorld() != target.getWorld() || goal.distanceSquared(target) > 4.0;
@@ -319,7 +324,10 @@ public final class Navigator {
     private boolean closeEnough() {
         if (goal == null) return true;
         Location p = ctx.pos();
-        return AIMath.hDist(p, goal) <= radius && Math.abs(p.getY() - goal.getY()) < 2.0;
+        double dy = Math.abs(p.getY() - goal.getY());
+        // A stance is a place to stand, not a column: two blocks of vertical slack is what let a bot call itself
+        // arrived at a wall-top stance while standing on the floor in front of it, then build nothing at all.
+        return AIMath.hDist(p, goal) <= radius && (opts != null && opts.exactY ? dy <= 0.55 : dy < 2.0);
     }
 
     // ---------------------------------------------------------------------------------------------- tick
