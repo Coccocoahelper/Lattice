@@ -97,6 +97,16 @@ public final class BedDefenceDrill implements Drill {
             Material m = (Material) c[3];
             target.put(key(BED_X + dx, BED_Y + dy, BED_Z + dz), m);
         }
+        // A level that asks for a material has to start from an empty cell. The defence is cleared when a run is
+        // recorded, but a block already in flight from the bot lands after that clear, and a cell left holding the
+        // previous level's material can never be filled: the drill only counts the block it asked for, and the brain
+        // has no reason to take a wrong one out. Measured: level 3 held 25 of 26 with 2,65,1 in wool where the
+        // template asks for wood, and the run could not advance.
+        for (Map.Entry<Long, Material> e : target.entrySet()) {
+            int[] c = unkey(e.getKey());
+            Block b = arena.world().getBlockAt(c[0], c[1], c[2]);
+            if (b.getType() != Material.AIR && b.getType() != e.getValue()) b.setType(Material.AIR, false);
+        }
         buildModel();
         buildBed();
     }

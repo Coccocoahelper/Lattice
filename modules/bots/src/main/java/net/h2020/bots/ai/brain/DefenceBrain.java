@@ -272,8 +272,7 @@ public final class DefenceBrain extends BaseBrain {
                 + " lastFail=" + lastFail + " retries=" + retries
                 + " body=" + String.format("%.2f,%.2f,%.2f", ctx.pos().getX(), ctx.pos().getY(), ctx.pos().getZ())
                 + " nav=" + ctx.nav.describe() + " gap=" + String.format("%.2f", standCache == null ? -1
-                        : ctx.pos().distance(standCache))
-                + (c == null ? "" : fresh(c)));
+                        : ctx.pos().distance(standCache)));
     }
 
     /**
@@ -321,17 +320,6 @@ public final class DefenceBrain extends BaseBrain {
 
     private static double cxOf(int[] c) { return c[0] + 0.5; }
     private static double czOf(int[] c) { return c[2] + 0.5; }
-
-    /** What the stance chooser would pick for this cell right now, and the face it can see from there. */
-    private String fresh(int[] c) {
-        org.bukkit.Location st = standFor(c);
-        if (st == null) return " pick=-";
-        org.bukkit.Location eye = new org.bukkit.Location(st.getWorld(), st.getX(), st.getY() + 1.62, st.getZ());
-        Object[] sup = BlockPlacer.findSupport(ctx.world(), c[0], c[1], c[2], eye, 4.4, true, null, true);
-        String face = sup == null ? "-" : ((org.bukkit.block.Block) sup[0]).getX() + "," + ((org.bukkit.block.Block) sup[0]).getY()
-                + "," + ((org.bukkit.block.Block) sup[0]).getZ() + ":" + sup[1];
-        return " pick=" + String.format("%.2f,%.2f,%.2f", st.getX(), st.getY(), st.getZ()) + " sees=" + face;
-    }
 
     /** Can a block in this cell be placed from that stance at all: is some face of a neighbour in view from its eye? */
     private boolean seesSupport(int[] c, org.bukkit.Location stance) {
