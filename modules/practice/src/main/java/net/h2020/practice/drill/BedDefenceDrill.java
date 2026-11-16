@@ -253,10 +253,19 @@ public final class BedDefenceDrill implements Drill {
     public int bedY() { return BED_Y; }
     public int bedZ() { return BED_Z; }
 
-    /** The cells a bot has to fill, for a bot brain handed this drill. */
+    /**
+     * The cells a bot has to fill, for a bot brain handed this drill: x, y, z, and the id of the material the shape
+     * wants there. The material is part of the cell, not a property of the drill - level three is wood with wool
+     * corners and level four is ender stone with wool trim, so a brain that only knows "a block" fills the shape with
+     * whatever it is holding and the drill counts none of it. Measured: level three sat at 10 of 26 with every
+     * remaining cell filled in wool where the template asks for wood.
+     */
     public List<int[]> targetCells() {
         List<int[]> out = new ArrayList<int[]>();
-        for (Long k : target.keySet()) out.add(unkey(k));
+        for (Map.Entry<Long, Material> e : target.entrySet()) {
+            int[] c = unkey(e.getKey());
+            out.add(new int[]{c[0], c[1], c[2], e.getValue().getId()});
+        }
         return out;
     }
 

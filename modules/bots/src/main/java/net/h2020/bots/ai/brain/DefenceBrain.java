@@ -2,6 +2,7 @@ package net.h2020.bots.ai.brain;
 
 import net.h2020.api.stats.CombatStats;
 import net.h2020.bots.ai.inv.Inv;
+import org.bukkit.Material;
 import net.h2020.bots.ai.motor.BlockPlacer;
 
 /**
@@ -78,6 +79,16 @@ public final class DefenceBrain extends BaseBrain {
         });
     }
 
+    /**
+     * The block one cell wants. A drill cell carries its material in the fourth column; a brain handed plain
+     * coordinates builds with whatever build block it has, as before.
+     */
+    private static Inv.Pred blockFor(int[] c) {
+        if (c.length < 4) return Inv.BLOCK;
+        Material m = Material.getMaterial(c[3]);
+        return m == null ? Inv.BLOCK : Inv.type(m);
+    }
+
     /** 0 = in front of the bed, 1 = behind it, 2 = the flanks and the cells over it. */
     private static int layer(int dz) { return dz > 0 ? 0 : (dz < 0 ? 1 : 2); }
 
@@ -89,6 +100,10 @@ public final class DefenceBrain extends BaseBrain {
     @Override
     protected void think() {
         if (cells.length == 0) { ctx.motor.halt(); return; }
+        // a cell's block has to be in the inventory, not just some build block: level three is wood, level four
+        // ender stone, and a bot holding only wool cannot start either
+        int[] want = idx < cells.length ? cells[idx] : null;
+        if (want != null && !Inv.has(ctx.player, blockFor(want))) { ctx.motor.halt(); return; }
         if (!Inv.has(ctx.player, Inv.BLOCK)) { ctx.motor.halt(); return; }
         if (placer == null) placer = new BlockPlacer(ctx);
         report();
@@ -98,7 +113,7 @@ public final class DefenceBrain extends BaseBrain {
             if (r == BlockPlacer.Result.FAILED) {
                 lastFail = placer.lastFailure();
                 fails++;
-                if (++retries < 3) { placer.start(curCell[0], curCell[1], curCell[2], Inv.BLOCK); }
+                if (++retries < 3) { placer.start(curCell[0], curCell[1], curCell[2], blockFor(curCell)); }
                 else { retries = 0; idx++; skips++; CombatStats.inc("drill.defence.skip"); }
             }
             return;
@@ -163,13 +178,15 @@ public final class DefenceBrain extends BaseBrain {
         placer.setNeedSight(false);
         placer.setAvoidInteractive(overBed(c));
         curCell = c;
-        placer.start(c[0], c[1], c[2], Inv.BLOCK);
+        placer.start(c[0], c[1], c[2], blockFor(c));
         CombatStats.inc("drill.defence.try");
         idx++;
         // the rest of this row goes in behind it: four blocks within reach of the one just started
         for (int q = 0; q < 4 && idx < cells.length; q++, idx++) {
             int[] n = cells[idx];
-            if (Math.abs(n[0] - c[0]) > 3 || Math.abs(n[2] - c[2]) > 1 || n[1] != c[1]) { idx--; break; }
+            // only the same block in the same row: a queued cell is placed with this cell's material
+            if (Math.abs(n[0] - c[0]) > 3 || Math.abs(n[2] - c[2]) > 1 || n[1] != c[1]
+                    || (n.length >= 4 && c.length >= 4 && n[3] != c[3]) || n.length != c.length) { idx--; break; }
             placer.queue(n[0], n[1], n[2]);
         }
     }
@@ -255,6 +272,9 @@ public final class DefenceBrain extends BaseBrain {
         return new org.bukkit.Location(ctx.player.getWorld(), cx + dx / len * 1.35, bedY, cz + dz / len * 1.35);
     }
 
+
+    /** The row one level above the bed, wherever it reaches: built as a chain against side faces. */
+    private boolean roofRow(int[] c) { return c[1] == bedY + 1 && c[2] == bedZ; }
 
     /** A cell directly above a bed block: the only kind whose support is a bed. */
     private boolean overBed(int[] c) {
