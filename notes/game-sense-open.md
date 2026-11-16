@@ -63,3 +63,60 @@ click lands a tick after the body has stepped. That is a placement/confirmation 
 3. Blocks/min 10.8 against 30.5: what is left is the shop trip (idle.src.shop) and the repeated failed
    walk searches (`search failed ... bridge<=0`, one every tick for a goal across a gap: a caller re-plans
    with walking options where it needs bridging).
+
+## 2026-11-16 22:0x - the void is a clutch problem, and the clutch is a geometry problem
+
+`/bot pvp debug` on one game names the cause of the deaths instead of guessing at it:
+
+- `clutch tried and failed` is 70-95% of every death list (`/bot deaths`). It is not the fall that kills,
+  it is the save that misses.
+- The three shapes in the debug log:
+  - `no clutch (blocks=false)` - the bot falls with **no block in the inventory at all**.
+  - `no cell` / `no edge face` - the body is already 1.5-4 blocks **below** the lip when the picker runs, and
+    the old picker only looked at the lip's own level (`L = floorY .. floorY-2`, still above it).
+  - `wall ... aimErr=107..165` - the only support is the island wall it fell past, 90-160 degrees off the
+    crosshair; the hand starts 90-190 ms late and the feet pass the cell top before it arrives.
+
+The void guard was wrong in the same direction: it asked the block under the **centre point**, and a 0.6-wide
+body on the last centimetres of a block has its centre already over the next cell. The fall trails show the
+body leaving at `x=56.75` from a block whose cell is 57 - held up by five hundredths of its width, centre over
+the void - so the guard read "air below", disarmed, and let it walk the last half-step.
+
+Changes (`38f2410`):
+
+- `Clutch.pickCell` now also asks the question at the body's **own** level: a side face of anything solid within
+  4.4 blocks, one to three blocks under the feet (`clutch.wall`). The lip-first search is unchanged in front of it.
+- `Clutch.blockClutch` drops an aim the body has fallen past instead of holding it (`clutch.stale`), and only
+  retries the lip while the body is still level with it.
+- `Motor.voidAhead` asks whether **any cell of the footprint** is solid, not the centre cell.
+
+Measured, 8 bots, Speedway, one 150 s window per line, counters reset at the start of each:
+
+| window | void deaths | unassisted | clutch.wall | clutch.block.place | edgeguard |
+|---|---|---|---|---|---|
+| before (mini48E) | 21 | 20 | 0 | 0 | ~2/s |
+| after, win 1 | 11 | 11 | 1 | 0 | 5/s |
+| after, win 2 | 29 | 22 | 4 | 2 | 16/s |
+| after, win 3 | 12 | 12 | 5 | 1 | 9/s |
+
+Mean after: 15 unassisted void deaths per window against 20 before. **That is inside the game-to-game spread**
+(the same build gave 11 and 29), so the honest statement is: the two mechanisms were real and are now covered,
+but the void rate is not measurably better yet, and no single change has been isolated.
+
+What the numbers do say: the wall branch finds a face the old picker never looked for (5 of 12 falls in the last
+window), and the guard now fires for the half-step it was blind to. The clutch still saves almost nothing
+(`clutch.block.place` 1-2 per window, `fall.saved` 1) because the window is ~4 ticks and the flick is 90-160
+degrees.
+
+## Next, in order
+
+1. **Do not step off.** Every unassisted fall has `v` near zero at the lip - the body walks off, it is not
+   launched. Look at the approach to a lip (a bridge that aborted, `BridgeTaker` give-ups that leave the nav
+   walking) rather than at the clutch. `bridge.giveup.ninja` is still ~2x `bridge.done.ninja`.
+2. `clutch.noblock` / `(blocks=false)`: bots reach a lip with no blocks. Check `ShopPlanner` wool purchases and
+   whether a rusher leaves spawn with fewer than the 24 its path will bridge.
+3. `place.fail.nosupport` (65-171 per window) is the same geometry error one level up: the placer wants a face
+   the body cannot see from where it stands.
+4. Kills: bots now do fight (5 melee deaths in one window where every earlier window had 0), but they lose.
+   `fight.declined.stacked` is the gate that decides most engagements - the threshold is in armor+weapon points
+   where leather (7) to iron (15) alone is a gap of 8, so `ge <= -4` declines almost every fight.
