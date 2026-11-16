@@ -320,6 +320,10 @@ public final class BlockPlacer {
             if (!Inv.has(ctx.player, blockPred)) { active = false; net.h2020.api.stats.CombatStats.inc("place.fail.material"); return Result.FAILED; }
             return Result.RUNNING;
         }
+        // Never click with the wrong block in hand: a placement is the item in hand, and a queued cell inherits the
+        // batch's block, so one bad equip fills a cell with a material the drill will not accept - and a wrong block
+        // in a target cell is never taken out again.
+        if (!Inv.holding(ctx.player, blockPred)) return Result.RUNNING;
         Location eye = ctx.eye();
         if (support == null || ticks % (fast ? 3 : 4) == 0) {
             Object[] s = findSupport(wv, tx, ty, tz, eye, 4.4, needSight, triedFaces, avoidInteractive);
