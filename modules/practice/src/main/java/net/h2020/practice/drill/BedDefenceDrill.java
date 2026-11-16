@@ -215,24 +215,38 @@ public final class BedDefenceDrill implements Drill {
     }
 
     @Override public String level(Player p) { return String.valueOf(level); }
+
+    /** The level as a number, for whoever has to hand a bot the current shape. */
+    public int levelNow() { return level; }
     @Override public String levels() { return String.valueOf(BedDefenceTemplates.count()); }
     @Override public String blocksToPlace(Player p) { return String.valueOf(target.size()); }
     @Override public String best(Player p) { long b = row(p)[3]; return b == 0 ? "-" : b + "ms"; }
     @Override public String completed(Player p) { return String.valueOf(row(p)[4]); }
     @Override public long bestMillis(Player p) { return row(p)[3]; }
 
-    /** One debug line: the cells being asked for, and whether each is standing. */
+    /**
+     * One debug line: the cells being asked for, and whether each is standing.
+     *
+     * <p>Every cell is printed. The line used to stop at 160 characters, which cut the list after the first fourteen
+     * and left the rest of a level invisible: "filled 12/26" with no way to see which fourteen were refusing.
+     */
     public String debugLine() {
         StringBuilder sb = new StringBuilder("level " + level + " of " + BedDefenceTemplates.count() + ", cells:");
+        StringBuilder missing = new StringBuilder();
         int filled = 0;
         for (Map.Entry<Long, Material> e : target.entrySet()) {
             int[] c = unkey(e.getKey());
             Material now = arena.world().getBlockAt(c[0], c[1], c[2]).getType();
-            if (now == e.getValue()) filled++;
-            if (sb.length() < 160) sb.append(' ').append(c[0]).append(',').append(c[1]).append(',').append(c[2])
-                    .append('=').append(now == e.getValue() ? "ok" : now.name());
+            boolean ok = now == e.getValue();
+            if (ok) filled++;
+            else missing.append(' ').append(c[0]).append(',').append(c[1]).append(',').append(c[2])
+                    .append(now == Material.AIR ? "" : "(" + now.name() + ")");
+            sb.append(' ').append(c[0]).append(',').append(c[1]).append(',').append(c[2])
+                    .append('=').append(ok ? "ok" : now.name());
         }
-        return sb.append("  filled ").append(filled).append('/').append(target.size()).toString();
+        sb.append("  filled ").append(filled).append('/').append(target.size());
+        if (missing.length() > 0) sb.append("  missing:").append(missing);
+        return sb.toString();
     }
 
     public int bedX() { return BED_X; }

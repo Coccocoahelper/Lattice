@@ -19,16 +19,22 @@ public final class DefenceBrain extends BaseBrain {
     private int retries;
     /** Tick before which the cell list is not restarted after a pass that did not finish the drill. */
     private long nextTry;
-    /** A wool block being placed beside a bed-supported cell, so the cell itself can go in through it. */
     /** The bed these cells surround, worked out once: the ring's average position. */
     private double anchorX, anchorZ;
     /** The cell currently being placed, the one the retry re-starts, and the approach point held for it. */
     private int[] curCell = {0, 0, 0};
     private int standFor = -1;
     private org.bukkit.Location standCache;
+    /** Counters and the clock for the five-second state line: a brain that has stopped asking for anything looks
+     *  exactly like a brain that is placing nothing, and only one of those is a bug in the aim. */
+    private int nullStands, skips, fails;
+    /** Tick the current cell became the one being built: a stance that takes longer than six seconds is given up. */
+    private long cellSince;
     /** Try the other stance for a roof cell when the first one stops making progress. */
     private int stanceMode;
     private long standAt;
+    private long reportAt;
+    private String lastFail = "-";
 
     private final int bedX, bedY, bedZ;
 
@@ -85,12 +91,15 @@ public final class DefenceBrain extends BaseBrain {
         if (cells.length == 0) { ctx.motor.halt(); return; }
         if (!Inv.has(ctx.player, Inv.BLOCK)) { ctx.motor.halt(); return; }
         if (placer == null) placer = new BlockPlacer(ctx);
+        report();
 
         if (placer.active()) {
             BlockPlacer.Result r = placer.tick();
             if (r == BlockPlacer.Result.FAILED) {
+                lastFail = placer.lastFailure();
+                fails++;
                 if (++retries < 3) { placer.start(curCell[0], curCell[1], curCell[2], Inv.BLOCK); }
-                else { retries = 0; idx++; CombatStats.inc("drill.defence.skip"); }
+                else { retries = 0; idx++; skips++; CombatStats.inc("drill.defence.skip"); }
             }
             return;
         }
@@ -107,9 +116,10 @@ public final class DefenceBrain extends BaseBrain {
         // One approach point per cell, held while that cell is the one being built. Recomputing it every tick had the
         // bot chasing a point it never reached, so it walked in place for the rest of the run: measured four cells
         // attempted out of nine with the body parked three blocks off the wall.
-        if (standFor != idx) {
-            stanceMode = 0; standCache = standFor(c); standFor = idx; standAt = ctx.tick;
-            if (standCache == null) { idx++; retries = 0; CombatStats.inc("drill.defence.nostance"); return; }
+        boolean newStance = standFor != idx;
+        if (newStance) {
+            stanceMode = 0; standCache = standFor(c); standFor = idx; standAt = ctx.tick; cellSince = ctx.tick;
+            if (standCache == null) { idx++; retries = 0; nullStands++; CombatStats.inc("drill.defence.nostance"); return; }
         }
         // A roof stance that the body cannot climb to leaves it walking into the wall for the rest of the run. Give
         // it two seconds, then take the other stance rather than stalling: measured 8 of 9 with one, 7 with the
@@ -129,7 +139,21 @@ public final class DefenceBrain extends BaseBrain {
         // Keep walking to the approach point. Tried placing from wherever the body stood instead (footprint in
         // reach, no step): the drill stalled at 3 of 9 with four thousand clicks and nothing landing, so the short
         // walk is what makes the placement legal - the body has to be square to the face it is filling.
-        if (!indoor && (onCell || ctx.pos().distance(standCache) > 1.5)) {
+        // "Close enough to build" is the navigator's arrival, not a fixed 1.5 of its own. The nav stops at
+        // radius + 1.5, so a body parked 1.6 blocks from its stance was too far for the brain and already there for
+        // the nav: the brain asked for a walk, the nav declined (ARRIVED, within its own tolerance) and the cell was
+        // never attempted. Measured: level one sat on 1 of 9 for a minute and a half, body at distance 1.52, with
+        // two placement attempts and no sweep in between - not an aim problem, a deadlock between two thresholds.
+        double gap = ctx.pos().distance(standCache);
+        boolean reached = (!newStance && ctx.nav.arrived()) || gap <= 1.5;
+        if (!indoor && (onCell || !reached)) {
+            // A stance the body cannot get to must not eat the run. Six seconds without arriving and the cell goes
+            // back into the queue for the next sweep, which re-picks a stance; the alternative is a brain asking to
+            // walk to the same unreachable spot until the drill is closed.
+            if (ctx.tick - cellSince > 120) {
+                idx++; retries = 0; standFor = -1; CombatStats.inc("drill.defence.unreached");
+                return;
+            }
             ctx.nav.goTo(standCache, 1.2);
             ctx.nav.tick();
             return;
@@ -148,6 +172,25 @@ public final class DefenceBrain extends BaseBrain {
             if (Math.abs(n[0] - c[0]) > 3 || Math.abs(n[2] - c[2]) > 1 || n[1] != c[1]) { idx--; break; }
             placer.queue(n[0], n[1], n[2]);
         }
+    }
+
+    /**
+     * One line every five seconds: the cell the brain is on, the spot it means to stand on, and how many cells it has
+     * skipped for want of a stance or given up on. Placement logs alone cannot separate "the aim is missing" from
+     * "the brain stopped asking", and the difference is the whole diagnosis.
+     */
+    private void report() {
+        if (ctx.tick < reportAt) return;
+        reportAt = ctx.tick + 100;
+        int[] c = idx < cells.length ? cells[idx] : null;
+        String cell = c == null ? "-" : c[0] + "," + c[1] + "," + c[2];
+        String stand = standCache == null ? "-" : (int) Math.floor(standCache.getX()) + ","
+                + (int) Math.floor(standCache.getY()) + "," + (int) Math.floor(standCache.getZ());
+        org.bukkit.Bukkit.getLogger().info("[defence] cells=" + cells.length + " idx=" + idx + " cell=" + cell
+                + " stand=" + stand + " noStance=" + nullStands + " skipped=" + skips + " fails=" + fails
+                + " lastFail=" + lastFail + " retries=" + retries
+                + " body=" + (int) Math.floor(ctx.pos().getX()) + "," + (int) Math.floor(ctx.pos().getY()) + ","
+                + (int) Math.floor(ctx.pos().getZ()));
     }
 
     /** Where to stand to build one cell: on the floor, outside the wall, on that cell's own side of the bed. */

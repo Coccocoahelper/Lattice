@@ -340,10 +340,8 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
                 // a person builds and the two times sit in one file
                 if (g.drill() instanceof BedDefenceDrill) {
                     BedDefenceDrill bd = (BedDefenceDrill) g.drill();
-                    java.util.List<int[]> cells = bd.targetCells();
-                    int[][] arr = new int[cells.size()][];
-                    for (int k = 0; k < cells.size(); k++) arr[k] = cells.get(k);
-                    bot.setBrain(bs.bedDefenceBrain(arr, bd.bedX(), bd.bedY(), bd.bedZ()));
+                    bot.setBrain(bs.bedDefenceBrain(defenceCells(bd), bd.bedX(), bd.bedY(), bd.bedZ()));
+                    followDefenceLevel(bot, bs, bd, g);
                 }
                 // a block-in bot breaks its own hole open and seals it again, using the holes people have done. No
                 // learned hole means no bot run: the drill does not invent one, for a bot or anybody else.
@@ -365,6 +363,38 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
                 plugin.getLogger().warning("practice bot: " + t);
             }
         }
+    }
+
+    /** The cells of a bed-defence level as the bot brain wants them. */
+    private static int[][] defenceCells(BedDefenceDrill bd) {
+        java.util.List<int[]> cells = bd.targetCells();
+        int[][] arr = new int[cells.size()][];
+        for (int k = 0; k < cells.size(); k++) arr[k] = cells.get(k);
+        return arr;
+    }
+
+    /**
+     * Re-arm a bed-defence bot when the drill raises its level.
+     *
+     * <p>The brain is handed a snapshot of the cells to fill, and a snapshot is all it ever had: finishing level one
+     * left the bot building level one's nine cells against level two's target, so level two stood at twelve of
+     * twenty-six for two hours while the brain swept its own already-filled list (7730 sweeps, 43 placements). The
+     * drill clears the old cells and raises the level in the same tick it records the run, so following the level
+     * number is enough - the brain is replaced the moment the drill has a different shape to ask for.
+     */
+    private void followDefenceLevel(final Bot bot, final BotService bs, final BedDefenceDrill drill,
+                                    final PracticeGame g) {
+        final int[] armed = {drill.levelNow()};
+        new org.bukkit.scheduler.BukkitRunnable() {
+            @Override public void run() {
+                if (bot.isRemoved() || bot.player() == null || !bot.player().isOnline()
+                        || g.state() == GameState.ENDING) { cancel(); return; }
+                int now = drill.levelNow();
+                if (now == armed[0]) return;
+                armed[0] = now;
+                bot.setBrain(bs.bedDefenceBrain(defenceCells(drill), drill.bedX(), drill.bedY(), drill.bedZ()));
+            }
+        }.runTaskTimer(plugin, 20L, 10L);
     }
 
     /**
