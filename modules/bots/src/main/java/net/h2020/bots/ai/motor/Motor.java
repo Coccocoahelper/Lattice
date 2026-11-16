@@ -55,11 +55,16 @@ public final class Motor {
     public void beginTick() {
         forward = 0; strafe = 0; jump = false; sneak = false; sprint = false; left = false; right = false; cps = 0;
         prio = -1;
+        plannedStep = false;
         ticksSinceAim++;
     }
 
     // ---------------------------------------------------------------- keys
     public void move(float f, float s) { forward = f; strafe = s; }
+
+    /** This tick's step belongs to a bridge/pillar plan: the void ahead is where the next block goes. */
+    private boolean plannedStep;
+    public void plannedStep(boolean v) { plannedStep = v; }
     public float forward() { return forward; }
     public float strafe() { return strafe; }
     public void jump(boolean j) {
@@ -173,7 +178,10 @@ public final class Motor {
         // used to hold forward and let the ground run out; in one eight-bot game that was thirteen void deaths to
         // two kills. Cancelling the input at the edge is a floor, not a fix - the bridge path still places blocks
         // and it sneaks, and sneaking is what exempts a move here. Everything else stops and waits.
-        if (!sneak && voidAhead()) { forward = 0; strafe = 0; net.h2020.api.stats.CombatStats.inc("move.edgeguard"); }
+        // (a bridge or pillar action walks to the lip on purpose: its own crouch timing decides where the block
+        // goes, and cancelling the step here is what kept every tap-crouch technique standing 0.4 blocks short of
+        // the edge until it gave up. The guard is for unplanned walks, not for a plan that ends in a block.)
+        if (!sneak && !plannedStep && voidAhead()) { forward = 0; strafe = 0; net.h2020.api.stats.CombatStats.inc("move.edgeguard"); }
         if (aForward != forward || aStrafe != strafe) { c.setMovement(forward, strafe); aForward = forward; aStrafe = strafe; }
         if (aJump == null || aJump != jump) { c.setJumping(jump); aJump = jump; }
         if (aSneak == null || aSneak != sneak) { c.setSneaking(sneak); aSneak = sneak; }

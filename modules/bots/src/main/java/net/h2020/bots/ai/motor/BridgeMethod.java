@@ -136,7 +136,9 @@ public abstract class BridgeMethod {
                 net.h2020.api.stats.CombatStats.inc("bridge.unsneak." + (1 + b.unsneakDelay()));
             }
             if (b.ctx.tick < b.unsneakAt()) sneak = true;                  // the tap is still held
-            else sneak = (h > -0.02) || (h + vAlong * 2.0 > 0.12);
+            // crouch a little before the lip, not exactly on it: the body covers about 0.28 a tick, so "at the
+            // edge" is already a tick too late once the ray has gone past the block
+            else sneak = (h > -0.12) || (h + vAlong * 2.0 > 0.12);
             // if the head is off its angle the click is on hold, so the body has to be on hold too: this is the tick
             // where a tap bridger slides off the lip waiting for the aim to come back
             if (!angleHeld(b)) { sneak = true; net.h2020.api.stats.CombatStats.inc("bridge.ninja.offangle"); }

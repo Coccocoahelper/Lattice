@@ -451,7 +451,18 @@ public final class Bridger {
         if (phase == Phase.RECOVER) return recover(pos);
         if (ticksOnBlock > method.giveUpTicks()) return giveUp();
         double h = pastEdge(pos);
+        if (net.h2020.bots.ai.nav.NavStats.debug && ticksOnBlock > 20 && ticksOnBlock % 20 == 0) {
+            org.bukkit.block.Block tb = ctx.c.targetedBlock();
+            org.bukkit.Bukkit.getLogger().info(String.format(
+                    "[bridgestall] %s tech=%s phase=%s onBlock=%d h=%.2f yaw=%.1f want=%.1f diff=%.1f tb=%s tf=%s support=%d,%d,%d next=%d,%d rayOn=%s held=%s",
+                    ctx.player.getName(), tech, phase, ticksOnBlock, h, ctx.c.yaw(), lookYaw(),
+                    AIMath.angleDiff(ctx.c.yaw(), lookYaw()), tb, ctx.c.targetedFace(),
+                    sx, sy, sz, sx + dx, sz + dz, rayWasOn, method.angleHeld(this)));
+        }
         curH = (float) h;
+        // the step up to the lip belongs to the technique; past it, a missed placement is a fall and the motor's
+        // void guard takes the keys back (before this, a bridge that missed its click walked off its own edge)
+        ctx.motor.plannedStep(h < 0.30);
         if (!launched && phase == Phase.MOVE) {
             preWalk++;
             if (h > -0.3) preWait++;                 // already at the edge: any extra tick here is the ray/pitch

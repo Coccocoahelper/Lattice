@@ -391,6 +391,9 @@ public final class Navigator {
     }
 
     private void tickAction() {
+        // a pillar jumps straight up: nothing to walk into. (A bridge sets the flag itself, from its own edge
+        // distance, so the guard comes back on the moment a placement misses and the body keeps going past the lip.)
+        if (action == MoveType.PILLAR) ctx.motor.plannedStep(true);
         switch (action) {
             case BRIDGE: {
                 lastBridgeTick = ctx.tick;               // internal: the getter is not called every tick

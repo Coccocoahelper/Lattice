@@ -266,6 +266,12 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                     return true;
                 }
                 case "counters": {
+                    // "counters reset" starts a clean measurement window (a game, a drill, an A/B change)
+                    if (args.length > 1 && args[1].equalsIgnoreCase("reset")) {
+                        net.h2020.api.stats.CombatStats.reset();
+                        sender.sendMessage("counters reset");
+                        return true;
+                    }
                     for (String l : net.h2020.api.stats.CombatStats.dump()) sender.sendMessage(l);
                     break;
                 }
