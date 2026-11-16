@@ -48,6 +48,12 @@ public final class BedDefenceDrill implements Drill {
     private final java.util.Map<UUID, long[]> run = new HashMap<UUID, long[]>();   // {startTick, placed, wasted, best, runs}
     private int level = 1;
     private final Map<Long, Material> target = new LinkedHashMap<Long, Material>();
+    /** Cells of the level just left, kept for a few seconds after a switch: a click already in flight when the
+     *  run was recorded lands after the clear, and a block that lands in a cell no level mentions can hide the
+     *  face a later cell needs. Measured: level 5 stood at 11 of 12 with 3,65,-1 (a level 4 cell) in the way. */
+    private final java.util.Set<Long> leaving = new java.util.HashSet<Long>();
+    /** When the current level's leaving set stops being swept (0 = never armed). */
+    private long leavingUntilTick = 0;
     private final List<int[]> modelCells = new ArrayList<int[]>();
     /** Per player, the run's placements as {ms since the first block, x, y, z}: the run's replay. */
     private final Map<UUID, List<int[]>> trace = new HashMap<UUID, List<int[]>>();
@@ -95,8 +101,10 @@ public final class BedDefenceDrill implements Drill {
         // cell no later level mentions and stays there for the rest of the session. Measured: level 5 stood at
         // 11 of 12 with 3,65,-1, 2,65,-2 and 3,65,1 in ender stone - all level 4 cells - and the leftover at
         // 3,65,-1 hid every remaining face of the one cell level 5 still wanted, so the level could not be finished.
-        java.util.Set<Long> leaving = new java.util.HashSet<Long>(target.keySet());
+        leaving.clear();
+        leaving.addAll(target.keySet());
         this.level = Math.max(1, Math.min(BedDefenceTemplates.count(), lvl));
+        this.leavingUntilTick = System.currentTimeMillis() / 50 + 60;   // three seconds of sweeping
         target.clear();
         for (Object[] c : BedDefenceTemplates.at(this.level)) {
             int dx = (Integer) c[0], dy = (Integer) c[1], dz = (Integer) c[2];
@@ -113,12 +121,7 @@ public final class BedDefenceDrill implements Drill {
             Block b = arena.world().getBlockAt(c[0], c[1], c[2]);
             if (b.getType() != Material.AIR && b.getType() != e.getValue()) b.setType(Material.AIR, false);
         }
-        for (Long k : leaving) {
-            if (target.containsKey(k)) continue;
-            int[] c = unkey(k);
-            Block b = arena.world().getBlockAt(c[0], c[1], c[2]);
-            if (b.getType() != Material.AIR) b.setType(Material.AIR, false);
-        }
+        sweepLeaving();
         buildModel();
         buildBed();
     }
@@ -162,7 +165,20 @@ public final class BedDefenceDrill implements Drill {
     }
 
     /** One pass: has every target cell the right material? Then the run is done. */
+    /** Clear the level just left, for the few seconds in which last tick's clicks can still land. */
+    private void sweepLeaving() {
+        if (leaving.isEmpty()) return;
+        if (leavingUntilTick > 0 && System.currentTimeMillis() / 50 > leavingUntilTick) { leaving.clear(); leavingUntilTick = 0; return; }
+        for (Long k : leaving) {
+            if (target.containsKey(k)) continue;
+            int[] c = unkey(k);
+            Block b = arena.world().getBlockAt(c[0], c[1], c[2]);
+            if (b.getType() != Material.AIR) b.setType(Material.AIR, false);
+        }
+    }
+
     private boolean ctxLevelCheck(PracticeGame g) {
+        sweepLeaving();
         for (Player p : g.alivePlayers()) {
             if (g.isFollowing(p)) continue;
             long[] r = row(p);
