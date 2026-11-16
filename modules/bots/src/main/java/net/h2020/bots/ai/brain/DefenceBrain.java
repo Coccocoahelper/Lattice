@@ -203,7 +203,14 @@ public final class DefenceBrain extends BaseBrain {
         // one's roof, and treating it as a roof sent every cell of that layer to a stance in front of the bed, which
         // is why level two stalled at two cells of twenty-six.
         boolean overBed = c[1] == bedY + 1 && c[2] == bedZ && (c[0] == bedX || c[0] == bedX + 1);
-        if (overBed) {
+        // The whole row one level above the bed is a chain, not just the two cells over it: the first block stands on
+        // wool below, and every block after it is clicked on the WEST face of the block just placed to its east. That
+        // face is only visible from the west of it, so each cell of the row is built from the floor directly in front
+        // of itself and the row grows east to west. Measured: with the general stance the row was approached from the
+        // east end, where the face it needs is behind the body, and the chain stopped on its second block (level two
+        // held at 21 of 26, missing only this row, the two cells above it, and 2,65,0).
+        boolean roofRow = c[1] == bedY + 1 && c[2] == bedZ;
+        if (roofRow) {
             // A bed's collision box is nine sixteenths high, so its "top face" is inside its own cell: clicking it
             // places nothing at all, which is what kept the two cells over the bed empty through every attempt.
             // The first roof cell stands on wool and is built from the floor; the two over the bed are built from

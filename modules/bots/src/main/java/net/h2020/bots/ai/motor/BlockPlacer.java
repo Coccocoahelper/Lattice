@@ -36,6 +36,8 @@ public final class BlockPlacer {
     private final java.util.ArrayDeque<int[]> queue = new java.util.ArrayDeque<int[]>();
     /** Tick at which the last click's cell is checked: a click is not a placement until the block is there. */
     private long verifyAt = -1;
+    /** The cell whose click is being verified; the placer may already be working on the next one when that happens. */
+    private int verifyX, verifyY, verifyZ;
     private double lastX, lastZ;
     private static final java.util.concurrent.atomic.AtomicInteger PLACE_LOG = new java.util.concurrent.atomic.AtomicInteger();
     private Block support;
@@ -51,6 +53,11 @@ public final class BlockPlacer {
     private boolean avoidInteractive;
     /** Why the last placement gave up, for a brain that has to explain itself in the log. */
     private String lastFailure = "?";
+    /**
+     * What the client's crosshair was on when the click went out. A refused click is otherwise indistinguishable from
+     * a click on the right face that the server ignored, and the two need completely different fixes.
+     */
+    private String lastHit = "-";
 
     public String lastFailure() { return lastFailure; }
     private int hiddenTicks;
@@ -264,12 +271,13 @@ public final class BlockPlacer {
         // whether it arrived.
         if (verifyAt > 0 && ctx.tick >= verifyAt) {
             verifyAt = -1;
-            boolean there = !net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(tx, ty, tz));
+            boolean there = !net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(verifyX, verifyY, verifyZ));
             net.h2020.api.stats.CombatStats.inc(there ? "place.verified" : "place.miss");
-            if (PLACE_LOG.incrementAndGet() <= 40) {
-                org.bukkit.Bukkit.getLogger().info("[place] want " + tx + "," + ty + "," + tz
+            if (PLACE_LOG.incrementAndGet() <= 60) {
+                org.bukkit.Bukkit.getLogger().info("[place] want " + verifyX + "," + verifyY + "," + verifyZ
                         + (there ? "  ok" : "  MISS  body " + (int) Math.floor(ctx.pos().getX()) + ","
-                        + (int) Math.floor(ctx.pos().getY()) + "," + (int) Math.floor(ctx.pos().getZ())));
+                        + (int) Math.floor(ctx.pos().getY()) + "," + (int) Math.floor(ctx.pos().getZ()))
+                        + "  hit " + lastHit);
             }
         }
         if (!active) return Result.FAILED;
@@ -334,8 +342,9 @@ public final class BlockPlacer {
             // on a bed, which opens it. Measured: the two roof cells over the bed were the only two never placed.
             if (sneakFor) ctx.motor.sneak(true);
             else sneakHeld = false;
+            lastHit = tb.getX() + "," + tb.getY() + "," + tb.getZ() + " " + tf + (sneakFor ? " sneak" : "");
             ctx.c.rightClick();
-            verifyAt = ctx.tick + 3L;
+            verifyAt = ctx.tick + 3L; verifyX = tx; verifyY = ty; verifyZ = tz;
             net.h2020.api.stats.CombatStats.inc("place.ok");
             // how long this block waited behind the last one: the number "fewer ticks between placements" means
             java.util.UUID who = ctx.player.getUniqueId();
