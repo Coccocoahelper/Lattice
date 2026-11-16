@@ -105,6 +105,10 @@ public final class Navigator {
     /** Cells this bot physically got stuck on while heading to the current goal; planned around on replans. */
     private final java.util.Set<Long> stuckCells = new java.util.HashSet<>();
     private Location stuckGoal;
+    /** Net-displacement watchdog: a body driven every tick that still goes nowhere. */
+    private Location progRef;
+    private long progTick;
+    private int progStrikes;
 
     /** Radius goal with the default options: "get within `radius` of here". */
     public void goTo(Location target, double radius) { goTo(target, radius, NavOptions.walk()); }
@@ -140,6 +144,7 @@ public final class Navigator {
             if (state == State.FAILED && ctx.tick - failTick < 100) return;
         }
         boolean moved = goal == null || goal.getWorld() != target.getWorld() || goal.distanceSquared(target) > 4.0;
+        if (moved) { progRef = null; progStrikes = 0; }
         this.goal = target.clone();
         this.radius = radius;
         this.opts = options == null ? NavOptions.walk() : options;
@@ -334,6 +339,7 @@ public final class Navigator {
 
     public void tick() {
         safeToGlance = false;
+        if (!noProgress()) return;                 // nothing is being reached: end the goal before anything drives the body again
         if (!actionRunning && tickNeo()) return;   // a neo owns the whole body, but never during a bridge/pillar action
         if (jumpCooldown > 0) jumpCooldown--;
         if (state == State.IDLE || state == State.ARRIVED || state == State.FAILED) { neo.cancel(); return; }
@@ -944,6 +950,41 @@ public final class Navigator {
         org.bukkit.Bukkit.getLogger().info(String.format("[navtrace] %s t=%d %s pos=%.2f,%.3f,%.2f v=%.2f,%.2f,%.2f g=%s colH=%s gui=%s wp=%s steer=%.2f,%.2f stuck=%d",
                 ctx.player.getName(), ctx.tick, state, p.getX(), p.getY(), p.getZ(), v.getX(), v.getY(), v.getZ(), ctx.c.onGround(),
                 ctx.c.collidedHorizontally(), ctx.c.containerOpen(), wp, steerX, steerZ, stuckLevel));
+    }
+
+    /**
+     * Something can drive the body every tick and still get nowhere: a neo that cannot clear the block it was
+     * started at, or a stance the body overshoots and comes back to. Neither the stuck check nor the brain can see
+     * it - a neo owns the body and returns before the stuck check runs, and a back-and-forth of 0.8 blocks
+     * registers as movement. Measured: level one spent minutes starting 3 neos a second (2 in 3 dying with
+     * nospeed) while the brain re-picked the same unreachable stance; a level five run sat frozen for two hours.
+     *
+     * <p>Net displacement from a reference that only moves forward, not per-tick movement: two 300-tick windows
+     * with less than 1.2 blocks of it end the goal, so the caller picks a new stance or route instead of being
+     * walked at a wall for ever.
+     */
+    private boolean noProgress() {
+        if (state != State.MOVING && state != State.PLANNING) { progRef = null; return true; }
+        Location p = ctx.pos();
+        if (progRef == null || progRef.getWorld() != p.getWorld()
+                || AIMath.hDist(p, progRef) + Math.abs(p.getY() - progRef.getY()) > 1.2) {
+            progRef = p.clone();
+            progTick = ctx.tick;
+            progStrikes = 0;
+            return true;
+        }
+        if (ctx.tick - progTick < 300) return true;
+        progTick = ctx.tick;
+        if (++progStrikes < 2) return true;                    // one window is a slow approach
+        progStrikes = 0;
+        progRef = null;
+        CombatStats.inc("nav.noprogress");
+        if (NavStats.debug) {
+            org.bukkit.Bukkit.getLogger().info(String.format("[navdebug] %s no progress at %.1f,%.1f,%.1f goal %s",
+                    ctx.player.getName(), p.getX(), p.getY(), p.getZ(), goal));
+        }
+        fail("noprogress");
+        return false;
     }
 
     /** Staged stuck recovery. Returns true when it took over the keys this tick. */

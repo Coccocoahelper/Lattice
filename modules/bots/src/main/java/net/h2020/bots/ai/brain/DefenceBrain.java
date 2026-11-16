@@ -31,11 +31,21 @@ public final class DefenceBrain extends BaseBrain {
     private int nullStands, skips, fails;
     /** Tick the current cell became the one being built: a stance that takes longer than six seconds is given up. */
     private long cellSince;
+    /** Where the body was when it last made real progress towards a stance, and when that was. */
+    private org.bukkit.Location walkRef;
+    private long walkSince;
+    private int walkStuck;
     /** Try the other stance for a roof cell when the first one stops making progress. */
     private int stanceMode;
+    /** The cell stanceMode belongs to: a new cell starts again from its best stance. */
+    private long stanceCell;
     private long standAt;
     private long reportAt;
     private String lastFail = "-";
+    /** Cells that already cost an attempt from the spot the body stood on: their next try walks to a stance. */
+    private final java.util.Set<Long> hereFailed = new java.util.HashSet<Long>();
+    /** Was the attempt now running started without a walk (the "already square to a face" shortcut)? */
+    private boolean curFromHere;
 
     private final int bedX, bedY, bedZ;
 
@@ -148,7 +158,28 @@ public final class DefenceBrain extends BaseBrain {
             if (r == BlockPlacer.Result.FAILED) {
                 lastFail = placer.lastFailure();
                 fails++;
-                if (++retries < 3) { placer.start(curCell[0], curCell[1], curCell[2], blockFor(curCell)); }
+                // Retry the cell the placer was on, not the head of the batch. A queued cell that refuses used to
+                // re-start its whole batch - and the head of that batch is already filled, so the restart could
+                // only ever answer nosupport. Measured: bursts of hundreds of nosupport fails per level, three
+                // retries each, all on a cell that had been placed a second earlier.
+                int fx = placer.targetX(), fy = placer.targetY(), fz = placer.targetZ();
+                curCell = new int[]{fx, fy, fz, curCell.length > 3 ? curCell[3] : 0};
+                // An attempt made without walking is a guess; the guess was wrong for this cell, so the retry
+                // must walk to the stance. Without this the guess is re-made for ever: a cell started from a
+                // body 3 blocks away, whose "can I see a face" model says yes and whose aim says nosupport,
+                // re-starts, fails and hops to the next cell, and the walk branch (gated on !squareHere) is
+                // never entered. Measured: the body did not move for two hours at 3.30,65.00,1.81 with
+                // fails=6249 and nav stuck at MOVING for a goal it was never asked to move to.
+                if (curFromHere) hereFailed.add(cellKey(curCell));
+                if (++retries < 3) {
+                    // The same spot failed: take the next stance, not the same one again. Three identical attempts
+                    // are three ways of learning nothing - a roof cell whose stance sees a face that fills a
+                    // different cell failed every retry (level one: 8 of 9 for twenty seconds, then the ninth
+                    // cell for over a minute).
+                    stanceMode++;
+                    standFor = -1;
+                    curFromHere = false;
+                }
                 // the next attempt at this cell must choose its stance again: the wall has changed since the last
                 // sweep (the outer ring may be standing where the old stance was), and a cached stance chosen
                 // before it existed is a spot with no face in view
@@ -159,6 +190,9 @@ public final class DefenceBrain extends BaseBrain {
         if (idx >= cells.length) {
             // a finished list that did not complete the drill means a cell refused; re-run it, but not once a tick
             idx = 0;
+            // hereFailed is not cleared here: what it records is that a spot has no view of a cell, which is a fact
+            // about the body and the wall, not about this pass. Cleared on every wrap the bot re-made the same
+            // guess from the same spot for ever - a sweep is fast, so the wrap happened every second or two.
             if (ctx.tick < nextTry) { ctx.motor.halt(); return; }
             nextTry = ctx.tick + 10;
             CombatStats.inc("drill.defence.sweep");
@@ -178,7 +212,11 @@ public final class DefenceBrain extends BaseBrain {
         // attempted out of nine with the body parked three blocks off the wall.
         boolean newStance = standFor != idx;
         if (newStance) {
-            stanceMode = 0; standCache = standFor(c); standFor = idx; standAt = ctx.tick; cellSince = ctx.tick;
+            // Only a different cell resets the stance counter; re-picking the stance after a failure must keep the
+            // rotation the failure asked for, or every retry lands on the same spot again.
+            long key = cellKey(c);
+            if (key != stanceCell) { stanceCell = key; stanceMode = 0; }
+            standCache = standFor(c); standFor = idx; standAt = ctx.tick; cellSince = ctx.tick;
             if (standCache == null) { idx++; retries = 0; standFor = -1; nullStands++; CombatStats.inc("drill.defence.nostance"); return; }
         }
         // A roof stance that the body cannot climb to leaves it walking into the wall for the rest of the run. Give
@@ -231,13 +269,28 @@ public final class DefenceBrain extends BaseBrain {
         // can see from its eye, which is the same test the stance chooser makes. Survey before this: level 4 took
         // 65.5 s for 35 cells, median 2.0 s between blocks and only 8 of 34 gaps under 600 ms - the bot walked to a
         // fresh stance for nearly every block of a row a person builds from one spot.
-        boolean squareHere = !onCell && !bodyInCell && seenFromHere(c);
+        boolean squareHere = !onCell && !bodyInCell && !hereFailed.contains(cellKey(c)) && seenFromHere(c);
         if (!indoor && (onCell || (!reached && !squareHere) || bodyInCell)) {
             // A stance the body cannot get to must not eat the run. Six seconds without arriving and the cell goes
             // back into the queue for the next sweep, which re-picks a stance; the alternative is a brain asking to
             // walk to the same unreachable spot until the drill is closed.
             if (ctx.tick - cellSince > 120) {
                 idx++; retries = 0; standFor = -1; CombatStats.inc("drill.defence.unreached");
+                return;
+            }
+            // A body can pace between two points for ever: 0.79 of travel resets the stuck check (which wants
+            // 0.6) and stays inside a 1.2 window, so nothing notices that the walk is going nowhere. Times of 96 s
+            // on a nine-cell level were a stance three blocks away that the body never reached. Net displacement
+            // from a fixed reference, which a pace cannot fake: two blocks in twelve seconds or the cell is put
+            // back in the queue and the next sweep picks another stance.
+            if (walkRef == null || ctx.pos().distance(walkRef) > 2.0) {
+                walkRef = ctx.pos().clone();
+                walkSince = ctx.tick;
+            } else if (ctx.tick - walkSince > 240) {
+                walkRef = null;
+                walkStuck++;
+                idx++; retries = 0; standFor = -1;
+                CombatStats.inc("drill.defence.walkstuck");
                 return;
             }
             ctx.nav.goTo(standCache, 0.6, STANCE);
@@ -253,6 +306,7 @@ public final class DefenceBrain extends BaseBrain {
         placer.setNeedSight(true);
         placer.setAvoidInteractive(overBed(c));
         curCell = c;
+        curFromHere = squareHere;
         placer.start(c[0], c[1], c[2], blockFor(c));
         CombatStats.inc("drill.defence.try");
         idx++;
@@ -285,6 +339,9 @@ public final class DefenceBrain extends BaseBrain {
                 + " stand=" + stand + " noStance=" + nullStands + " skipped=" + skips + " fails=" + fails
                 + " lastFail=" + lastFail + " retries=" + retries
                 + " body=" + String.format("%.2f,%.2f,%.2f", ctx.pos().getX(), ctx.pos().getY(), ctx.pos().getZ())
+                + " here=" + hereFailed.size() + (curFromHere ? " sq" : "")
+                + " sf=" + (standFor == idx ? 1 : 0) + " ws=" + walkStuck + " cc=" + (curCell == null ? "-"
+                        : curCell[0] + "," + curCell[1] + "," + curCell[2]) + " q=" + (placer == null ? -1 : placer.queued())
                 + " nav=" + ctx.nav.describe() + " gap=" + String.format("%.2f", standCache == null ? -1
                         : ctx.pos().distance(standCache)));
     }
@@ -304,7 +361,8 @@ public final class DefenceBrain extends BaseBrain {
         double dx = cx - anchorX, dz = cz - anchorZ;
         double len = Math.hypot(dx, dz);
         if (len < 1e-6) { dx = 0; dz = 1; len = 1; }
-        double ux = dx / len, uz = dz / len;
+        final double ux = dx / len, uz = dz / len;
+        final double fcx = cx, fcz = cz;
         java.util.List<org.bukkit.Location> cands = new java.util.ArrayList<org.bukkit.Location>();
         for (int feet : new int[]{c[1] - 1, c[1], c[1] + 1}) {
             // 1.75 rather than 1.35: the stance has to stay clear of the cell by more than the walking tolerance,
@@ -312,29 +370,53 @@ public final class DefenceBrain extends BaseBrain {
         for (double d : new double[]{1.75, 2.4, 3.0}) {
                 cands.add(new org.bukkit.Location(w, cx + ux * d, feet, cz + uz * d));
             }
+            // Nearest column first. The scan used to run ox = -2..2, so the first spot that fitted and had a
+            // floor was two blocks west of the cell whatever the cell was: a ring cell on the east side was built
+            // from a stance on the west side, across the bed, and the walk there and back cost more than the row.
+            // Measured on level one: a 96 s run whose every cell had a stance on the far side of the arena.
+            java.util.List<org.bukkit.Location> near = new java.util.ArrayList<org.bukkit.Location>();
             for (int ox = -2; ox <= 2; ox++) {
                 for (int oz = -2; oz <= 2; oz++) {
                     if (ox == 0 && oz == 0) continue;
-                    cands.add(new org.bukkit.Location(w, c[0] + ox + 0.5, feet, c[2] + oz + 0.5));
+                    near.add(new org.bukkit.Location(w, c[0] + ox + 0.5, feet, c[2] + oz + 0.5));
                 }
             }
+            java.util.Collections.sort(near, new java.util.Comparator<org.bukkit.Location>() {
+                @Override public int compare(org.bukkit.Location a, org.bukkit.Location b) {
+                    double da = Math.hypot(a.getX() - fcx, a.getZ() - fcz);
+                    double db = Math.hypot(b.getX() - fcx, b.getZ() - fcz);
+                    if (Math.abs(da - db) > 1e-6) return Double.compare(da, db);
+                    // same ring: prefer the side the cell faces, which is where a person stands
+                    double oa = (a.getX() - fcx) * ux + (a.getZ() - fcz) * uz;
+                    double ob = (b.getX() - fcx) * ux + (b.getZ() - fcz) * uz;
+                    return Double.compare(ob, oa);
+                }
+            });
+            cands.addAll(near);
         }
-        org.bukkit.Location fallback = null;
+        // The skip-th stance rather than the first. A stance the eye model likes can still be one whose only
+        // visible face fills a different cell, and three identical attempts neither move the body nor learn
+        // anything; stanceMode counts the failures at this cell, so each retry walks to the next usable spot.
+        // Capped at six: the list only needs to be longer than the retries, and each entry costs a ray test.
+        java.util.List<org.bukkit.Location> seeing = new java.util.ArrayList<org.bukkit.Location>();
+        java.util.List<org.bukkit.Location> usable = new java.util.ArrayList<org.bukkit.Location>();
         for (org.bukkit.Location st : cands) {
             int sx = (int) Math.floor(st.getX()), sy = (int) Math.floor(st.getY()), sz = (int) Math.floor(st.getZ());
             boolean fits = net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(sx, sy, sz))
                     && net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(sx, sy + 1, sz));
             boolean floor = !net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(sx, sy - 1, sz));
             if (!fits || !floor) continue;
-            if (fallback == null) fallback = st;
-            if (seesSupport(c, st)) return st;
+            usable.add(st);
+            if (seeing.size() < 6 && seesSupport(c, st)) seeing.add(st);
         }
+        java.util.List<org.bukkit.Location> pool = !seeing.isEmpty() ? seeing : usable;
+        if (!pool.isEmpty()) return pool.get(stanceMode % pool.size());
         // A spot that fits and has a floor but no face in view is still worth trying: the vision model is a model,
         // and refusing it outright left level 3 at 25 of 26 - the innermost cell of the front row was given no
         // stance, skipped, and its neighbours were built over the only face it had (measured: 212 noStance skips
         // and a level that could not be finished). The cell that must not be skipped is the inner one; the sweep
-        // order keeps it first (see the comparator), so a fallback here is a second chance, not a dead end.
-        return fallback;
+        // order keeps it first (see the comparator), so the usable list above is a second chance, not a dead end.
+        return null;
     }
 
     /**
@@ -347,6 +429,10 @@ public final class DefenceBrain extends BaseBrain {
         double dy = ctx.eye().getY() - (c[1] + 0.5);
         if (dx * dx + dy * dy + dz * dz > 3.4 * 3.4) return false;
         return BlockPlacer.findSupport(ctx.world(), c[0], c[1], c[2], ctx.eye(), 4.4, true, null, overBed(c)) != null;
+    }
+
+    private static long cellKey(int[] c) {
+        return ((long) (c[0] + 2048) << 42) | ((long) (c[1] + 2048) << 21) | (long) (c[2] + 2048);
     }
 
     private static double cxOf(int[] c) { return c[0] + 0.5; }
