@@ -139,8 +139,41 @@ public final class Motor {
 
     public int ticksSinceAim() { return ticksSinceAim; }
 
+
+    /**
+     * True when the ground a step ahead is air all the way down: the void, not a drop. A drop of a few blocks is
+     * left alone (the nav graph prices fall damage) and so is anything the bot is standing in the middle of.
+     */
+    private boolean voidAhead() {
+        org.bukkit.Location p = c.position();
+        org.bukkit.World w = p.getWorld();
+        if (w == null) return false;
+        if (forward == 0 && strafe == 0) return false;
+        double rad = Math.toRadians(c.yaw());
+        double fx = -Math.sin(rad), fz = Math.cos(rad);          // yaw 0 faces +z
+        double dx = fx * forward + fz * strafe;                  // right is the perpendicular, in this order
+        double dz = fz * forward - fx * strafe;
+        double len = Math.hypot(dx, dz);
+        if (len < 1e-6) return false;
+        int bx = (int) Math.floor(p.getX() + dx / len * 0.7);
+        int bz = (int) Math.floor(p.getZ() + dz / len * 0.7);
+        int by = (int) Math.floor(p.getY());
+        if (!w.getBlockAt((int) Math.floor(p.getX()), by - 1, (int) Math.floor(p.getZ())).getType().isSolid()) {
+            return false;                                        // already falling: the input is not the problem
+        }
+        for (int dy = 1; dy <= 8; dy++) {
+            if (w.getBlockAt(bx, by - dy, bz).getType().isSolid()) return false;
+        }
+        return true;
+    }
+
     // ---------------------------------------------------------------- apply
     public void flush() {
+        // Walking into the void is the one mistake a player does not make twice. A bot with a target across a gap
+        // used to hold forward and let the ground run out; in one eight-bot game that was thirteen void deaths to
+        // two kills. Cancelling the input at the edge is a floor, not a fix - the bridge path still places blocks
+        // and it sneaks, and sneaking is what exempts a move here. Everything else stops and waits.
+        if (!sneak && voidAhead()) { forward = 0; strafe = 0; net.h2020.api.stats.CombatStats.inc("move.edgeguard"); }
         if (aForward != forward || aStrafe != strafe) { c.setMovement(forward, strafe); aForward = forward; aStrafe = strafe; }
         if (aJump == null || aJump != jump) { c.setJumping(jump); aJump = jump; }
         if (aSneak == null || aSneak != sneak) { c.setSneaking(sneak); aSneak = sneak; }
