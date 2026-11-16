@@ -226,7 +226,13 @@ public final class DefenceBrain extends BaseBrain {
         boolean bodyInCell = Math.abs(ctx.pos().getX() - cxOf(c)) < 0.8
                 && Math.abs(ctx.pos().getZ() - czOf(c)) < 0.8
                 && Math.abs(ctx.pos().getY() - c[1]) < 0.99;
-        if (!indoor && (onCell || !reached || bodyInCell)) {
+        // Already square to a face of this cell: place from where we stand instead of walking to the stance. The
+        // stance is the spot that is guaranteed to be legal; the body's current spot is only as good as the face it
+        // can see from its eye, which is the same test the stance chooser makes. Survey before this: level 4 took
+        // 65.5 s for 35 cells, median 2.0 s between blocks and only 8 of 34 gaps under 600 ms - the bot walked to a
+        // fresh stance for nearly every block of a row a person builds from one spot.
+        boolean squareHere = !onCell && !bodyInCell && seenFromHere(c);
+        if (!indoor && (onCell || (!reached && !squareHere) || bodyInCell)) {
             // A stance the body cannot get to must not eat the run. Six seconds without arriving and the cell goes
             // back into the queue for the next sweep, which re-picks a stance; the alternative is a brain asking to
             // walk to the same unreachable spot until the drill is closed.
@@ -329,6 +335,18 @@ public final class DefenceBrain extends BaseBrain {
         // and a level that could not be finished). The cell that must not be skipped is the inner one; the sweep
         // order keeps it first (see the comparator), so a fallback here is a second chance, not a dead end.
         return fallback;
+    }
+
+    /**
+     * Can this cell be filled from where the body is standing now: near enough that the aim is reliable, and with a
+     * face of a neighbour actually in view. A cell that fails here costs one placement attempt and then the normal
+     * walk, because the placer reports the failure and the retry re-picks the stance.
+     */
+    private boolean seenFromHere(int[] c) {
+        double dx = ctx.pos().getX() - (c[0] + 0.5), dz = ctx.pos().getZ() - (c[2] + 0.5);
+        double dy = ctx.eye().getY() - (c[1] + 0.5);
+        if (dx * dx + dy * dy + dz * dz > 3.4 * 3.4) return false;
+        return BlockPlacer.findSupport(ctx.world(), c[0], c[1], c[2], ctx.eye(), 4.4, true, null, overBed(c)) != null;
     }
 
     private static double cxOf(int[] c) { return c[0] + 0.5; }
