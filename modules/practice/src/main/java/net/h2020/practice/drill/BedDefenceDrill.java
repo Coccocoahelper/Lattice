@@ -90,6 +90,12 @@ public final class BedDefenceDrill implements Drill {
      * level and one removed is gone. Cells are relative to the bed's foot block.
      */
     private void setLevel(int lvl) {
+        // the level being left: its cells that this one does not want have to go with it. clearTarget only knows
+        // the shape it was called for, so a block that was still in flight when the run was recorded lands in a
+        // cell no later level mentions and stays there for the rest of the session. Measured: level 5 stood at
+        // 11 of 12 with 3,65,-1, 2,65,-2 and 3,65,1 in ender stone - all level 4 cells - and the leftover at
+        // 3,65,-1 hid every remaining face of the one cell level 5 still wanted, so the level could not be finished.
+        java.util.Set<Long> leaving = new java.util.HashSet<Long>(target.keySet());
         this.level = Math.max(1, Math.min(BedDefenceTemplates.count(), lvl));
         target.clear();
         for (Object[] c : BedDefenceTemplates.at(this.level)) {
@@ -106,6 +112,12 @@ public final class BedDefenceDrill implements Drill {
             int[] c = unkey(e.getKey());
             Block b = arena.world().getBlockAt(c[0], c[1], c[2]);
             if (b.getType() != Material.AIR && b.getType() != e.getValue()) b.setType(Material.AIR, false);
+        }
+        for (Long k : leaving) {
+            if (target.containsKey(k)) continue;
+            int[] c = unkey(k);
+            Block b = arena.world().getBlockAt(c[0], c[1], c[2]);
+            if (b.getType() != Material.AIR) b.setType(Material.AIR, false);
         }
         buildModel();
         buildBed();
@@ -159,7 +171,16 @@ public final class BedDefenceDrill implements Drill {
                 int[] c = unkey(e.getKey());
                 Material m = arena.world().getBlockAt(c[0], c[1], c[2]).getType();
                 if (m == e.getValue()) anyPlaced = true;
-                else complete = false;
+                else {
+                    complete = false;
+                    // A block of some other material in a target cell cannot be built over: the drill wants this
+                    // one, and nothing takes the wrong one out. Clearing it here, every tick, is what makes the
+                    // stray that lands just after a level switch harmless - the level-start clear cannot see a
+                    // block that is still in flight, and the brain reads a wrong block as "already filled" and
+                    // never touches the cell again. Measured: level 4 at 33 of 35 with 2,65,-1 in wool where the
+                    // template asks for ender stone, sweeping without placing for the rest of the session.
+                    if (m != Material.AIR) arena.world().getBlockAt(c[0], c[1], c[2]).setType(Material.AIR, false);
+                }
             }
             if (complete) {
                 long ms = r[0] > 0 ? (System.currentTimeMillis() - r[0]) : 0;

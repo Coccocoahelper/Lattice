@@ -213,7 +213,12 @@ public final class DefenceBrain extends BaseBrain {
         // Geometrically: are we standing at the stance? Not "did the navigator say it arrived" - that state belongs to
         // whatever goal it was last given, and the brain reads it while the body is six blocks away (measured body
         // -1.38,2.82 with nav=ARRIVED for a stance at 3.5,-1.5).
-        boolean reached = gap <= 0.75;
+        // 1.0, not 0.75: the navigator's own arrival for a stance is "within radius + 0.35", i.e. 0.95, and once it
+        // is arrived it refuses to re-plan a goal it is already inside (goTo returns early). A brain asking for 0.75
+        // therefore waits for a step the navigator will never take: measured at 0.89 gap with nav=ARRIVED, a cell
+        // retried for four sweeps and never attempted. Nothing tighter than the navigator's own tolerance can be
+        // reached by asking; 1.0 is that tolerance with a hair of rounding.
+        boolean reached = gap <= 1.0;
         // The body is 0.6 wide and a block is 1.0: a bot that has drifted to within 0.8 of the cell's centre is
         // standing in the cell it is trying to fill, and neither the client nor the server will place a block inside
         // a player. This is not an aim problem and no number of clicks fixes it (measured: 90 clicks on the correct
@@ -267,7 +272,10 @@ public final class DefenceBrain extends BaseBrain {
         String cell = c == null ? "-" : c[0] + "," + c[1] + "," + c[2];
         String stand = standCache == null ? "-" : (int) Math.floor(standCache.getX()) + ","
                 + (int) Math.floor(standCache.getY()) + "," + (int) Math.floor(standCache.getZ());
+        String cur = placer != null && placer.active()
+                ? placer.targetX() + "," + placer.targetY() + "," + placer.targetZ() : "-";
         org.bukkit.Bukkit.getLogger().info("[defence] cells=" + cells.length + " idx=" + idx + " cell=" + cell
+                + " cur=" + cur
                 + " stand=" + stand + " noStance=" + nullStands + " skipped=" + skips + " fails=" + fails
                 + " lastFail=" + lastFail + " retries=" + retries
                 + " body=" + String.format("%.2f,%.2f,%.2f", ctx.pos().getX(), ctx.pos().getY(), ctx.pos().getZ())
@@ -315,6 +323,11 @@ public final class DefenceBrain extends BaseBrain {
             if (fallback == null) fallback = st;
             if (seesSupport(c, st)) return st;
         }
+        // A spot that fits and has a floor but no face in view is still worth trying: the vision model is a model,
+        // and refusing it outright left level 3 at 25 of 26 - the innermost cell of the front row was given no
+        // stance, skipped, and its neighbours were built over the only face it had (measured: 212 noStance skips
+        // and a level that could not be finished). The cell that must not be skipped is the inner one; the sweep
+        // order keeps it first (see the comparator), so a fallback here is a second chance, not a dead end.
         return fallback;
     }
 

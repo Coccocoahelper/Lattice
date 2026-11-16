@@ -394,7 +394,11 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
                 armed[0] = now;
                 bot.setBrain(bs.bedDefenceBrain(defenceCells(drill), drill.bedX(), drill.bedY(), drill.bedZ()));
             }
-        }.runTaskTimer(plugin, 20L, 10L);
+        // every tick, not every ten: between the drill raising the level and this switch the old brain is still
+        // building the old shape, and a click issued in that gap lands after the clear - the leftovers in cells the
+        // new level never mentions are what bricked level 5 (measured: 1-2 wasted blocks every run, and one run in
+        // which 3,65,-1 hid the last cell's only visible faces). A level comparison is not worth ten ticks of it.
+        }.runTaskTimer(plugin, 20L, 1L);
     }
 
     /**
