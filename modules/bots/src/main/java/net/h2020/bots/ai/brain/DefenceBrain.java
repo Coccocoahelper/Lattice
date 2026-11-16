@@ -394,29 +394,20 @@ public final class DefenceBrain extends BaseBrain {
             });
             cands.addAll(near);
         }
-        // The skip-th stance rather than the first. A stance the eye model likes can still be one whose only
-        // visible face fills a different cell, and three identical attempts neither move the body nor learn
-        // anything; stanceMode counts the failures at this cell, so each retry walks to the next usable spot.
-        // Capped at six: the list only needs to be longer than the retries, and each entry costs a ray test.
-        java.util.List<org.bukkit.Location> seeing = new java.util.ArrayList<org.bukkit.Location>();
-        java.util.List<org.bukkit.Location> usable = new java.util.ArrayList<org.bukkit.Location>();
+        // First stance that has a face in view, else the first that fits at all. Rotating through the candidates on
+        // each failure was tried and reverted: every retry walked to a different spot, the body spent the run
+        // crossing the arena, and two concurrent bots stopped finishing levels altogether.
+        org.bukkit.Location firstUsable = null;
         for (org.bukkit.Location st : cands) {
             int sx = (int) Math.floor(st.getX()), sy = (int) Math.floor(st.getY()), sz = (int) Math.floor(st.getZ());
             boolean fits = net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(sx, sy, sz))
                     && net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(sx, sy + 1, sz));
             boolean floor = !net.h2020.bots.ai.world.Shape.passable(ctx.world().shape(sx, sy - 1, sz));
             if (!fits || !floor) continue;
-            usable.add(st);
-            if (seeing.size() < 6 && seesSupport(c, st)) seeing.add(st);
+            if (firstUsable == null) firstUsable = st;
+            if (seesSupport(c, st)) return st;
         }
-        java.util.List<org.bukkit.Location> pool = !seeing.isEmpty() ? seeing : usable;
-        if (!pool.isEmpty()) return pool.get(stanceMode % pool.size());
-        // A spot that fits and has a floor but no face in view is still worth trying: the vision model is a model,
-        // and refusing it outright left level 3 at 25 of 26 - the innermost cell of the front row was given no
-        // stance, skipped, and its neighbours were built over the only face it had (measured: 212 noStance skips
-        // and a level that could not be finished). The cell that must not be skipped is the inner one; the sweep
-        // order keeps it first (see the comparator), so the usable list above is a second chance, not a dead end.
-        return null;
+        return firstUsable;
     }
 
     /**
