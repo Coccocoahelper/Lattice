@@ -163,13 +163,25 @@ public final class Motor {
         int bx = (int) Math.floor(p.getX() + dx / len * 0.7);
         int bz = (int) Math.floor(p.getZ() + dz / len * 0.7);
         int by = (int) Math.floor(p.getY());
-        if (!w.getBlockAt((int) Math.floor(p.getX()), by - 1, (int) Math.floor(p.getZ())).getType().isSolid()) {
-            return false;                                        // already falling: the input is not the problem
-        }
+        if (!supported(w, p, by - 1)) return false;               // already falling: the input is not the problem
         for (int dy = 1; dy <= 8; dy++) {
             if (w.getBlockAt(bx, by - dy, bz).getType().isSolid()) return false;
         }
         return true;
+    }
+
+    /**
+     * Is any block of the body's footprint under it? The old test asked the block under the centre point, and a
+     * 0.6-wide body standing on the last centimetres of a block has its centre already over the next cell: the guard
+     * read "air below" and disarmed for exactly the half-step it exists to stop. The fall trails show the body
+     * leaving at x=56.75 on a block whose cell is 57 - supported by 0.05 of its width, centre over the void.
+     */
+    private static boolean supported(org.bukkit.World w, org.bukkit.Location p, int by) {
+        int x0 = (int) Math.floor(p.getX() - 0.29), x1 = (int) Math.floor(p.getX() + 0.29);
+        int z0 = (int) Math.floor(p.getZ() - 0.29), z1 = (int) Math.floor(p.getZ() + 0.29);
+        for (int x = x0; x <= x1; x++) for (int z = z0; z <= z1; z++)
+            if (w.getBlockAt(x, by, z).getType().isSolid()) return true;
+        return false;
     }
 
     // ---------------------------------------------------------------- apply

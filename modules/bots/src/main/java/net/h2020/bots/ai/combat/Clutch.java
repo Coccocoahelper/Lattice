@@ -259,7 +259,10 @@ final class Clutch {
         // one steady aim target (every new target restarts the hand's reaction): the outer face of the edge we fell
         // from, and from there outward along the blocks we place (a chain) / one block down when we drop past it
         if (aimPt == null) {
-            if (!edgeTarget(p, wv)) {
+            // The lip is only a target while the body is still level with the floor it left. One tick later that
+            // face is above the eyes, and re-picking it every tick is a loop that never looks anywhere else.
+            boolean lipReachable = p.getY() + Math.min(0, ctx.c.velocity().getY()) >= floor(groundY - 0.01) + 1 - 0.02;
+            if (!lipReachable || !edgeTarget(p, wv)) {
                 if (ctx.tick - pickTick >= 1) pickCell(p, wv, eye);
                 if (aimPt == null && ctx.tick % 4 == 0) CombatStats.log(name() + " no edge face ground=" + fmt(groundX) + "," + fmt(groundY) + "," + fmt(groundZ));
             }
@@ -269,8 +272,15 @@ final class Clutch {
             if (Shape.passable(wv.shape(nx, ty, nz))) setTarget(tx, ty, tz, nx, ty, nz);
         } else if (p.getY() + Math.min(0, ctx.c.velocity().getY()) < ty + 1 - 0.02) {
             // dropped past it: the same column one block lower, if the island goes down that far
-            if (Shape.floor(wv.shape(tx - dirX, ty - 1, tz - dirZ)) && Shape.passable(wv.shape(tx, ty - 1, tz)))
+            if (Shape.floor(wv.shape(tx - dirX, ty - 1, tz - dirZ)) && Shape.passable(wv.shape(tx, ty - 1, tz))) {
                 setTarget(tx - dirX, ty - 1, tz - dirZ, tx, ty - 1, tz);
+            } else {
+                // nothing under the lip any more: drop the target so the next tick looks again. Holding an aim the
+                // body has fallen past is how a fall spends its last twenty ticks looking at a face it cannot reach.
+                aimPt = null;
+                support = null;
+                CombatStats.inc("clutch.stale");
+            }
         }
         if (aimPt != null) ctx.motor.aimPoint(Motor.P_FLICK + 5, aimPt, AimIntent.FLICK, 0.6);
         Block tb = ctx.c.targetedBlock();
@@ -326,6 +336,39 @@ final class Clutch {
             support = (Block) s0[0];
             pickTick = ctx.tick;
             CombatStats.inc("clutch.below");
+            return;
+        }
+
+        // A fall down the side of anything solid (an island, a tower, the bridge we just left) still has a wall in
+        // reach, and the clutch a person makes in that fall is against that wall, not against the lip overhead: aim
+        // at a side face one level under the feet and click. The lip search above only helps while the body is still
+        // level with the floor it fell from - a two-tick window; measured over one session it was 212 tries and one
+        // block placed. This asks the same question at the level the body is at now, which is where a fall spends
+        // its whole life.
+        int bodyY = floor(p.getY());
+        Object[] wall = null;
+        double wallBest = Double.MAX_VALUE;
+        for (int dy = 1; dy <= 3 && wall == null; dy++) {
+            int cell = bodyY - dy;
+            for (int dx = -1; dx <= 1; dx++) for (int dz = -1; dz <= 1; dz++) {
+                int x = ux + dx, z = uz + dz;
+                if (!Shape.passable(wv.shape(x, cell, z))) continue;
+                Object[] s0 = BlockPlacer.findSupport(wv, x, cell, z, eye, 4.4, true);
+                if (s0 == null) continue;
+                double d = Math.abs(x + 0.5 - p.getX()) + Math.abs(z + 0.5 - p.getZ()) + 0.35 * dy;
+                if (d < wallBest) { wallBest = d; wall = new Object[]{s0, x, cell, z}; }
+            }
+        }
+        if (wall != null) {
+            Object[] s0 = (Object[]) wall[0];
+            support = (Block) s0[0];
+            face = (BlockFace) s0[1];
+            aimPt = (Location) s0[2];
+            tx = (Integer) wall[1]; ty = (Integer) wall[2]; tz = (Integer) wall[3];
+            dirX = face.getModX(); dirZ = face.getModZ();
+            pickTick = ctx.tick;
+            CombatStats.inc("clutch.wall");
+            CombatStats.log(name() + " wall " + tx + "," + ty + "," + tz + " on " + face + " " + where());
             return;
         }
         Vector v = ctx.c.velocity();
