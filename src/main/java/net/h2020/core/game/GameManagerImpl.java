@@ -141,6 +141,8 @@ public final class GameManagerImpl implements GameManager, Listener {
                     ? HypixelFormat.bedwarsId(1 + r.nextInt(399), HypixelFormat.randomLetter())
                     : family == GameFamily.PRACTICE
                     ? "prac" + (1 + r.nextInt(98)) + HypixelFormat.randomLetter()
+                    : family == GameFamily.DUELS
+                    ? HypixelFormat.duelsId(1 + r.nextInt(299), HypixelFormat.randomLetter())
                     : HypixelFormat.skywarsId(1 + r.nextInt(249), HypixelFormat.randomLetter());
             if (usedIds.add(id)) return id;
         }

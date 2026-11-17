@@ -285,6 +285,10 @@ public final class BotAI {
             BotBrain nb = null;
             if (g.type().family() == GameFamily.BEDWARS && g instanceof BedwarsView) nb = new BedwarsBrain((BedwarsView) g);
             else if (g.type().family() == GameFamily.SKYWARS && g instanceof SkywarsView) nb = new SkywarsBrain((SkywarsView) g);
+            // a duel is a fight with nothing else in it, which is the arena brain exactly: no bed, no chore, no
+            // objective, just the nearest other fighter. Without this branch a duels bot was handed a LobbyBrain and
+            // stood at its spawn pad for the whole round.
+            else if (g.type().family() == GameFamily.DUELS) nb = new net.h2020.bots.ai.brain.ArenaBrain();
             if (nb != null) { b.setBrain(nb); return; }
             if (cur instanceof LobbyBrain) return;
             b.setBrain(new LobbyBrain());

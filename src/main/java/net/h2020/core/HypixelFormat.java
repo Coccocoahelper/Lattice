@@ -47,6 +47,8 @@ public final class HypixelFormat {
     public static String bedwarsId(int number, char letter) { return "mini" + number + letter; }
     /** SkyWars instance id, e.g. "m45C". */
     public static String skywarsId(int number, char letter) { return "m" + number + letter; }
+    /** Duels instance id, e.g. "duel12A". */
+    public static String duelsId(int number, char letter) { return "duel" + number + letter; }
     /** Lobby server id, e.g. "L3A" (main), "L12B"... */
     public static String lobbyId(int number, char letter) { return "L" + number + letter; }
 

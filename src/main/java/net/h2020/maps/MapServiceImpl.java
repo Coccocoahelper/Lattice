@@ -617,6 +617,7 @@ public final class MapServiceImpl implements MapService {
     public List<MapTemplate> templates(GameFamily family) {
         List<MapTemplate> l = new ArrayList<MapTemplate>();
         for (StoredMapTemplate t : templates.values()) if (family == null || t.family == family) l.add(t);
+        for (MapTemplate t : virtual.values()) if (family == null || t.family() == family) l.add(t);
         return Collections.unmodifiableList(l);
     }
 
@@ -627,6 +628,8 @@ public final class MapServiceImpl implements MapService {
         List<String> off = disabledTags();
         for (StoredMapTemplate t : templates.values())
             if (t.family == type.family() && t.teamCounts.contains(type.teams()) && !taggedOff(t, off)) l.add(t);
+        for (MapTemplate t : virtual.values())
+            if (t.family() == type.family() && t.supportedTeamCounts().contains(type.teams())) l.add(t);
         return Collections.unmodifiableList(l);
     }
 
@@ -677,6 +680,8 @@ public final class MapServiceImpl implements MapService {
         if (name == null) return null;
         StoredMapTemplate t = templates.get(name.toLowerCase(Locale.ROOT));
         if (t != null) return t;
+        MapTemplate v = virtual.get(name.toLowerCase(Locale.ROOT));
+        if (v != null) return v;
         for (StoredMapTemplate s : templates.values())
             if (s.folder.getName().equalsIgnoreCase(name) || s.name.replace(" ", "").equalsIgnoreCase(name.replace(" ", "").replace("_", "")))
                 return s;
@@ -695,6 +700,20 @@ public final class MapServiceImpl implements MapService {
         World w = family == GameFamily.BEDWARS ? bedwarsLobby : skywarsLobby;
         if (w != null && Bukkit.getWorld(w.getUID()) == null) w = null;
         return w != null ? w : mainLobby();
+    }
+
+    /** Templates with no folder (a family that builds its arenas in code), kept apart from the disk-loaded ones. */
+    private final Map<String, MapTemplate> virtual = new LinkedHashMap<String, MapTemplate>();
+
+    @Override
+    public void registerTemplate(MapTemplate template) {
+        if (template == null || template.name() == null) return;
+        virtual.put(template.name().toLowerCase(Locale.ROOT), template);
+    }
+
+    @Override
+    public void unregisterTemplate(MapTemplate template) {
+        if (template != null && template.name() != null) virtual.remove(template.name().toLowerCase(Locale.ROOT));
     }
 
     @Override

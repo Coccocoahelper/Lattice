@@ -91,7 +91,12 @@ public final class NpcManager implements Listener, PacketHub.Listener {
             new Spec("sw_solo_normal", GameFamily.SKYWARS, null, GameType.SKYWARS_SOLO_NORMAL, "SOLO NORMAL", -4.5, 6),
             new Spec("sw_solo_insane", GameFamily.SKYWARS, null, GameType.SKYWARS_SOLO_INSANE, "SOLO INSANE", -1.5, 6.5),
             new Spec("sw_teams_normal", GameFamily.SKYWARS, null, GameType.SKYWARS_TEAMS_NORMAL, "TEAMS NORMAL", 1.5, 6.5),
-            new Spec("sw_teams_insane", GameFamily.SKYWARS, null, GameType.SKYWARS_TEAMS_INSANE, "TEAMS INSANE", 4.5, 6));
+            new Spec("sw_teams_insane", GameFamily.SKYWARS, null, GameType.SKYWARS_TEAMS_INSANE, "TEAMS INSANE", 4.5, 6),
+            new Spec("duels", null, GameFamily.DUELS, null, "DUELS", 0, 6),
+            new Spec("duels_classic", GameFamily.DUELS, null, null, "CLASSIC", -3, 6),
+            new Spec("duels_sumo", GameFamily.DUELS, null, null, "SUMO", 0, 6),
+            new Spec("duels_boxing", GameFamily.DUELS, null, null, "BOXING", 3, 6),
+            new Spec("duels_nodebuff", GameFamily.DUELS, null, null, "NODEBUFF", 6, 6));
 
     private final Core core;
     private final List<Live> live = new ArrayList<>();
@@ -391,7 +396,12 @@ public final class NpcManager implements Listener, PacketHub.Listener {
             @Override public void run() {
                 if (!player.isOnline()) return;
                 if (l.spec.mode != null) core.games.queue(player, l.spec.mode);
-                else core.lobby.connectFamily(player, l.spec.target);
+                else if (l.spec.target == GameFamily.DUELS && l.spec.id.startsWith("duels_")) {
+                    net.h2020.api.game.GameMode m = net.h2020.api.game.GameModes.byId(
+                            l.spec.id.toLowerCase(java.util.Locale.ROOT));
+                    if (m != null) core.games.queue(player, m);
+                    else core.lobby.connectFamily(player, GameFamily.DUELS);
+                } else core.lobby.connectFamily(player, l.spec.target);
             }
         };
         // always defer: bots dispatch on the main thread from inside their packet loop, and queue()/teleport must

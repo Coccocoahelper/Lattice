@@ -26,7 +26,9 @@ public final class LobbySidebars {
     public void update(Player p, GameFamily family) {
         ProfileData d = core.profiles.data(p);
         String board = family == null ? "main"
-                : family == GameFamily.BEDWARS ? "bedwars-lobby" : "skywars-lobby";
+                : family == GameFamily.BEDWARS ? "bedwars-lobby"
+                : family == GameFamily.DUELS ? "duels-lobby"
+                : "skywars-lobby";
         SidebarTemplate t = Sidebars.get(board);
         if (t == null) {
             // no board in sidebar.yml: keep the hard-coded layout
@@ -36,6 +38,7 @@ public final class LobbySidebars {
                 // title comes from the family profile, so network.yml can rename a lobby without touching this class
                 String title = net.h2020.api.game.Families.of(family).colouredSidebarTitle();
                 if (family == GameFamily.BEDWARS) core.scoreboards.setSidebar(p, title, bedwars(d));
+                else if (family == GameFamily.DUELS) core.scoreboards.setSidebar(p, title, duels(d));
                 else core.scoreboards.setSidebar(p, title, skywars(d));
             }
             return;
@@ -105,6 +108,21 @@ public final class LobbySidebars {
         l.add("Hypixel Level: " + ChatColor.GREEN + d.networkLevel);
         l.add("Lobby: " + ChatColor.GREEN + "#" + d.lobbyNumber);
         l.add("Players: " + ChatColor.GREEN + HypixelFormat.commas(core.counts.network()));
+        l.add("");
+        l.add(WWW);
+        return l;
+    }
+
+    /** The duels lobby: no kits to show, so the board leads with how a duel is started. */
+    private List<String> duels(ProfileData d) {
+        List<String> l = new ArrayList<String>();
+        l.add(HypixelFormat.dateLine("duels"));
+        l.add("");
+        l.add(ChatColor.WHITE + "Duels:");
+        l.add(ChatColor.GREEN + "  8 modes, 1v1");
+        l.add("");
+        l.add(ChatColor.WHITE + "Click an NPC");
+        l.add(ChatColor.GREEN + "  or /duel <player>");
         l.add("");
         l.add(WWW);
         return l;

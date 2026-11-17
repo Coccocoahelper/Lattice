@@ -74,6 +74,7 @@ public final class BotQueueFiller implements Runnable {
                 if (g.privateCode() != null) continue;
                 int size = g.players().size() + pending(g), max = g.type().maxPlayers();
                 if (size >= max) continue;
+                if (g.type().family() == net.h2020.api.game.GameFamily.DUELS) { fillDuelInstantly(bs, g); continue; }
                 FillState st = states.get(g.id());
                 if (st == null) {
                     double target = rand(config.fillMinSeconds, config.fillMaxSeconds) / config.fillSpeed;
@@ -184,6 +185,17 @@ public final class BotQueueFiller implements Runnable {
             if (s != null) return s;
         } catch (Throwable ignored) {}
         return w != null ? w.getSpawnLocation() : Bukkit.getWorlds().get(0).getSpawnLocation();
+    }
+
+    /**
+     * A duels game needs exactly one opponent. The generic filler trickles bots in with human timings, which is right
+     * for a sixteen-player match and wrong for a two-player one: a duel that waits twenty seconds for its opponent is
+     * a duel nobody plays. The second seat is filled at once.
+     */
+    private void fillDuelInstantly(BotService bs, Game g) {
+        if (g.type().family() != net.h2020.api.game.GameFamily.DUELS) return;
+        if (g.players().size() + pending(g) >= g.type().maxPlayers()) return;
+        spawnInto(bs, g);
     }
 
     /** Keep N bot-only games alive. */

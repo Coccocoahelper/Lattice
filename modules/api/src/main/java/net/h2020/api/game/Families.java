@@ -16,6 +16,7 @@ public final class Families {
     static {
         MAP.put(GameFamily.BEDWARS, new FamilyProfile(GameFamily.BEDWARS, "BED WARS", "Play Bed Wars", "BED WARS", Material.BED));
         MAP.put(GameFamily.SKYWARS, new FamilyProfile(GameFamily.SKYWARS, "SKYWARS", "Play SkyWars", "SKYWARS", Material.EYE_OF_ENDER));
+        MAP.put(GameFamily.DUELS, new FamilyProfile(GameFamily.DUELS, "DUELS", "Play Duels", "DUELS", Material.IRON_SWORD));
     }
 
     private Families() {}

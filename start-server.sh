@@ -84,7 +84,7 @@ for stale in "$RUN/plugins/Hypixel2020.jar" "$RUN/plugins"/h2020-*.jar; do
   echo "Moved stale $(basename "$stale") to plugins/disabled/"
 done
 
-for name in Lattice bots bedwars skywars replay practice; do
+for name in Lattice bots bedwars skywars replay practice duels; do
   jar="$name.jar"
   [ "$name" = "Lattice" ] || jar="lattice-$name.jar"
   src=""

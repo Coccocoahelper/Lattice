@@ -25,4 +25,14 @@ public interface MapService {
     int convertToSlime(String mapName);
     /** Map names that have a slime copy, so games and replays can be given their own world. */
     List<String> slimeMaps();
+
+    /**
+     * A template with no folder behind it, for a family that builds its arena in code (duels). It shows up in
+     * templates()/templatesFor()/byName() like any map, so the queue, the admin commands and the menus work
+     * unchanged; its createInstance() is the family's own business.
+     */
+    default void registerTemplate(MapTemplate template) { }
+
+    /** Remove a template registered with {@link #registerTemplate}. */
+    default void unregisterTemplate(MapTemplate template) { }
 }

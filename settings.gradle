@@ -11,3 +11,5 @@ include 'replay'
 project(':replay').projectDir = file('modules/replay')
 include 'practice'
 project(':practice').projectDir = file('modules/practice')
+include 'duels'
+project(':duels').projectDir = file('modules/duels')

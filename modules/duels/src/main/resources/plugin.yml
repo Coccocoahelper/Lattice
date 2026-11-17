@@ -1,0 +1,10 @@
+name: LatticeDuels
+version: 1.0.0
+main: net.h2020.duels.DuelsPlugin
+api-version: 1.8
+depend: [Lattice]
+commands:
+  duel:
+    description: Challenge a player to a duel
+    usage: /duel <player> [mode]
+    aliases: [duels]
