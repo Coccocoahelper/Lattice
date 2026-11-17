@@ -815,48 +815,13 @@ public final class ReplayViewer {
         return it;
     }
 
-    /** The browser: every recorded game, newest first, click to watch. */
+    /**
+     * The replay browser the lobby's game menu opens. It is the same menu {@code /replay} opens, so there is one
+     * browser and not two: the old one here listed forty-five recordings with no filters, no paging and no sort, while
+     * the command had all three - and a player who reached replays from the compass got the worse of the two.
+     */
     public static void openBrowser(Player p) {
-        File dir = Recorder.dir();
-        File[] files = dir == null ? null : dir.listFiles();
-        java.util.List<File> list = new ArrayList<File>();
-        if (files != null) for (File f : files) if (f.getName().endsWith(".jsonl")) list.add(f);
-        list.sort(new java.util.Comparator<File>() {
-            @Override public int compare(File a, File b) { return Long.compare(b.lastModified(), a.lastModified()); }
-        });
-        net.h2020.api.gui.Menu menu = new net.h2020.api.gui.Menu(ChatColor.DARK_GRAY + "Replays", 6);
-        int slot = 0;
-        for (final File f : list) {
-            if (slot >= 45) break;
-            final String id = f.getName().replace(".jsonl", "");
-            String line1 = null;
-            try {
-                BufferedReader r = new BufferedReader(new FileReader(f));
-                try { line1 = r.readLine(); } finally { r.close(); }
-            } catch (Throwable ignored) { }
-            String map = line1 == null ? "?" : field(line1, "map");
-            String mode = modeName(line1 == null ? null : field(line1, "type"));
-            menu.set(slot++, new net.h2020.api.gui.ItemBuilder(org.bukkit.Material.MAP)
-                    .name(ChatColor.GREEN + id)
-                    .lore(ChatColor.GRAY + "Mode: " + ChatColor.WHITE + mode,
-                            ChatColor.GRAY + "Map: " + ChatColor.WHITE + map,
-                            ChatColor.GRAY + "Size: " + ChatColor.WHITE + (f.length() / 1024) + " KB",
-                            ChatColor.GRAY + "Recorded: " + ChatColor.WHITE
-                                    + new java.text.SimpleDateFormat("dd MMM HH:mm").format(new java.util.Date(f.lastModified())),
-                            "", ChatColor.YELLOW + "Click to watch")
-                    .build(), new net.h2020.api.gui.Menu.Click() {
-                @Override public void click(Player who, org.bukkit.event.inventory.ClickType type) {
-                    who.closeInventory();
-                    start(who, id, 1.0);
-                }
-            });
-        }
-        if (slot == 0) {
-            menu.set(22, new net.h2020.api.gui.ItemBuilder(org.bukkit.Material.BARRIER)
-                    .name(ChatColor.RED + "No recordings yet")
-                    .lore(ChatColor.GRAY + "Games are recorded automatically").build());
-        }
-        menu.open(p);
+        ReplayMenu.open(p);
     }
 
     private static ChatColor teamColor(String team) {
