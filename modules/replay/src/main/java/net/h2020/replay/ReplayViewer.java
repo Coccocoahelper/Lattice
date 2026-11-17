@@ -176,7 +176,28 @@ public final class ReplayViewer {
 
     public static void command(CommandSender s, String[] a) {
         String sub = a.length > 1 ? a[1].toLowerCase() : "list";
-        if (sub.equals("list")) { list(s, a.length > 2 ? a[2] : null); return; }
+        if (sub.equals("menudump")) {          // console: prove the GUI contents without a client
+            Player who = a.length > 2 ? Bukkit.getPlayerExact(a[2]) : null;
+            if (who == null) { s.sendMessage(ChatColor.RED + "menudump <player> [family] [page]"); return; }
+            String fam = a.length > 3 ? a[3].toLowerCase(java.util.Locale.ROOT) : "all";
+            int page = 1;
+            if (a.length > 4) { try { page = Math.max(1, Integer.parseInt(a[4])); } catch (NumberFormatException ignored) { } }
+            for (String line : ReplayMenu.describe(who, page - 1, fam, false))
+                s.sendMessage(ChatColor.GRAY + line);
+            return;
+        }
+        if (sub.equals("menu") || sub.equals("gui") || sub.equals("browse")) {
+            if (s instanceof Player) { ReplayMenu.open((Player) s); }
+            else net.h2020.api.core.Messages.send(s, "replay.replayviewer.replays-are-watched-in");
+            return;
+        }
+        if (sub.equals("list")) {
+            // a player with no filter argument gets the browseable menu, the way Hypixel's /games opens one; the
+            // console always gets the text list, because there is no inventory to open
+            if (a.length <= 2 && s instanceof Player) { ReplayMenu.open((Player) s); return; }
+            list(s, a.length > 2 ? a[2] : null);
+            return;
+        }
         if (sub.equals("find")) { list(s, a.length > 2 ? a[2] : null); return; }
         if (sub.equals("verify")) {          // console-friendly: parse + build the world, no viewer needed
             if (a.length < 3) { net.h2020.api.core.Messages.send(s, "replay.replayviewer.h2020-replay-verify-gameid"); return; }
@@ -1169,6 +1190,12 @@ public final class ReplayViewer {
     }
 
     /** Human name for a game type id, the way the lobby menu shows it. */
+    /** modeName for the menu, which lives in its own class. */
+    public static String modeNamePublic(String id) { return modeName(id); }
+
+    /** Start a replay from the menu: the same path /replay start takes, at normal speed. */
+    public static void startFromMenu(Player p, String gameId) { start(p, gameId, 1.0); }
+
     private static String modeName(String id) {
         if (id == null) return "?";
         net.h2020.api.game.GameMode mode = net.h2020.api.game.GameModes.byId(id);
