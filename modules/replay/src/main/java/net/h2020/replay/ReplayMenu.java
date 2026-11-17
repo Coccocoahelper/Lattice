@@ -81,7 +81,7 @@ public final class ReplayMenu {
                     + (e.map == null ? "" : " on " + e.map) + " players=" + e.players);
         }
         int bar = PER_PAGE;
-        out.add("bar: filters bedwars,skywars,duels,practice,all | prev,next | sort | close");
+        out.add("bar: [compass: mode=" + family + " -> " + familyLore(family) + "] prev,next | sort | close");
         return out;
     }
 
@@ -90,6 +90,19 @@ public final class ReplayMenu {
         View v = VIEWS.get(p.getUniqueId());
         if (v == null) { v = new View(); VIEWS.put(p.getUniqueId(), v); }
         show(p, v);
+    }
+
+    /** The one-item filter's tooltip as text, so the console self-check can prove the colours and order. */
+    static String familyLore(String family) {
+        String[] ids = {"all", "bedwars", "skywars", "duels", "practice"};
+        String[] names = {"All games", "Bed Wars", "SkyWars", "Duels", "Practice"};
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < ids.length; i++) {
+            if (b.length() > 0) b.append(", ");
+            boolean on = ids[i].equals(family);
+            b.append(on ? "GREEN(" + names[i] + ")" : names[i]);
+        }
+        return b.toString();
     }
 
     /** The filter a player last chose, for {@code /replay list} to agree with the menu. */
@@ -126,26 +139,25 @@ public final class ReplayMenu {
         }
 
         int bar = PER_PAGE;                                   // row six
-        // filters: one per family, the active one glowing
-        m.set(bar + 0, filterItem(Material.BED, "Bed Wars", "bedwars".equals(v.family)), new Menu.Click() {
-            @Override public void click(Player c, org.bukkit.event.inventory.ClickType t) { pick(c, v, "bedwars"); }
-        });
-        m.set(bar + 1, filterItem(Material.EYE_OF_ENDER, "SkyWars", "skywars".equals(v.family)), new Menu.Click() {
-            @Override public void click(Player c, org.bukkit.event.inventory.ClickType t) { pick(c, v, "skywars"); }
-        });
-        m.set(bar + 2, filterItem(Material.IRON_SWORD, "Duels", "duels".equals(v.family)), new Menu.Click() {
-            @Override public void click(Player c, org.bukkit.event.inventory.ClickType t) { pick(c, v, "duels"); }
-        });
-        m.set(bar + 3, filterItem(Material.SANDSTONE, "Practice", "practice".equals(v.family)), new Menu.Click() {
-            @Override public void click(Player c, org.bukkit.event.inventory.ClickType t) { pick(c, v, "practice"); }
-        });
-        m.set(bar + 4, filterItem(Material.CHEST, "All games", "all".equals(v.family)), new Menu.Click() {
-            @Override public void click(Player c, org.bukkit.event.inventory.ClickType t) { pick(c, v, "all"); }
+        // One filter item, listing every family in its tooltip: the active one in green, the rest grey. Five separate
+        // items showed the same information but cost four slots and made the selected one read as a different button
+        // rather than as a choice inside one control.
+        m.set(bar + 0, familyItem(v.family), new Menu.Click() {
+            @Override public void click(Player c, org.bukkit.event.inventory.ClickType t) {
+                // cycle: all -> bedwars -> skywars -> duels -> practice -> all. Left click forward, right click back.
+                String[] order = {"all", "bedwars", "skywars", "duels", "practice"};
+                int at = 0;
+                for (int i = 0; i < order.length; i++) if (order[i].equals(v.family)) at = i;
+                at += t.isRightClick() ? order.length - 1 : 1;
+                v.family = order[at % order.length];
+                v.page = 0;
+                show(c, v);
+            }
         });
 
         // paging
         if (v.page > 0) {
-            m.set(bar + 5, new ItemBuilder(Material.ARROW).name(ChatColor.GREEN + "Previous page")
+            m.set(bar + 4, new ItemBuilder(Material.ARROW).name(ChatColor.GREEN + "Previous page")
                     .lore(ChatColor.GRAY + "Page " + v.page + " of " + pages).build(), new Menu.Click() {
                 @Override public void click(Player c, org.bukkit.event.inventory.ClickType t) {
                     v.page--; show(c, v);
@@ -153,7 +165,7 @@ public final class ReplayMenu {
             });
         }
         if (v.page < pages - 1) {
-            m.set(bar + 6, new ItemBuilder(Material.ARROW).name(ChatColor.GREEN + "Next page")
+            m.set(bar + 5, new ItemBuilder(Material.ARROW).name(ChatColor.GREEN + "Next page")
                     .lore(ChatColor.GRAY + "Page " + (v.page + 2) + " of " + pages).build(), new Menu.Click() {
                 @Override public void click(Player c, org.bukkit.event.inventory.ClickType t) {
                     v.page++; show(c, v);
@@ -161,7 +173,7 @@ public final class ReplayMenu {
             });
         }
         // sort
-        m.set(bar + 7, new ItemBuilder(Material.WATCH)
+        m.set(bar + 6, new ItemBuilder(Material.WATCH)
                 .name(ChatColor.YELLOW + "Sort: " + ChatColor.WHITE + (v.oldestFirst ? "Oldest first" : "Newest first"))
                 .lore(ChatColor.GRAY + "Click to flip the order").build(), new Menu.Click() {
             @Override public void click(Player c, org.bukkit.event.inventory.ClickType t) {
@@ -181,12 +193,34 @@ public final class ReplayMenu {
         show(p, v);
     }
 
-    private static org.bukkit.inventory.ItemStack filterItem(Material icon, String label, boolean active) {
-        ItemBuilder b = new ItemBuilder(icon)
-                .name((active ? ChatColor.GREEN : ChatColor.GRAY) + label)
-                .lore(active ? ChatColor.GREEN + "Showing only " + label : ChatColor.GRAY + "Click to show " + label);
-        if (active) b.glow();
-        return b.build();
+    /**
+     * The one filter control. Its tooltip carries every family on its own line - the active one in green, the rest in
+     * grey - so the whole set of choices is visible without opening anything, and the item itself names the current
+     * choice.
+     */
+    private static org.bukkit.inventory.ItemStack familyItem(String family) {
+        String[][] families = {
+                {"all", "All games"},
+                {"bedwars", "Bed Wars"},
+                {"skywars", "SkyWars"},
+                {"duels", "Duels"},
+                {"practice", "Practice"},
+        };
+        List<String> lore = new ArrayList<String>();
+        lore.add(ChatColor.GRAY + "Game mode:");
+        for (String[] f : families) {
+            boolean on = f[0].equals(family);
+            lore.add((on ? ChatColor.GREEN + " > " : ChatColor.GRAY + "   ") + f[1]);
+        }
+        lore.add("");
+        lore.add(ChatColor.YELLOW + "Left click" + ChatColor.GRAY + " for the next mode");
+        lore.add(ChatColor.YELLOW + "Right click" + ChatColor.GRAY + " for the previous one");
+        String label = "All games";
+        for (String[] f : families) if (f[0].equals(family)) label = f[1];
+        return new ItemBuilder(Material.COMPASS)
+                .name(ChatColor.WHITE + "Game mode: " + ChatColor.GREEN + label)
+                .lore(lore)
+                .build();
     }
 
     /** The item for one recording: mode icon, id as the title, then map, players, age and the hint. */
