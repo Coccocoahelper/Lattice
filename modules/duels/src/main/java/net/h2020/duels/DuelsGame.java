@@ -149,6 +149,7 @@ public final class DuelsGame implements Game {
         p.setAllowFlight(false);
         p.setFlying(false);
         DuelsKit.apply(mode, p);
+        DuelsKit.effects(mode, p);
         p.sendMessage(ChatColor.YELLOW + "You joined " + ChatColor.AQUA + ChatColor.BOLD + mode.displayName()
                 + ChatColor.YELLOW + " duel " + ChatColor.GRAY + "(" + order.size() + "/2)");
         updateBoards();
@@ -271,8 +272,28 @@ public final class DuelsGame implements Game {
             p.teleport(pads.get(i == 0 ? 0 : Math.min(1, pads.size() - 1)));
             p.setGameMode(org.bukkit.GameMode.SURVIVAL);
             DuelsKit.apply(mode, p);
+            DuelsKit.effects(mode, p);
             p.setHealth(p.getMaxHealth());
+            // log immediately after the kit, before anything else can touch the inventory
+
             if (keepsHungerFull()) { p.setFoodLevel(20); p.setSaturation(5f); }
+        }
+        // one line per round, so the kit is checkable without a client: armour, speed, hunger
+        for (Player p : ps) {
+            try {
+                org.bukkit.inventory.ItemStack[] armour = p.getInventory().getArmorContents();
+                int worn = 0;
+                if (armour != null) for (org.bukkit.inventory.ItemStack i : armour)
+                    if (i != null && i.getType() != org.bukkit.Material.AIR) worn++;
+                org.bukkit.potion.PotionEffect sp = null;
+                for (org.bukkit.potion.PotionEffect pe : p.getActivePotionEffects())
+                    if (pe.getType() == org.bukkit.potion.PotionEffectType.SPEED) sp = pe;
+                // a bot body does not report its own effects through getActivePotionEffects reliably, so the number
+                // below is corroborated by the duels.speed.applied counter rather than trusted alone
+                module.plugin().getLogger().info("[duels] kit " + p.getName() + " id=" + mode.id() + " mode=" + mode.displayName()
+                        + " armour=" + worn + " speed=" + (sp == null ? "none" : sp.getAmplifier() + "/" + sp.getDuration())
+                        + " food=" + p.getFoodLevel());
+            } catch (Throwable ignored) { }
         }
         for (Player p : ps) {
             p.playSound(p.getLocation(), Sound.ENDERDRAGON_GROWL, 0.4f, 1.4f);

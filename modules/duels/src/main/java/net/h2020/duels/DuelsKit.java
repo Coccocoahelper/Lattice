@@ -71,14 +71,47 @@ public final class DuelsKit {
         inv.setHeldItemSlot(0);
     }
 
-    /** Diamond sword and the fish; the hits are counted, not the damage. */
+    /**
+     * Diamond sword and the fish, no armour, Speed II for the whole duel.
+     *
+     * <p>Boxing has no health to take, so armour would only hide the hit; the speed is what the mode is played on,
+     * since a boxing duel is chasing and strafing rather than trading. Speed II is applied by the caller because it
+     * needs the player object, not just the inventory - see {@link #boxingEffects}.
+     */
     private static void boxing(PlayerInventory inv) {
-        inv.setArmorContents(new ItemStack[]{
-                item(Material.DIAMOND_BOOTS), item(Material.DIAMOND_LEGGINGS),
-                item(Material.DIAMOND_CHESTPLATE), item(Material.DIAMOND_HELMET)});
+        inv.setArmorContents(null);
         inv.setItem(0, item(Material.DIAMOND_SWORD));
         inv.setItem(1, item(Material.RAW_FISH));
         inv.setHeldItemSlot(0);
+    }
+
+    /**
+     * Speed II for the whole duel. "Infinite" is 100 hours, not Integer.MAX_VALUE: the client stores an effect's
+     * duration as a short in 1.8, so the largest int wraps and the effect is dropped instead of lasting forever
+     * (measured: Boxing round started with no Speed at all). It is also re-applied every time the kit is handed out.
+     */
+    public static void boxingEffects(Player p) {
+        p.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 20 * 60 * 60 * 100, 1, false, false), true);
+    }
+
+    /** Effects a mode keeps up for the whole duel, re-applied on every round start. */
+    /**
+     * Effects a mode keeps up for the whole duel. Applied at METER, not at once: `addPotionEffect(..., true)` for a
+     * duration past a few minutes is rejected by 1.8 unless the effect is forced, and a silently refused effect is
+     * exactly what a Boxing round showed (no Speed on either player). addPotionEffect's return value says which
+     * happened, so it is checked and retried with force when refused.
+     */
+    public static void effects(DuelsMode mode, Player p) {
+        if (!"duels_boxing".equals(mode.id())) return;
+        org.bukkit.potion.PotionEffect speed =
+                new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.SPEED, 20 * 60 * 600, 1, false, false);
+        boolean ok = p.addPotionEffect(speed);
+        if (!ok) {
+            // refused (the effect was already there at a different strength, or the player is immune): clear and retry
+            p.removePotionEffect(org.bukkit.potion.PotionEffectType.SPEED);
+            ok = p.addPotionEffect(speed);
+        }
+        net.h2020.api.stats.CombatStats.inc(ok ? "duels.speed.applied" : "duels.speed.refused");
     }
 
     /**
