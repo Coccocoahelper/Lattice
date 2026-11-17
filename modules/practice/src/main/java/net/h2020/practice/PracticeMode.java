@@ -59,7 +59,8 @@ public final class PracticeMode implements GameMode {
 
     public static final PracticeMode BLOCK_CLUTCH = new PracticeMode("practice_blockclutch",
             "Block Clutching", "Survival",
-            "No ground, a stack of blocks. Place under yourself on the way down and land on it.",
+            "Get knocked off the platform and save yourself: place blocks under your feet mid-fall and land on one. "
+                    + "A hit that would have killed you counts the same as a save over the void.",
             Material.WOOL);
 
     public static final PracticeMode[] ALL = {FIREBALL, FIREBALL_JUMP, BOW, SENSE, BRIDGE, BRIDGE_DIAGONAL,

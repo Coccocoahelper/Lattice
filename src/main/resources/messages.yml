@@ -378,8 +378,8 @@ end:
   won: "You won!"
 practice:
   blockclutchdrill:
-    saved: "&aSaved&7 in &f{p1} ms&7  &8(&f{p2}&7 saves)"
-    missed: "&cFell&7  &8(&f{p2}&7 missed)"
+    saved: "&aCLUTCH&7 in &f{p1} ms&7  &8(&f{p2}&7 saves)"
+    missed: "&cKnocked into the void&7  &8(&f{p2}&7 missed)"
   blockindrill:
     sealed: "&aSealed&7 in &f{p1} ms&7  &8(&f{p2}&7 blocks)"
   bowdrill:
