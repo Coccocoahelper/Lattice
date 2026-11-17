@@ -176,7 +176,8 @@ public final class ReplayViewer {
 
     public static void command(CommandSender s, String[] a) {
         String sub = a.length > 1 ? a[1].toLowerCase() : "list";
-        if (sub.equals("list")) { list(s); return; }
+        if (sub.equals("list")) { list(s, a.length > 2 ? a[2] : null); return; }
+        if (sub.equals("find")) { list(s, a.length > 2 ? a[2] : null); return; }
         if (sub.equals("verify")) {          // console-friendly: parse + build the world, no viewer needed
             if (a.length < 3) { net.h2020.api.core.Messages.send(s, "replay.replayviewer.h2020-replay-verify-gameid"); return; }
             verify(s, a[2]);
@@ -289,7 +290,14 @@ public final class ReplayViewer {
         s.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.replay-map-frames-players","p1",gameId,"p2",map,"p3",frames,"p4",rows,"p5",blockEvents,"p6",(last / 1000)));
     }
 
-    private static void list(CommandSender s) {
+    /**
+     * The recorded games, newest first, optionally filtered.
+     *
+     * <p>The filter is a case-insensitive substring over the file name and the replay's own mode line, and it also
+     * takes a few names that map to a family: {@code bedwars}, {@code skywars}, {@code duels}, {@code practice}. The
+     * header always says what was filtered, so a short list is never mistaken for an empty one.
+     */
+    private static void list(CommandSender s, String filter) {
         File dir = Recorder.dir();
         File[] files = dir == null ? null : dir.listFiles();
         if (files == null || files.length == 0) { net.h2020.api.core.Messages.send(s, "replay.replayviewer.no-recordings-yet"); return; }
@@ -298,18 +306,89 @@ public final class ReplayViewer {
         list.sort(new java.util.Comparator<File>() {
             @Override public int compare(File x, File y) { return Long.compare(y.lastModified(), x.lastModified()); }
         });
-        s.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.recorded-games","p1",list.size()));
-        int shown = 0;
+        int total = list.size();
+        String want = filter == null ? "" : filter.trim().toLowerCase(java.util.Locale.ROOT);
+        List<String[]> rows = new ArrayList<String[]>();       // {id, mode, players, size, when}
         for (File f : list) {
-            if (shown++ >= 12) break;
+            String id = f.getName().replace(".jsonl", "");
             String mode = "?";
+            String mapName = null;
+            int players = 0;
             try {
                 BufferedReader r = new BufferedReader(new FileReader(f));
-                try { mode = modeName(field(r.readLine(), "type")); } finally { r.close(); }
+                try {
+                    String head = r.readLine();
+                    mode = modeName(field(head, "type"));
+                    mapName = field(head, "map");
+                    // the player count is not in the header: the first frame that carries a roster is the answer
+                    String line = r.readLine();
+                    for (int i = 0; line != null && i < 2000 && players == 0; i++) {
+                        int k = line.indexOf("\"p\":[");
+                        if (k >= 0) players = countRoster(line.substring(k));
+                        if (players == 0) line = r.readLine();
+                    }
+                } finally { r.close(); }
             } catch (Throwable ignored) { }
-            s.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.kb","p1",f.getName().replace(".jsonl", ""),"p2",mode,"p3",(f.length() / 1024),"p4",new java.text.SimpleDateFormat("dd MMM HH:mm").format(new java.util.Date(f.lastModified()))));
+            String where = (mapName == null || mapName.isEmpty()) ? "" : " on " + mapName;
+            String hay = (id + " " + mode + " " + familyOf(mode)).toLowerCase(java.util.Locale.ROOT);
+            if (!want.isEmpty() && !hay.contains(want)) continue;
+            rows.add(new String[]{id, mode + where, players <= 0 ? "?" : String.valueOf(players),
+                    humanSize(f.length()), ago(f.lastModified())});
+        }
+        if (rows.isEmpty()) {
+            s.sendMessage(ChatColor.RED + "No replays match \"" + filter + "\" (" + total + " recorded).");
+            s.sendMessage(ChatColor.GRAY + "Try: " + ChatColor.WHITE + "/replay list bedwars"
+                    + ChatColor.GRAY + ", skywars, duels, practice - or part of a game id.");
+            return;
+        }
+        s.sendMessage(net.h2020.api.core.Messages.get("replay.replayviewer.recorded-games",
+                "p1", want.isEmpty() ? rows.size() : rows.size() + "/" + total));
+        if (!want.isEmpty()) s.sendMessage(ChatColor.GRAY + "filter: " + ChatColor.WHITE + want);
+        int shown = 0;
+        for (String[] row : rows) {
+            if (shown++ >= 20) { s.sendMessage(ChatColor.GRAY + "... " + (rows.size() - 20) + " more"); break; }
+            s.sendMessage(ChatColor.GRAY + " " + ChatColor.WHITE + row[0] + ChatColor.GRAY + " - " + row[1]
+                    + ChatColor.DARK_GRAY + " (" + row[2] + " players, " + row[3] + ", " + row[4] + ")");
         }
         net.h2020.api.core.Messages.send(s, "replay.replayviewer.watch-one-with-h2020");
+    }
+
+    /** How many names a frame's roster holds: count the top-level strings in the first player entry list. */
+    private static int countRoster(String from) {
+        int i = from.indexOf('[');
+        if (i < 0) return 0;
+        int depth = 0, n = 0;
+        for (int j = i; j < from.length(); j++) {
+            char c = from.charAt(j);
+            if (c == '[') { depth++; if (depth == 2) n++; }
+            else if (c == ']') { depth--; if (depth == 0) break; }
+        }
+        return n;
+    }
+
+    /** bedwars / skywars / duels / practice, from a mode name, so a family filter works. */
+    private static String familyOf(String mode) {
+        String m = mode == null ? "" : mode.toLowerCase(java.util.Locale.ROOT);
+        if (m.contains("bed")) return "bedwars";
+        if (m.contains("sky")) return "skywars";
+        if (m.contains("duel")) return "duels";
+        if (m.contains("practice") || m.contains("prac")) return "practice";
+        return m;
+    }
+
+    private static String humanSize(long bytes) {
+        if (bytes >= 1024 * 1024) return String.format("%.1f MB", bytes / 1048576.0);
+        if (bytes >= 1024) return (bytes / 1024) + " KB";
+        return bytes + " B";
+    }
+
+    /** "3m ago", "2h ago", "5d ago" - enough to tell a fresh recording from a stale one. */
+    private static String ago(long millis) {
+        long d = System.currentTimeMillis() - millis;
+        if (d < 60_000L) return Math.max(1, d / 1000) + "s ago";
+        if (d < 3_600_000L) return (d / 60_000L) + "m ago";
+        if (d < 86_400_000L) return (d / 3_600_000L) + "h ago";
+        return (d / 86_400_000L) + "d ago";
     }
 
     // ------------------------------------------------------------------------------------------------ playback

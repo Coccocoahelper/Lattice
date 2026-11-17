@@ -113,6 +113,9 @@ public final class CoreModule implements Module {
         AdminCommand admin = new AdminCommand(core);
         PluginCommand h = plugin.getCommand("h2020");
         if (h != null) { h.setExecutor(admin); h.setTabCompleter(admin); }
+        // every subcommand also answers on its own (/games, /replay, /arena ...), so the tree stops needing the
+        // /h2020 prefix for the things an operator types all day
+        net.h2020.core.command.AdminRoots.register(plugin, admin);
         PluginCommand play = plugin.getCommand("play");
         if (play != null) play.setTabCompleter(new PlayCommand(core));
 

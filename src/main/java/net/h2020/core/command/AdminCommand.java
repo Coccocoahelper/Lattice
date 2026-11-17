@@ -47,6 +47,9 @@ public final class AdminCommand implements TabExecutor {
 
     public AdminCommand(Core core) { this.core = core; }
 
+    /** The plugin that owns this tree, for the top-level aliases to hang off. */
+    public org.bukkit.plugin.java.JavaPlugin plugin() { return core.plugin; }
+
     private static String g(String s) { return ChatColor.GREEN + s; }
     private static String prettifyName(String raw) {
         String n = raw.replace('_', ' ').trim();

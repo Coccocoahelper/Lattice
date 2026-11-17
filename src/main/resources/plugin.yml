@@ -26,6 +26,170 @@ commands:
   qanswer:
     description: Answer the server's question (also by typing the number in chat)
     usage: /qanswer <id> <option>
+  games:
+    description: Same as /h2020 games
+    usage: /games ...
+    permission: h2020.admin
+  replay:
+    description: Same as /h2020 replay
+    usage: /replay ...
+    permission: h2020.admin
+  train:
+    description: Same as /h2020 train
+    usage: /train ...
+    permission: h2020.admin
+  bots:
+    description: Same as /h2020 bots
+    usage: /bots ...
+    permission: h2020.admin
+  watch:
+    description: Same as /h2020 watch
+    usage: /watch ...
+    permission: h2020.admin
+  lreload:
+    description: Same as /h2020 reload
+    usage: /lreload ...
+    permission: h2020.admin
+  date:
+    description: Same as /h2020 date
+    usage: /date ...
+    permission: h2020.admin
+  messages:
+    description: Same as /h2020 messages
+    usage: /messages ...
+    permission: h2020.admin
+  sidebar:
+    description: Same as /h2020 sidebar
+    usage: /sidebar ...
+    permission: h2020.admin
+  modes:
+    description: Same as /h2020 modes
+    usage: /modes ...
+    permission: h2020.admin
+  ping:
+    description: Same as /h2020 ping
+    usage: /ping ...
+    permission: h2020.admin
+  convert:
+    description: Same as /h2020 convert
+    usage: /convert ...
+    permission: h2020.admin
+  maptags:
+    description: Same as /h2020 tags
+    usage: /maptags ...
+    permission: h2020.admin
+  maptag:
+    description: Same as /h2020 maptag
+    usage: /maptag ...
+    permission: h2020.admin
+  mapimport:
+    description: Same as /h2020 mapimport
+    usage: /mapimport ...
+    permission: h2020.admin
+  mapimportdir:
+    description: Same as /h2020 mapimportdir
+    usage: /mapimportdir ...
+    permission: h2020.admin
+  slimeimport:
+    description: Same as /h2020 slimeimport
+    usage: /slimeimport ...
+    permission: h2020.admin
+  mapedit:
+    description: Same as /h2020 edit
+    usage: /mapedit ...
+    permission: h2020.admin
+  islandcolors:
+    description: Same as /h2020 islandcolors
+    usage: /islandcolors ...
+    permission: h2020.admin
+  npcprobe:
+    description: Same as /h2020 npcprobe
+    usage: /npcprobe ...
+    permission: h2020.admin
+  lobbyprobe:
+    description: Same as /h2020 lobbyprobe
+    usage: /lobbyprobe ...
+    permission: h2020.admin
+  blockat:
+    description: Same as /h2020 blockat
+    usage: /blockat ...
+    permission: h2020.admin
+  gens:
+    description: Same as /h2020 gens
+    usage: /gens ...
+    permission: h2020.admin
+  setpoi:
+    description: Same as /h2020 setpoi
+    usage: /setpoi ...
+    permission: h2020.admin
+  setspawn:
+    description: Same as /h2020 setspawn
+    usage: /setspawn ...
+    permission: h2020.admin
+  npc:
+    description: Same as /h2020 npc
+    usage: /npc ...
+    permission: h2020.admin
+  arena:
+    description: Same as /h2020 arena
+    usage: /arena ...
+    permission: h2020.admin
+  lbuild:
+    description: Same as /h2020 build
+    usage: /lbuild ...
+    permission: h2020.admin
+  join:
+    description: Same as /h2020 join
+    usage: /join ...
+    permission: h2020.admin
+  start:
+    description: Same as /h2020 start
+    usage: /start ...
+    permission: h2020.admin
+  end:
+    description: Same as /h2020 end
+    usage: /end ...
+    permission: h2020.admin
+  fill:
+    description: Same as /h2020 fill
+    usage: /fill ...
+    permission: h2020.admin
+  rank:
+    description: Same as /h2020 rank
+    usage: /rank ...
+    permission: h2020.admin
+  level:
+    description: Same as /h2020 level
+    usage: /level ...
+    permission: h2020.admin
+  cheaters:
+    description: Same as /h2020 cheaters
+    usage: /cheaters ...
+    permission: h2020.admin
+  fillspeed:
+    description: Same as /h2020 fillspeed
+    usage: /fillspeed ...
+    permission: h2020.admin
+  background:
+    description: Same as /h2020 background
+    usage: /background ...
+    permission: h2020.admin
+  teamchest:
+    description: Same as /h2020 teamchest
+    usage: /teamchest ...
+    permission: h2020.admin
+  private:
+    description: Same as /h2020 private
+    usage: /private ...
+    permission: h2020.admin
+  joincode:
+    description: Same as /h2020 joincode
+    usage: /joincode ...
+    permission: h2020.admin
+  spectate:
+    description: Same as /h2020 spectate
+    usage: /spectate ...
+    permission: h2020.admin
 permissions:
   h2020.admin:
     description: Admin and video tools
