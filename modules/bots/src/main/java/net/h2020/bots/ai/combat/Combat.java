@@ -582,7 +582,17 @@ public final class Combat {
      * a fight take over the inputs; returns true then and the brain skips its think() for this tick.
      */
     public boolean emergencyTick() {
-        boolean inGame = ctx.bot.brain() instanceof net.h2020.bots.ai.brain.GameBrain;
+        // The emergency layer (fireball guard, clutch, the calm heal) used to run only inside a GameBrain, because it
+        // was written for Bed Wars and SkyWars. A practice drill is not a game in that sense - its brain is not a
+        // GameBrain - so the clutch never ran in the one place that exists to practise it: a block-clutch drill bot
+        // fell into the void over and over with blocks in its hand. A brain that opts in with wantsEmergency() gets
+        // the same protection.
+        boolean inGame = ctx.bot.brain() instanceof net.h2020.bots.ai.brain.GameBrain
+                || ctx.bot.brain() instanceof net.h2020.bots.ai.brain.EmergencyBrain;
+        if (ctx.tick % 40 == 0 && ctx.player.getWorld().getName().startsWith("practice")) {
+            org.bukkit.Bukkit.getLogger().info("[brainprobe] " + ctx.player.getName() + " emergencyTick inGame=" + inGame
+                    + " brain=" + (ctx.bot.brain() == null ? "null" : ctx.bot.brain().getClass().getSimpleName()));
+        }
         if (!inGame) return false;
         CombatStats.tick(engaged());
         // a fireball coming at us owns the tick, fight or not: punch it back, or step out of its line

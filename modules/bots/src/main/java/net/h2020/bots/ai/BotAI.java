@@ -276,7 +276,12 @@ public final class BotAI {
 
         // A drill assigns its own brain (a bridging run, say) and means it: reconcile must not swap it for a lobby
         // brain a second later, which is exactly what happened the first time this was wired up.
-        if (cur instanceof net.h2020.bots.ai.brain.BridgeBrain) return;
+        // A drill's brain is assigned by the practice plugin itself and must never be replaced, whoever
+        // assigned it: reconcile's job is to keep idle bots busy, not to overrule a session that is running a test.
+        if (cur instanceof net.h2020.bots.ai.brain.ClutchBrain
+                || cur instanceof net.h2020.bots.ai.brain.DefenceBrain
+                || cur instanceof net.h2020.bots.ai.brain.BlockInBrain
+                || cur instanceof net.h2020.bots.ai.brain.BridgeBrain) return;
         GameManager gm = H2020.find(GameManager.class);
         Game g = gm == null ? null : gm.gameOf(b.player());
         if (g != null && g.type().family() == GameFamily.PRACTICE) return;

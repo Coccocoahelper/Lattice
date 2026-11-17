@@ -196,6 +196,11 @@ public final class BotManager implements BotService, Listener {
     }
 
     @Override
+    public net.h2020.api.bot.BotBrain clutchBrain(org.bukkit.Location home) {
+        return new net.h2020.bots.ai.brain.ClutchBrain(home);
+    }
+
+    @Override
     public Bot bot(Player p) {
         if (p == null) return null;
         FakeBot b = bots.get(p.getUniqueId());

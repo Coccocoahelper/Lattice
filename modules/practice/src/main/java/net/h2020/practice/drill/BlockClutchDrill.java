@@ -77,17 +77,19 @@ public final class BlockClutchDrill implements Drill {
     @Override
     public void build(PracticeArena a) {
         this.arena = a;
-        // the platform the player stands on, and nothing underneath it: a miss is a fall into the void
-        a.platform(0, PLATFORM_Y, 0, 2, Material.SANDSTONE);
-        // Low walls on the Z ends only. They were on the X ends first, which is the axis the arrows come down - so
-        // every shot hit a wall and no knock ever landed (measured: 19 arrows fired, 0 damage events). The shooting
-        // axis has to stay clear.
-        a.box(-3, PLATFORM_Y + 1, -3, 3, PLATFORM_Y + 2, -3, Material.SMOOTH_BRICK);
-        a.box(-3, PLATFORM_Y + 1, 3, 3, PLATFORM_Y + 2, 3, Material.SMOOTH_BRICK);
-        this.spawn = a.at(0.5, PLATFORM_Y + 1, 0.5, 0f);
+        // A wide ledge, because that is the shape the clutch was built for: its target is the outer face of the edge
+        // you fell from, and it chains blocks outward from there. A narrow pad gives the body nothing beside it on the
+        // way down (17 attempts, every one "stale"); a wall it can stand against is not an edge either. So: a ledge
+        // several blocks deep, and the knock takes the body off its lip.
+        a.box(-8, PLATFORM_Y - 1, -4, 2, PLATFORM_Y - 1, 4, Material.SANDSTONE);   // floor, 11 x 9
+        a.box(-8, PLATFORM_Y - 2, -4, 2, PLATFORM_Y - 2, 4, Material.SANDSTONE);   // one block of body under it
+        this.spawn = a.at(1.5, PLATFORM_Y, 0.5, 270f);   // at the lip, facing -X
     }
 
     @Override public Location spawn() { return spawn; }
+
+    /** The block the bot should hold on to: the drill's platform, so a clutch brain knows where home is. */
+    public Location platformCentre() { return arena.at(1.5, PLATFORM_Y, 0.5, 0f); }
 
     @Override public Location spectatorSpawn() { return arena.at(0.5, PLATFORM_Y + 6, 10.5, 0f); }
 
@@ -116,6 +118,8 @@ public final class BlockClutchDrill implements Drill {
             if (at == null) continue;
             double y = p.getLocation().getY();
             if (y < VOID_Y) {                                           // fell out without a save
+                org.bukkit.Bukkit.getLogger().info("[clutchdrill] MISS at y=" + String.format("%.1f", y)
+                        + " placed=" + placedSinceKnock.get(p.getUniqueId()));
                 long[] r = row(p);
                 r[2]++;
                 r[4] = 0;
@@ -159,7 +163,7 @@ public final class BlockClutchDrill implements Drill {
     /** Fire an arrow at the player from alternating sides; the hit is what starts the clutch. */
     private void shoot(Player p) {
         leftSide = !leftSide;
-        double x = leftSide ? -9.5 : 9.5;
+        double x = -9.5;                     // fires from the open side, so the hit pushes the body off the lip
         Location from = new Location(p.getWorld(), x, p.getLocation().getY() + 1.2,
                 p.getLocation().getZ() + (Math.random() * 4 - 2));
         Vector to = p.getLocation().add(0, 1.0, 0).toVector().subtract(from.toVector());
@@ -194,8 +198,9 @@ public final class BlockClutchDrill implements Drill {
         // Push along X (the shooting axis), which is the direction the platform has no wall on. The platform is five
         // blocks wide and the walls are on Z, so a hit has to carry the player ~3 blocks in X to clear the edge -
         // hence a shove near a sprint hit's strength rather than a nudge, plus enough lift to leave the ground.
-        double dir = p.getLocation().getX() >= 0 ? 1 : -1;
-        Vector out = new Vector(dir * 0.95, 0.42, (Math.random() - 0.5) * 0.15);
+        // Straight off the +X lip: the face it just left is then beside the falling body, which is the face the
+        // clutch aims at and chains outward from.
+        Vector out = new Vector(0.95, 0.42, (Math.random() - 0.5) * 0.15);
         p.setVelocity(p.getVelocity().add(out));
         p.playSound(p.getLocation(), Sound.HURT_FLESH, 0.8f, 1.2f);
     }
@@ -203,7 +208,10 @@ public final class BlockClutchDrill implements Drill {
     /** A block placed after the knock is what makes the landing a save. */
     @Override
     public void onPlace(PracticeGame g, Player p, Block b) {
-        if (knockedAt.containsKey(p.getUniqueId())) placedSinceKnock.put(p.getUniqueId(), true);
+        boolean armed = knockedAt.containsKey(p.getUniqueId());
+        org.bukkit.Bukkit.getLogger().info("[clutchdrill] place at " + b.getX() + "," + b.getY() + "," + b.getZ()
+                + " armed=" + armed + " y=" + String.format("%.1f", p.getLocation().getY()));
+        if (armed) placedSinceKnock.put(p.getUniqueId(), true);
     }
 
     /** Back to the platform, knock state cleared. */

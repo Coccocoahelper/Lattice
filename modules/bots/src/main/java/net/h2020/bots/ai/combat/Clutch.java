@@ -84,6 +84,10 @@ final class Clutch {
         Location p = ctx.pos();
         WorldView wv = ctx.world();
         boolean ground = ctx.c.onGround();
+        if (ctx.tick % 10 == 0) org.bukkit.Bukkit.getLogger().info("[clutchprobe] y=" + String.format("%.1f", p.getY())
+                + " ground=" + ground + " groundY=" + String.format("%.1f", groundY) + " mode=" + mode
+                + " decided=" + decided + " v2=" + CombatStats.v2 + " hotbarBlock="
+                + (Inv.findHotbar(ctx.player, Inv.ANY_BLOCK) >= 0));
         boolean liquid = ctx.inLiquid();
         if (ctx.c.tookKnockback()) lastKnock = ctx.tick;
 
@@ -126,6 +130,11 @@ final class Clutch {
         if (!decided) {
             // decide (once) what to do, after a human reaction
             boolean knocked = ctx.tick - lastKnock < 20;
+            if (ctx.tick % 5 == 0) org.bukkit.Bukkit.getLogger().info("[clutchprobe] fall y=" + String.format("%.1f", p.getY())
+                    + " groundY=" + String.format("%.1f", groundY) + " vy=" + String.format("%.2f", ctx.c.velocity().getY())
+                    + " overVoid=" + overVoid + " below=" + String.format("%.2f", below)
+                    + " knocked=" + knocked + " blocks=" + (Inv.findHotbar(ctx.player, Inv.ANY_BLOCK) >= 0)
+                    + " style=" + String.format("%.2f", style.clutch) + " v2=" + CombatStats.v2);
             if (overVoid && (below > 0.25 || knocked)) decide(true);
             else if (!overVoid && ctx.c.velocity().getY() < -0.5) {
                 int land = wv.landing(fx, fy, fz, 40);

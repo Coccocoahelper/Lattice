@@ -350,8 +350,13 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
                     java.util.List<int[][]> holes = bi.holeSets();
                     bot.setBrain(holes.isEmpty() ? null : bs.blockInBrain(holes));
                 }
+                // a clutch drill needs a bot that clutches, not one that stands still: the whole point of the drill
+                // is the save, and a motionless bot is nothing but misses.
+                if (g.drill() instanceof BlockClutchDrill) {
+                    bot.setBrain(bs.clutchBrain(((BlockClutchDrill) g.drill()).platformCentre()));
+                }
                 if (!(g.drill() instanceof BridgeDrill) && !(g.drill() instanceof BedDefenceDrill)
-                        && !(g.drill() instanceof BlockInDrill)) bot.setBrain(null);
+                        && !(g.drill() instanceof BlockInDrill) && !(g.drill() instanceof BlockClutchDrill)) bot.setBrain(null);
                 // a bridging drill is only a benchmark if the bot actually bridges: give it the brain that does
                 if (g.drill() instanceof BridgeDrill) {
                     BridgeDrill bd = (BridgeDrill) g.drill();

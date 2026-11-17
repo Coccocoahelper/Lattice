@@ -46,5 +46,12 @@ public interface BotService {
      * bot learns every place a person has done it rather than one.
      */
     default BotBrain blockInBrain(java.util.List<int[][]> holes) { return BrainFactory.none(); }
+
+    /**
+     * A bot that clutches: it stands on the platform, holds blocks, and lets the combat stack's clutch save it when
+     * something knocks it off. This is the brain a block-clutch drill hands a bot so its run is the same skill a
+     * person is practising. Null when this server has no clutch.
+     */
+    default BotBrain clutchBrain(org.bukkit.Location home) { return BrainFactory.none(); }
 }
 
