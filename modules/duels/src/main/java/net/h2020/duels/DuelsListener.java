@@ -10,6 +10,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -88,6 +89,23 @@ public final class DuelsListener implements Listener {
                 p.setHealth(Math.min(before, p.getMaxHealth()));
             }
         });
+    }
+
+    /**
+     * Boxing and Sumo keep a full hunger bar. Neither mode has food in its kit, so a bar that drains is a bar that can
+     * never be refilled: the fight would slow down into starvation sprinting and then stop, which is not a duel. The
+     * bar is pinned rather than topped up on a timer so no frame ever shows it empty.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onFood(FoodLevelChangeEvent e) {
+        if (!(e.getEntity() instanceof Player)) return;
+        Player p = (Player) e.getEntity();
+        DuelsGame g = module.gameOf(p);
+        if (g == null || !g.keepsHungerFull()) return;
+        net.h2020.api.stats.CombatStats.inc("duels.hunger.kept");
+        e.setCancelled(true);
+        if (p.getFoodLevel() != 20) p.setFoodLevel(20);
+        if (p.getSaturation() < 5f) p.setSaturation(5f);
     }
 
     /** A player who dies in a live duel loses the round, whoever is credited. */

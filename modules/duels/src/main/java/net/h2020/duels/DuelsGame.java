@@ -230,6 +230,20 @@ public final class DuelsGame implements Game {
             if (mode.win() == DuelsMode.Win.KNOCKBACK) tickSumo();
         }
         if (elapsed % 20 == 0) {
+            // Pin the hunger bar for the modes whose kit has no food in it. Done here rather than only through
+            // FoodLevelChangeEvent: that event does not fire for a bot body, so a listener alone left the bar draining
+            // in exactly the modes the rule is for (measured: the guard counter stayed at zero through a whole Boxing
+            // round). A pin per second is deterministic and covers a human and a bot the same way.
+            if (keepsHungerFull()) {
+                net.h2020.api.stats.CombatStats.inc("duels.hunger.pin.tick");
+                for (Player p : players()) {
+                    if (p.getFoodLevel() != 20) {
+                        p.setFoodLevel(20);
+                        net.h2020.api.stats.CombatStats.inc("duels.hunger.refilled");
+                    }
+                    if (p.getSaturation() < 5f) p.setSaturation(5f);
+                }
+            }
             updateBoards();
             if (elapsed >= mode.roundSeconds * 20 && roundLive) {
                 // Hypixel's rule: nobody wins, the duel is a draw
@@ -258,6 +272,7 @@ public final class DuelsGame implements Game {
             p.setGameMode(org.bukkit.GameMode.SURVIVAL);
             DuelsKit.apply(mode, p);
             p.setHealth(p.getMaxHealth());
+            if (keepsHungerFull()) { p.setFoodLevel(20); p.setSaturation(5f); }
         }
         for (Player p : ps) {
             p.playSound(p.getLocation(), Sound.ENDERDRAGON_GROWL, 0.4f, 1.4f);
@@ -534,6 +549,14 @@ public final class DuelsGame implements Game {
             b.append(c);
         }
         return b.toString();
+    }
+
+    /**
+     * Modes with no food in the kit and no way to eat: Boxing and Sumo. Their hunger bar is held full for the whole
+     * duel, because a draining bar there is unrecoverable rather than a resource to manage.
+     */
+    public boolean keepsHungerFull() {
+        return mode.win() == DuelsMode.Win.HITS || mode.sumo;
     }
 
     /** Sumo's whole rule in one place, for a listener that only knows a player moved. */
