@@ -587,6 +587,12 @@ public final class VirtualClient implements BotController, FakeNetworkManager.Si
             overYaw = mouse.yaw;
             overPitch = mouse.pitch;
         } else {
+            // Vanilla parks leftClickCounter at 10000 while the GUI is open or terrain is loading, and the guard in
+            // clickMouse then swallows every click until it counts all the way back down - ten thousand ticks, eight
+            // minutes. In vanilla that is harmless because the counter is cleared the moment play resumes; here it was
+            // not, so a bot that was teleported (a duel's spawn pads, a game's cage) stopped attacking for the rest of
+            // the match: measured as zero melee events from a bot standing four blocks from its opponent with a sword.
+            if (leftClickCounter >= 10000) leftClickCounter = 0;
             if (leftClickCounter > 0) --leftClickCounter;
             if (presses > 0 || leftDown || rights > 0 || forced != null || rightHeld || isHittingBlock) {
                 // per-frame rotation + uncached raycast + the queued click with THAT frame's aim
