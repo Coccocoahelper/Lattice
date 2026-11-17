@@ -23,6 +23,10 @@ public final class MapKeys {
     public static final String DIAMOND_GEN = "gen.diamond";
     public static final String EMERALD_GEN = "gen.emerald";
 
+
+    // duels (one arena, two spawn pads). Keys are the same shape as the other families so MapFiles needs no change.
+    public static final String DUEL_SPAWN_A = "duel.spawn.a";
+    public static final String DUEL_SPAWN_B = "duel.spawn.b";
     // skywars (island index 0..n-1)
     public static String islandCage(int i) { return "island." + i + ".cage"; }
     public static String islandChests(int i) { return "island." + i + ".chests"; }

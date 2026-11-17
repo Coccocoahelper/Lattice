@@ -56,6 +56,8 @@ public final class DuelsGame implements Game {
     private final World world;
     private final DuelsArena arena;
     private final Location spec;
+    /** The two spawn pads, A first. A real Hypixel capture's own points, or the generated arena's ends. */
+    private final List<Location> pads;
 
     private final List<UUID> order = new ArrayList<UUID>();
     private final Map<UUID, Integer> hits = new LinkedHashMap<UUID, Integer>();
@@ -83,8 +85,12 @@ public final class DuelsGame implements Game {
         this.world = map.createInstance("duel_" + id + "_" + Long.toHexString(System.nanoTime() & 0xFFFFFF));
         if (world == null) throw new IllegalStateException("duel arena failed for " + mode.displayName());
         this.arena = map.lastArena();
-        if (arena == null) throw new IllegalStateException("duel arena missing for " + mode.displayName());
-        this.spec = arena.spectator();
+        // a real map has no arena object: its pads come from map.yml, and the spectator point with them
+        this.spec = map.point(net.h2020.api.map.MapKeys.SPECTATOR) != null
+                ? map.point(net.h2020.api.map.MapKeys.SPECTATOR).toLocation(world)
+                : (arena != null ? arena.spectator() : world.getSpawnLocation());
+        this.pads = map.spawns(world);
+        if (pads.size() < 2) throw new IllegalStateException("map " + map.name() + " has no duel spawn points");
         this.borderRadius = DuelsArena.RADIUS;
         task = Bukkit.getScheduler().runTaskTimer(module.plugin(), new Runnable() {
             @Override public void run() {
@@ -123,6 +129,11 @@ public final class DuelsGame implements Game {
 
     public DuelsMode mode() { return mode; }
 
+    /** The y a player stands at on this map: the pad's own height, so a capture's floor is respected. */
+    private int floorY() {
+        return pads.isEmpty() ? DuelsArena.FLOOR_Y : (int) Math.floor(pads.get(0).getY());
+    }
+
     @Override
     public boolean addPlayer(Player p) {
         if (shutDown || (state != GameState.WAITING && state != GameState.STARTING)) return false;
@@ -133,7 +144,7 @@ public final class DuelsGame implements Game {
         hits.put(u, 0);
         roundsWon.put(u, 0);
         boolean first = order.size() == 1;
-        p.teleport(first ? arena.spawnA() : arena.spawnB());
+        p.teleport(pads.get(first ? 0 : 1));
         p.setGameMode(org.bukkit.GameMode.ADVENTURE);
         p.setAllowFlight(false);
         p.setFlying(false);
@@ -187,7 +198,8 @@ public final class DuelsGame implements Game {
         }
         // synchronous, like the practice drills: a deferred unload races the world ticker, and a second unload of a
         // world the ticker still holds crashes the server (see DuelsArena.destroy)
-        arena.destroy();
+        if (arena != null) arena.destroy();
+        else map.destroyInstance(world);
     }
 
     // ---------------------------------------------------------------- flow
@@ -242,7 +254,7 @@ public final class DuelsGame implements Game {
         List<Player> ps = players();
         for (int i = 0; i < ps.size(); i++) {
             Player p = ps.get(i);
-            p.teleport(i == 0 ? arena.spawnA() : arena.spawnB());
+            p.teleport(pads.get(i == 0 ? 0 : Math.min(1, pads.size() - 1)));
             p.setGameMode(org.bukkit.GameMode.SURVIVAL);
             DuelsKit.apply(mode, p);
             p.setHealth(p.getMaxHealth());
@@ -284,7 +296,7 @@ public final class DuelsGame implements Game {
     private void tickSumo() {
         for (Player p : players()) {
             Location l = p.getLocation();
-            if (l.getY() < DuelsArena.FLOOR_Y - 2) {
+            if (l.getY() < floorY() - 2) {
                 net.h2020.api.stats.CombatStats.inc("duels.sumo.fell");
                 UUID other = other(p.getUniqueId());
                 if (other != null) winRound(other, p);

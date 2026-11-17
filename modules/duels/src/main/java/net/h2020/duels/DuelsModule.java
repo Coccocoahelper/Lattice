@@ -50,10 +50,7 @@ public final class DuelsModule implements Module, GameProvider {
         Bukkit.getPluginManager().registerEvents(listener, plugin);
         for (DuelsMode m : DuelsMode.ALL) {
             GameModes.register(m);
-            DuelsMap dm = new DuelsMap(m);
-            maps.put(m.id(), dm);
-            MapService ms = H2020.find(MapService.class);
-            if (ms != null) ms.registerTemplate(dm);
+            maps.put(m.id(), new DuelsMap(m));
         }
         if (!tryRegister()) {
             org.bukkit.scheduler.BukkitRunnable r = new org.bukkit.scheduler.BukkitRunnable() {
@@ -74,9 +71,6 @@ public final class DuelsModule implements Module, GameProvider {
         GameManager gm = H2020.find(GameManager.class);
         if (gm == null) return false;
         gm.registerProvider(this);
-        // templates can only be registered once maps are up, so retry them here as well
-        MapService ms = H2020.find(MapService.class);
-        if (ms != null) for (DuelsMap m : maps.values()) ms.registerTemplate(m);
         registered = true;
         return true;
     }
@@ -88,8 +82,6 @@ public final class DuelsModule implements Module, GameProvider {
         }
         games.clear();
         byPlayer.clear();
-        MapService ms = H2020.find(MapService.class);
-        if (ms != null) for (DuelsMap m : maps.values()) { try { ms.unregisterTemplate(m); } catch (Throwable ignored) { } }
         if (listener != null) HandlerList.unregisterAll(listener);
     }
 
@@ -102,11 +94,13 @@ public final class DuelsModule implements Module, GameProvider {
         if (type.family() != GameFamily.DUELS) throw new IllegalArgumentException("not a duels mode: " + type);
         DuelsMode mode = DuelsMode.byId(type.id());
         if (mode == null) throw new IllegalArgumentException("unknown duels mode: " + type.id());
-        // A fresh map per game, always built for THIS mode. templatesFor() matches a virtual template on family and
-        // team count alone, so every duels template answers to every duels mode - and reusing the one the queue handed
-        // over gave a Classic duel the Sumo platform, which is six blocks wide: both players spawned over the void at
+        // A real Hypixel capture is fought on as it is. A mode with no capture gets a generated arena instead of
+        // being unplayable. A capture is a plain MapTemplate from the map folder, never one of our own DuelsMap
+        // wrappers: templatesFor() matches on family and team count alone, so handing the queue's answer through
+        // blindly once gave a Classic duel the Sumo platform - six blocks wide, both players spawned over the void at
         // z=16 and fell to y=35 (measured).
-        DuelsMap dm = new DuelsMap(mode);
+        MapTemplate capture = (map != null && !(map instanceof DuelsMap)) ? map : null;
+        DuelsMap dm = new DuelsMap(mode, capture);
         DuelsGame g = new DuelsGame(this, mode, dm, gameId);
         games.add(g);
         mapOfGame.put(gameId, dm);
@@ -141,6 +135,16 @@ public final class DuelsModule implements Module, GameProvider {
         for (DuelsGame g : games) if (g.world().equals(w)) return g;
         return null;
     }
+
+    /** A generated arena as a template the manager can register, used only when no capture exists for a mode. */
+    private MapTemplate generatedFallback(DuelsMode mode) {
+        for (MapTemplate t : gamesFallback) if (t.name().equals(mode.displayName() + " Arena")) return t;
+        MapTemplate t = new DuelsMap(mode);
+        gamesFallback.add(t);
+        return t;
+    }
+
+    private final List<MapTemplate> gamesFallback = new CopyOnWriteArrayList<MapTemplate>();
 
     /** The mode a name or id stands for, for the command and the menu. */
     public static DuelsMode mode(String token) { return DuelsMode.byName(token); }

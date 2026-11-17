@@ -61,7 +61,7 @@ public final class MapServiceImpl implements MapService {
     private final Map<String, StoredMapTemplate> templates = new LinkedHashMap<String, StoredMapTemplate>();
     /** instance world name (lower case) -> template */
     final Map<String, StoredMapTemplate> instances = new ConcurrentHashMap<String, StoredMapTemplate>();
-    private World mainLobby, bedwarsLobby, skywarsLobby;
+    private World mainLobby, bedwarsLobby, skywarsLobby, duelsLobby;
     private volatile boolean ready;
     /** in-game map editor, created by MapsModule once the service is up */
     net.h2020.maps.MapEditService editor;
@@ -191,6 +191,7 @@ public final class MapServiceImpl implements MapService {
                 World standIn = Bukkit.getWorld(worldName);
                 if (worldName.contains("bedwars")) bedwarsLobby = real;
                 else if (worldName.contains("skywars")) skywarsLobby = real;
+                else if (worldName.contains("duels")) duelsLobby = real;
                 else mainLobby = real;
                 final org.bukkit.Location spawn = real.getSpawnLocation();
                 if (standIn != null) for (org.bukkit.entity.Player p : standIn.getPlayers()) p.teleport(spawn);
@@ -367,7 +368,10 @@ public final class MapServiceImpl implements MapService {
         java.util.Arrays.sort(dirs);
         for (File dir : dirs) {
             if (!dir.isDirectory()) continue;
-            if (dir.getName().equalsIgnoreCase("bedwars") || dir.getName().equalsIgnoreCase("skywars")) {
+            // every family gets its own subfolder; a family added later used to be skipped here entirely, which is
+            // why four imported duels maps sat on disk and the queue still said "no maps"
+            if (dir.getName().equalsIgnoreCase("bedwars") || dir.getName().equalsIgnoreCase("skywars")
+                    || dir.getName().equalsIgnoreCase("duels")) {
                 File[] inner = dir.listFiles();
                 if (inner == null) continue;
                 java.util.Arrays.sort(inner);
@@ -697,7 +701,9 @@ public final class MapServiceImpl implements MapService {
     @Override
     public World familyLobby(GameFamily family) {
         if (family == null) return mainLobby();
-        World w = family == GameFamily.BEDWARS ? bedwarsLobby : skywarsLobby;
+        World w = family == GameFamily.BEDWARS ? bedwarsLobby
+                : family == GameFamily.DUELS ? duelsLobby
+                : skywarsLobby;
         if (w != null && Bukkit.getWorld(w.getUID()) == null) w = null;
         return w != null ? w : mainLobby();
     }
