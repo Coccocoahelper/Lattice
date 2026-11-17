@@ -48,14 +48,24 @@ public final class DuelsListener implements Listener {
             return;
         }
         if (mode.win() == DuelsMode.Win.HITS) {
-            // boxing: no damage at all, only the hit count
-            e.setCancelled(true);
+            // Boxing deals no damage, but the hit still has to land: cancelling the event kills the knockback as well
+            // as the health, which is the opposite of Hypixel's boxing (a mode made of combos). Zero the damage and
+            // keep the hit.
+            e.setDamage(0.0);
             g.onHit(attacker, victim);
             return;
         }
         if (mode.sumo) {
             // sumo: keep the knockback, drop the damage
             e.setDamage(0.0);
+            // a punch that does nothing still has to shove, or a sumo duel is two players nudging each other
+            org.bukkit.util.Vector push = victim.getLocation().toVector().subtract(attacker.getLocation().toVector());
+            push.setY(0);
+            if (push.lengthSquared() > 1e-6) {
+                push.normalize().multiply(0.55);
+                push.setY(0.36);
+                victim.setVelocity(victim.getVelocity().add(push));
+            }
         }
         g.onHit(attacker, victim);
     }
