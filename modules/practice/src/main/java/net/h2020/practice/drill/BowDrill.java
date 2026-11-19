@@ -34,7 +34,12 @@ public final class BowDrill implements Drill {
 
     private PracticeArena arena;
     private Location spawn;
-    private final List<Zombie> targets = new ArrayList<Zombie>();
+    /**
+     * Targets by band, not a flat list. The list version respawned "the missing ones" by index, so killing the 18m
+     * target put a 34m one back and the drill silently lost a band: the player's 18m column stopped moving and there
+     * was no way to tell from the HUD.
+     */
+    private final Zombie[] targets = new Zombie[RANGES.length];
     private final Map<UUID, int[]> score = new HashMap<UUID, int[]>();   // {hits, shots, longest, byRange0..3}
     private int respawnClock;
 
@@ -81,9 +86,11 @@ public final class BowDrill implements Drill {
 
     /** One armour stand per range, standing on its plinth, so a hit is a hit and not a block break. */
     private void spawnTargets(PracticeGame g) {
-        for (Zombie s : targets) if (!s.isDead()) s.remove();
-        targets.clear();
-        for (int i = 0; i < RANGES.length; i++) targets.add(stand(g, i));
+        for (int i = 0; i < targets.length; i++) {
+            if (targets[i] != null && !targets[i].isDead()) targets[i].remove();
+            targets[i] = null;
+        }
+        for (int i = 0; i < RANGES.length; i++) targets[i] = stand(g, i);
     }
 
     /** A no-AI zombie on its plinth: an arrow that reaches it is a hit, and it cannot walk off the marker. */
@@ -105,18 +112,18 @@ public final class BowDrill implements Drill {
     public void tick(PracticeGame g) {
         // pin every target to its range marker: without setAI the only way to keep a mob on a plinth is to hold it
         // there, and a target that wanders would silently change the distance it is meant to test
-        for (Zombie z : targets) {
-            if (z.isDead()) continue;
-            Location anchor = arena.at(RANGES[targets.indexOf(z)] + 0.5, 65, 0.5, 180f);
+        for (int i = 0; i < targets.length; i++) {
+            Zombie z = targets[i];
+            if (z == null || z.isDead()) continue;
+            Location anchor = arena.at(RANGES[i] + 0.5, 65, 0.5, 180f);
             if (z.getLocation().distanceSquared(anchor) > 0.04) z.teleport(anchor);
             z.setVelocity(new org.bukkit.util.Vector(0, 0, 0));
         }
         if (++respawnClock % 20 != 0) return;
-        // drop the ones that are gone, then put back exactly the missing ones. Rebuilding the whole set whenever a
-        // single target died is what produced 981 armour stands in the first run of this drill.
-        java.util.Iterator<Zombie> it = targets.iterator();
-        while (it.hasNext()) if (it.next().isDead()) it.remove();
-        for (int i = targets.size(); i < RANGES.length; i++) targets.add(stand(g, i));
+        // put back the band that is missing, in its own place
+        for (int i = 0; i < targets.length; i++) {
+            if (targets[i] == null || targets[i].isDead()) targets[i] = stand(g, i);
+        }
     }
 
     @Override public void onJoin(PracticeGame g, Player p) { score.put(p.getUniqueId(), new int[7]); }
@@ -133,7 +140,12 @@ public final class BowDrill implements Drill {
         shooter.playSound(shooter.getLocation(), Sound.SUCCESSFUL_HIT, 0.7f, 1.4f);
         shooter.sendMessage(net.h2020.api.core.Messages.get("practice.bowdrill.hit-at-m-hits","p1",Math.round(dist),"p2",s[0],"p3",Math.round(100.0 * s[0] / Math.max(1, s[1]))));
         // the target steps back: an armour stand that stays put turns into a memorised angle
-        if (hit instanceof Zombie) { targets.remove(hit); ((Zombie) hit).remove(); }
+        if (hit instanceof Zombie) {
+            int killed = -1;
+            for (int i = 0; i < targets.length; i++) if (targets[i] == hit) killed = i;
+            if (killed >= 0) targets[killed] = null;
+            ((Zombie) hit).remove();
+        }
     }
 
     /** A shot fired, counted on the bow draw rather than on the arrow, so misses cost accuracy like they should. */
@@ -179,8 +191,10 @@ public final class BowDrill implements Drill {
 
     @Override
     public void cleanup(PracticeGame g) {
-        for (Zombie s : targets) if (!s.isDead()) s.remove();
-        targets.clear();
+        for (int i = 0; i < targets.length; i++) {
+            if (targets[i] != null && !targets[i].isDead()) targets[i].remove();
+            targets[i] = null;
+        }
     }
 
     private int[] row(Player p) { return score.computeIfAbsent(p.getUniqueId(), k -> new int[7]); }

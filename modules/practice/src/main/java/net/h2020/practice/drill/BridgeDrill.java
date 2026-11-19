@@ -36,11 +36,27 @@ public final class BridgeDrill implements Drill {
     private int length = 10;
     private int startX, endX;
     private final Map<UUID, long[]> run = new HashMap<UUID, long[]>();      // {startTick, blocks, bestMs, runs, falls}
+    /**
+     * Who has already crossed the gap at the current length.
+     *
+     * <p>The gap used to grow the instant anybody crossed, which meant that in a session with a human and a bot the
+     * arena widened under whichever of them was mid-bridge - their run was measured against a gap that had moved, and
+     * the block they were about to place was now over nothing. It grows once everybody in the drill has crossed at
+     * this length, which for a solo run is exactly the same moment as before.
+     */
+    private final java.util.Set<UUID> crossedHere = new java.util.HashSet<UUID>();
 
     public BridgeDrill() { this(Variant.STRAIGHT); }
     public BridgeDrill(Variant v) { this.variant = v; }
 
     @Override public String id() { return variant == Variant.DIAGONAL ? "bridge-diagonal" : "bridge"; }
+
+    /**
+     * How many blocks the gap needs right now. A bot handed a fixed count bridges straight past the platform, which
+     * means it never lands on it and the drill never records a crossing - the bot looked like it could not bridge
+     * at all while it was bridging perfectly, just too far.
+     */
+    public int gapBlocks() { return length + 1; }
     @Override public String display() { return "Bridging (" + (variant == Variant.DIAGONAL ? "diagonal" : "straight") + ")"; }
 
     @Override public String hint() {
@@ -114,9 +130,16 @@ public final class BridgeDrill implements Drill {
                 if (r[2] == 0 || ms < r[2]) r[2] = ms;
                 p.playSound(p.getLocation(), Sound.LEVEL_UP, 0.7f, 1.5f);
                 p.sendMessage(net.h2020.api.core.Messages.get("practice.bridgedrill.crossed-ms-with-blocks","p1",ms,"p2",r[1],"p3",length));
-                // the gap grows: the next crossing is the one that tests the technique
-                length = Math.min(22, length + 2);
-                rebuild(arena);
+                // the gap grows once everyone here has crossed at this length, so nobody is bridging to a platform
+                // that moved out from under them
+                crossedHere.add(p.getUniqueId());
+                java.util.Set<UUID> present = new java.util.HashSet<UUID>();
+                for (Player q : g.alivePlayers()) if (!g.isFollowing(q)) present.add(q.getUniqueId());
+                if (present.isEmpty() || crossedHere.containsAll(present)) {
+                    length = Math.min(22, length + 2);
+                    crossedHere.clear();
+                    rebuild(arena);
+                }
                 r[1] = 0;
                 g.reset(p);
             }

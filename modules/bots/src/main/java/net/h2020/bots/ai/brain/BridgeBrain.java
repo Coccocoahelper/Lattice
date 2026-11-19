@@ -23,6 +23,8 @@ public final class BridgeBrain extends BaseBrain {
     private Bridger.Tech tech;
     private int cooldown;
     private int runs;
+    /** Ticks spent waiting for a requested turn to show up in the client's own yaw. */
+    private int facingFor;
 
     public BridgeBrain(int dx, int dz, int maxBlocks, Bridger.Tech tech) {
         this.dx = dx == 0 && dz == 0 ? 1 : Integer.signum(dx);
@@ -60,6 +62,20 @@ public final class BridgeBrain extends BaseBrain {
         // a run only starts from solid ground with blocks in hand
         Location p = ctx.pos();
         if (!ctx.c.onGround()) { ctx.motor.halt(); return; }
+        // Face the direction of travel before starting: a body reset after a fall keeps its old facing and would
+        // bridge out over the void beside the pad. Bounded, though - aimRotation only *requests* a turn and the
+        // client reports the new yaw a tick or two later, so waiting for it to arrive with no limit parked the bot
+        // at 0,65,0 forever (measured: 0 starts, 0 falls, a drill that looked dead).
+        double want = Math.toDegrees(Math.atan2(-dx, dz));
+        double yawErr = Math.abs(net.h2020.bots.ai.util.AIMath.wrap(ctx.c.yaw() - (float) want));
+        if (yawErr > 25 && facingFor < 6) {
+            facingFor++;
+            ctx.motor.aimRotation(net.h2020.bots.ai.motor.Motor.P_FLICK, (float) want, ctx.c.pitch(),
+                    net.h2020.api.bot.AimIntent.FLICK, 4.0);
+            ctx.motor.halt();
+            return;
+        }
+        facingFor = 0;
         if (!Inv.has(ctx.player, Inv.BLOCK)) {
             // out of blocks: stand still rather than walk off the end of the bridge looking for some
             ctx.motor.halt();

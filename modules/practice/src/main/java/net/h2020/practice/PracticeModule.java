@@ -360,14 +360,43 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
                 // a bridging drill is only a benchmark if the bot actually bridges: give it the brain that does
                 if (g.drill() instanceof BridgeDrill) {
                     BridgeDrill bd = (BridgeDrill) g.drill();
-                    int dx = bd.variant() == BridgeDrill.Variant.DIAGONAL ? 1 : 1;
+                    int dx = 1;
                     int dz = bd.variant() == BridgeDrill.Variant.DIAGONAL ? 1 : 0;
-                    bot.setBrain(bs.bridgeBrain(dx, dz, 26, technique));
+                    // A flat straight lane wants the held-shift bridge; the auto choice picked NINJA, the diagonal
+                    // tapper, and dropped the body after one block on every run. A technique the operator named still
+                    // wins.
+                    String bridgeTech = "auto".equalsIgnoreCase(technique) && bd.variant() == BridgeDrill.Variant.STRAIGHT
+                            ? "shift" : technique;
+                    bot.setBrain(bs.bridgeBrain(dx, dz, Math.max(2, bd.gapBlocks()), bridgeTech));
+                    followBridgeGap(bot, bs, bd, g, dx, dz, bridgeTech);
                 }
             } catch (Throwable t) {
                 plugin.getLogger().warning("practice bot: " + t);
             }
         }
+    }
+
+    /**
+     * Re-arm a bridging bot when the drill grows the gap.
+     *
+     * <p>The brain is handed a block count, and a count is all it ever had: after the first crossing it kept bridging
+     * the old length, so a bot that started on a ten-block gap was still building eleven into a twelve-block gap and
+     * never reached the platform again. Same shape as the bed-defence level bug, same fix - watch the number the drill
+     * is asking for and replace the brain when it changes.
+     */
+    private void followBridgeGap(final Bot bot, final BotService bs, final BridgeDrill drill,
+                                 final PracticeGame g, final int dx, final int dz, final String technique) {
+        final int[] armed = {drill.gapBlocks()};
+        new org.bukkit.scheduler.BukkitRunnable() {
+            @Override public void run() {
+                if (bot.isRemoved() || bot.player() == null || !bot.player().isOnline()
+                        || g.state() == GameState.ENDING) { cancel(); return; }
+                int now = drill.gapBlocks();
+                if (now == armed[0]) return;
+                armed[0] = now;
+                bot.setBrain(bs.bridgeBrain(dx, dz, Math.max(2, now), technique));
+            }
+        }.runTaskTimer(plugin, 20L, 5L);
     }
 
     /** The cells of a bed-defence level as the bot brain wants them. */
