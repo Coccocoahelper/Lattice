@@ -35,8 +35,13 @@ public final class DuelPolicy {
     private static double baseline;
     private static long windows, fights;
     /** The last window's inputs, so the fight's outcome can be credited to the stance that was actually running. */
-    private static double[] lastX;
-    private static int lastAction = -1;
+    /**
+     * The open decision, per bot. Static fields here meant one bot's stance window was overwritten by the next bot's
+     * before the first one earned its reward, so a void credit or a fight result landed on whoever swung last. Keyed by
+     * player, an outcome can only reach the body it happened to.
+     */
+    private static final java.util.Map<java.util.UUID, double[]> LAST_X = new java.util.HashMap<java.util.UUID, double[]>();
+    private static final java.util.Map<java.util.UUID, Integer> LAST_ACTION = new java.util.HashMap<java.util.UUID, Integer>();
     /** Did the last section move health either way? Decides whether the fight result may speak at all. */
     private static boolean lastWindowDamage;
     private static File file;
@@ -178,6 +183,23 @@ public final class DuelPolicy {
     }
 
     /** Hindsight pass: the same update at a fraction of the online learning rate. */
+    /**
+     * The stance window closed with a result, attributed to the player it belonged to. Kept separate from record()
+     * because that one has no idea whose stance it is: the two static fields it used to write were overwritten by the
+     * next bot's window before the reward arrived.
+     */
+    public static void record(org.bukkit.entity.Player who, double[] x, int action, int hitsLanded, int hitsTaken,
+                             double dmgDealt, double dmgTaken, double weight, double gearDiff,
+                             int combo, int unanswered) {
+        record(x, action, hitsLanded, hitsTaken, dmgDealt, dmgTaken, weight, gearDiff, combo, unanswered);
+        if (who != null) {
+            LAST_X.put(who.getUniqueId(), x);
+            LAST_ACTION.put(who.getUniqueId(), action);
+            Attribution.decide(who, "stance", action, STANCES[Math.min(Math.max(action, 0), STANCES.length - 1)],
+                    x, STANCE_FEATURES, probabilities(x), STANCES, System.currentTimeMillis() / 50);
+        }
+    }
+
     public static void recordQuiet(double[] x, int action, double reward, double scale) {
         recordReward(x, action, reward, scale);
     }
@@ -200,8 +222,6 @@ public final class DuelPolicy {
         net.h2020.api.train.Replay.log("stance", "\"x\":" + net.h2020.api.train.Replay.vec(x)
                 + ",\"a\":" + action + ",\"r\":" + String.format(java.util.Locale.ROOT, "%.3f", reward)
                 + ",\"p\":" + String.format(java.util.Locale.ROOT, "%.3f", p[action]));
-        lastX = x;
-        lastAction = action;
         windows++;
         dirty = true;
     }
@@ -211,9 +231,15 @@ public final class DuelPolicy {
      * that set it up may have been the last one in the window, and the fall happens after the window already closed.
      * Credits the stance that was running when the hit landed.
      */
-    public static void voidCredit() {
-        if (lastX == null || lastAction < 0) return;
-        recordReward(lastX, lastAction, 0.8, 0.8);
+    public static void voidCredit(org.bukkit.entity.Player who) {
+        if (who == null) return;
+        double[] x = LAST_X.get(who.getUniqueId());
+        Integer a = LAST_ACTION.get(who.getUniqueId());
+        if (x == null || a == null || a < 0) return;
+        recordReward(x, a, 0.8, 0.8);
+        Attribution.close(who, "stance", 0.8, "void", "opponent went into the void after our hit");
+        LAST_X.remove(who.getUniqueId());
+        LAST_ACTION.remove(who.getUniqueId());
         net.h2020.api.stats.CombatStats.inc("ml.duel.voidcredit");
     }
 
@@ -222,7 +248,14 @@ public final class DuelPolicy {
      * stance gets the terminal signal - winning the fight pays even if the last window traded evenly, dying costs even
      * if it did not, and getting knocked into the void costs most of all.
      */
-    public static void terminal(boolean win, boolean died) { terminal(win, died, 0); }
+    public static void terminal(org.bukkit.entity.Player who, boolean win, boolean died) { terminal(who, win, died, 0); }
+
+    /** Action names for the stance policy, in the order the action constants are declared. */
+    public static final String[] STANCES = {"hold", "press", "back", "strafe-left", "strafe-right", "jump", "reset"};
+    /** Feature names, for a decision that has to explain itself. */
+    private static final String[] STANCE_FEATURES = {
+            "bias", "health", "their-health", "distance", "their-reach", "my-reach", "hit-advantage",
+            "their-knockback", "cornered", "gear-diff"};
 
     /**
      * The fight's result, graded against the gear the two of us were holding. Losing to a full diamond player while
@@ -231,14 +264,18 @@ public final class DuelPolicy {
      *
      * @param gearDiff (my armour + weapon) - (theirs), the same units the fight model uses
      */
-    public static void terminal(boolean win, boolean died, double gearDiff) {
-        if (lastX == null || lastAction < 0) return;
+    public static void terminal(org.bukkit.entity.Player who, boolean win, boolean died, double gearDiff) {
+        if (who == null) return;
+        double[] lastX = LAST_X.get(who.getUniqueId());
+        Integer lastActionBoxed = LAST_ACTION.get(who.getUniqueId());
+        if (lastX == null || lastActionBoxed == null || lastActionBoxed < 0) return;
+        int lastAction = lastActionBoxed;
         // the result is worth a fraction of a section, and only when the last section had nothing measurable to say:
         // otherwise a fight that ended badly would overrule a window that was actually won
         if (lastWindowDamage) {
             net.h2020.api.stats.CombatStats.inc("ml.duel.terminal.skipped");
-            lastX = null;
-            lastAction = -1;
+            LAST_X.remove(who.getUniqueId());
+            LAST_ACTION.remove(who.getUniqueId());
             return;
         }
         double pGear = clamp(0.5 + gearDiff / 10.0, 0.1, 0.9);   // expected win chance from gear alone
@@ -248,8 +285,10 @@ public final class DuelPolicy {
         if (gearDiff <= -3) net.h2020.api.stats.CombatStats.inc("ml.gear.outgunned");
         else if (gearDiff >= 3) net.h2020.api.stats.CombatStats.inc("ml.gear.advantage");
         recordReward(lastX, lastAction, r, 0.4);
-        lastX = null;
-        lastAction = -1;
+        Attribution.close(who, "stance", r, win ? "won" : "lost",
+                String.format(java.util.Locale.ROOT, "gear %+.1f", gearDiff));
+        LAST_X.remove(who.getUniqueId());
+        LAST_ACTION.remove(who.getUniqueId());
         net.h2020.api.stats.CombatStats.inc("ml.duel.terminal");
     }
 

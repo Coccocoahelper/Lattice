@@ -29,8 +29,23 @@ public final class MacroPolicy {
     private static File file;
     private static boolean dirty;
 
-    private static double[] lastX;
-    private static int lastAction = -1;
+    /**
+     * The open decision, per bot. It used to be a pair of static fields, which meant one bot's decision was replaced by
+     * the next bot's before the first one's outcome arrived: with a dozen bots the reward went to whoever decided most
+     * recently. A map keyed by player keeps every bot's open plan its own, and the record itself lives in
+     * {@link Attribution} so it can be read back.
+     */
+    private static final java.util.Map<java.util.UUID, double[]> LAST_X = new java.util.HashMap<java.util.UUID, double[]>();
+    private static final java.util.Map<java.util.UUID, Integer> LAST_ACTION = new java.util.HashMap<java.util.UUID, Integer>();
+
+    /** Action names, in the order the prior array is built. */
+    public static final String[] ACTIONS_NAMED = {
+            "shop", "upgrade", "iron", "defend", "rush", "diamond", "emerald", "guard", "share", "deposit"};
+
+    /** Feature names, in the order {@link #features} writes them. */
+    private static final String[] FEATURES = {
+            "bias", "game-time", "blocks", "iron", "diamonds", "emeralds", "bed-alive", "health",
+            "role", "target-distance", "enemy-pressure", "teammates", "armour"};
 
     private MacroPolicy() {}
 
@@ -86,9 +101,16 @@ public final class MacroPolicy {
             for (int a = 0; a < ACTIONS; a++) if (a != best && prior[a] > 0.02 && s[a] > sv) { sv = s[a]; second = a; }
             if (second >= 0) best = second;
         }
-        lastX = x;
-        lastAction = best;
+        java.util.UUID who = ctx.player.getUniqueId();
+        LAST_X.put(who, x);
+        LAST_ACTION.put(who, best);
         decisions++;
+        // the record carries the scores of every option, which is what makes regret computable later: without them a
+        // reader can only see what was chosen, never what it cost
+        double[] w = new double[N];
+        System.arraycopy(W, best * N, w, 0, N);
+        Attribution.decide(ctx.player, "macro", best, ACTIONS_NAMED[Math.min(best, ACTIONS_NAMED.length - 1)],
+                x, FEATURES, s, ACTIONS_NAMED, w, ctx.tick);
         return best;
     }
 
@@ -96,25 +118,33 @@ public final class MacroPolicy {
      * The action that was taken achieved something (or did not). A task that just ran for a while and ended is not a
      * reward: only a filled collect, a purchase, a broken bed, a defence that got blocks down count.
      */
-    public static void reward(double result) { reward(result, 0, 0); }
+    public static void reward(org.bukkit.entity.Player who, double result) { reward(who, result, 0, 0); }
+
+    /** Compatibility shim for a caller with no player to hand: it cannot attribute, so it does nothing. */
+    public static void reward(double result) { /* no subject: see reward(Player, ...) */ }
 
     /**
      * @param seconds   how long the task ran: a plan that pays off after two minutes is worth less than one that pays
      *                  off in twenty seconds, and the model should not need a second task to notice
      * @param resources blocks and iron it consumed
      */
-    public static void reward(double result, double seconds, double resources) {
-        if (lastAction < 0 || lastX == null || result == 0) return;
+    public static void reward(org.bukkit.entity.Player who, double result, double seconds, double resources) {
+        Integer act = who == null ? null : LAST_ACTION.get(who.getUniqueId());
+        double[] x = who == null ? null : LAST_X.get(who.getUniqueId());
+        if (act == null || act < 0 || x == null || result == 0) return;
         double r = result > 0 ? 1 : -0.5;
         r -= Math.min(0.35, seconds / 120.0);      // time cost, capped so a slow success still counts as a success
         r -= Math.min(0.25, resources / 64.0);     // resource cost, same idea
         double adv = r - baseline;
         baseline = 0.97 * baseline + 0.03 * r;
         double lr = LR / (1.0 + rewards / 400.0);
-        int base = lastAction * N;
-        for (int i = 0; i < N; i++) W[base + i] += lr * adv * lastX[i];
+        int base = act * N;
+        for (int i = 0; i < N; i++) W[base + i] += lr * adv * x[i];
         rewards++;
-        lastAction = -1;
+        LAST_ACTION.remove(who.getUniqueId());
+        LAST_X.remove(who.getUniqueId());
+        Attribution.close(who, "macro", r, result > 0 ? "achieved" : "failed",
+                String.format(java.util.Locale.ROOT, "%.1fs, %.0f resources", seconds, resources));
         dirty = true;
     }
 
@@ -123,19 +153,24 @@ public final class MacroPolicy {
      * policy when a task produced something, so a plan that kept walking the bot into a fight could never be blamed.
      * This is attributed to the plan that was running when it happened.
      */
-    public static void penalize(double weight, String reason) {
-        if (lastAction < 0 || lastX == null) return;
-        apply(-1.5 * weight);
+    public static void penalize(org.bukkit.entity.Player who, double weight, String reason) {
+        if (who == null) return;
+        Integer act = LAST_ACTION.get(who.getUniqueId());
+        if (act == null || act < 0 || LAST_X.get(who.getUniqueId()) == null) return;
+        apply(who, -1.5 * weight);
+        Attribution.close(who, "macro", -1.5 * weight, reason, "the plan running when it happened");
         net.h2020.api.stats.CombatStats.inc("ml.macro.penalty." + reason);
     }
 
     /** Partial credit: half of the reward for the fraction of the job that was actually banked. */
-    public static void progress(double frac) {
-        if (lastAction < 0 || lastX == null || frac <= 0.05) return;
+    public static void progress(org.bukkit.entity.Player who, double frac) {
+        Integer act = who == null ? null : LAST_ACTION.get(who.getUniqueId());
+        double[] x = who == null ? null : LAST_X.get(who.getUniqueId());
+        if (act == null || act < 0 || x == null || frac <= 0.05) return;
         double adv = Math.min(1.0, frac) * 0.5 - baseline;
         double lr = LR / (1.0 + rewards / 400.0);
-        int base = lastAction * N;
-        for (int i = 0; i < N; i++) W[base + i] += lr * adv * lastX[i];
+        int base = act * N;
+        for (int i = 0; i < N; i++) W[base + i] += lr * adv * x[i];
         net.h2020.api.stats.CombatStats.inc("ml.macro.progress");
     }
 
@@ -143,20 +178,27 @@ public final class MacroPolicy {
      * Walking away from a task because of a threat is a good decision, not a missing one. Without this the policy only
      * ever hears about tasks that finished, and learns to prefer safe chores over the rush that got interrupted.
      */
-    public static void abandon() {
-        if (lastAction < 0 || lastX == null) return;
-        apply(0.15);
+    public static void abandon(org.bukkit.entity.Player who) {
+        if (who == null) return;
+        Integer act = LAST_ACTION.get(who.getUniqueId());
+        if (act == null || act < 0) return;
+        apply(who, 0.15);
+        Attribution.close(who, "macro", 0.15, "abandoned", "left a chore for a threat");
         net.h2020.api.stats.CombatStats.inc("ml.macro.abandon");
     }
 
-    private static void apply(double r) {
+    private static void apply(org.bukkit.entity.Player who, double r) {
+        Integer act = LAST_ACTION.get(who.getUniqueId());
+        double[] x = LAST_X.get(who.getUniqueId());
+        if (act == null || act < 0 || x == null) return;
         double adv = r - baseline;
         baseline = 0.97 * baseline + 0.03 * r;
         double lr = LR / (1.0 + rewards / 400.0);
-        int base = lastAction * N;
-        for (int i = 0; i < N; i++) W[base + i] += lr * adv * lastX[i];
+        int base = act * N;
+        for (int i = 0; i < N; i++) W[base + i] += lr * adv * x[i];
         rewards++;
-        lastAction = -1;
+        LAST_ACTION.remove(who.getUniqueId());
+        LAST_X.remove(who.getUniqueId());
         dirty = true;
     }
 
@@ -184,8 +226,8 @@ public final class MacroPolicy {
         baseline = 0;
         decisions = 0;
         rewards = 0;
-        lastAction = -1;
-        lastX = null;
+        LAST_ACTION.clear();
+        LAST_X.clear();
         dirty = true;
         save();
     }

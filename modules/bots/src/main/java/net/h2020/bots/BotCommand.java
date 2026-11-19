@@ -170,6 +170,10 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                         net.h2020.bots.ai.brain.BedwarsBrain bw = (net.h2020.bots.ai.brain.BedwarsBrain) b;
                         if (bw.context() == null || bw.context().player == null) continue;
                         if (nm != null && !bw.context().player.getName().equalsIgnoreCase(nm)) continue;
+                        // the decision trail: what this bot chose, what it could have chosen, and how it ended.
+                        // The single "why" line says what it is doing now; this says how it got there.
+                        for (String t : net.h2020.bots.ai.ml.Attribution.trail(bw.context().player, 6))
+                            sender.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.trail-line", "p1", t));
                         sender.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.6-why-f-7","p1",bw.context().player.getName(),"p2",bw.whyString()));
                     }
                     break;
@@ -309,6 +313,11 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                         net.h2020.bots.ai.ml.RoleModel.reset();
                         sender.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.fight-models-reset-all","p1",P));
                     }
+                    // attribution first: it is the report that says whether the numbers below are being learned from
+                    // the right body, and what the alternative would have been at each decision
+                    for (String l : net.h2020.bots.ai.ml.Attribution.report()) sender.sendMessage(l);
+                    sender.sendMessage(net.h2020.api.core.Messages.get("bots.botcommand.attribution-worst", "p1", 5));
+                    for (String l : net.h2020.bots.ai.ml.Attribution.worst(5)) sender.sendMessage(l);
                     safe(sender, net.h2020.bots.ai.ml.FightModel.report());
                     safe(sender, net.h2020.bots.ai.ml.PlacementPolicy.report());
                     safe(sender, net.h2020.bots.ai.ml.AimPolicy.report());

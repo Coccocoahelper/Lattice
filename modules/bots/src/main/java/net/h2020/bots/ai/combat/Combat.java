@@ -479,7 +479,7 @@ public final class Combat {
         stickKilled = true;                                          // the stick/hit did its job
         // the fall itself takes time: from a high bridge it can be three seconds before the death lands
         if (ctx.tick - lastHitLanded > 100) return;
-        net.h2020.bots.ai.ml.DuelPolicy.voidCredit();
+        net.h2020.bots.ai.ml.DuelPolicy.voidCredit(ctx.player);
     }
 
     /** We killed somebody: when it is the one we were fighting, the models get a winning sample. */
@@ -525,7 +525,7 @@ public final class Combat {
         net.h2020.bots.ai.ml.SelfStats.onFight(ctx.player, win);
         net.h2020.bots.ai.ml.SelfStats.onHits(ctx.player, hits, swings);
         net.h2020.bots.ai.ml.PlacementPolicy.finish(ctx.player.getUniqueId(), win);
-        net.h2020.bots.ai.ml.DuelPolicy.terminal(win, false, gearDiffVs(target));
+        net.h2020.bots.ai.ml.DuelPolicy.terminal(ctx.player, win, false, gearDiffVs(target));
         net.h2020.bots.ai.ml.DuelPolicy.onFightEnd();
         ctx.c.setAimPolicy(0, 1.0);
     }
@@ -1092,7 +1092,7 @@ public final class Combat {
                 // whether the hit counter missed it (blocked hits, fall damage) or not
                 int unanswered = (wTaken > 0 && wLanded == 0) ? wTaken
                         : (wDmgTaken > 0.5 && wDmgDealt < wDmgTaken * 0.5 ? 1 : 0);
-                net.h2020.bots.ai.ml.DuelPolicy.record(duelX, duelStance, wLanded, wTaken,
+                net.h2020.bots.ai.ml.DuelPolicy.record(ctx.player, duelX, duelStance, wLanded, wTaken,
                         wDmgDealt, wDmgTaken, opponentWeight(pWin), gearDiffVs(target), comboCount, unanswered);
                 net.h2020.bots.ai.ml.CombatArbiter.resolveWindow(ctx, net.h2020.bots.ai.ml.CombatArbiter.STRAFE,
                         wLanded, wTaken, comboCount, unanswered, opponentWeight(pWin));

@@ -438,7 +438,7 @@ public final class BedwarsBrain extends GameBrain {
             }
             if (task != null && !(task instanceof RushTask) && !(task instanceof GuardTask)) {
                 // dropping a chore to answer a threat is the right call, and the macro policy should hear that
-                net.h2020.bots.ai.ml.MacroPolicy.abandon();
+                net.h2020.bots.ai.ml.MacroPolicy.abandon(ctx.player);
                 task.abort();
                 task = null;
             }
@@ -492,7 +492,7 @@ public final class BedwarsBrain extends GameBrain {
                 double taskSeconds = (ctx.tick - taskStartTick) / 20.0;
                 int ironNow = net.h2020.bots.ai.inv.Inv.count(ctx.player, net.h2020.bots.ai.inv.Inv.type(org.bukkit.Material.IRON_INGOT))
                         + net.h2020.bots.ai.inv.Inv.count(ctx.player, net.h2020.bots.ai.inv.Inv.type(org.bukkit.Material.GOLD_INGOT));
-                net.h2020.bots.ai.ml.MacroPolicy.reward(result, taskSeconds, Math.max(0, taskStartIron - ironNow));
+                net.h2020.bots.ai.ml.MacroPolicy.reward(ctx.player, result, taskSeconds, Math.max(0, taskStartIron - ironNow));
                 if (!roleRewarded && result != 0) { net.h2020.bots.ai.ml.RoleModel.reward(result > 0); roleRewarded = true; }
                 // a trip that gave up straight away (no route yet, nav cooldown): don't pick it again every tick
                 if ((task instanceof RushTask || task instanceof CollectTask) && ctx.tick - task.startedTick() < 40) {
@@ -1067,7 +1067,7 @@ public final class BedwarsBrain extends GameBrain {
                 target == null ? 100 : distanceToBed(target));
         int best = net.h2020.bots.ai.ml.MacroPolicy.choose(ctx, sc, macroX);
         if (sc[best] <= 0.02) {
-            net.h2020.bots.ai.ml.MacroPolicy.reward(0);   // nothing was even possible: no lesson
+            net.h2020.bots.ai.ml.MacroPolicy.reward(ctx.player, 0);   // nothing was even possible: no lesson
             return new GuardTask(this, 20 * 10);
         }
         justRespawned = false;
@@ -1492,7 +1492,7 @@ public final class BedwarsBrain extends GameBrain {
     public void onDeath(Player killer, boolean voidDeath) {
         super.onDeath(killer, voidDeath);
         // dying is the most expensive thing that can happen: blame the plan that was running when it did
-        net.h2020.bots.ai.ml.MacroPolicy.penalize(1.0, voidDeath ? "void" : "death");
+        net.h2020.bots.ai.ml.MacroPolicy.penalize(ctx.player, 1.0, voidDeath ? "void" : "death");
         if (task != null) { task.abort(); task = null; }
     }
 

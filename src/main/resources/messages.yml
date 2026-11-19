@@ -78,6 +78,8 @@ bots:
     answer-with-the-number: "&7Answer with the number, e.g. /{p1} <id> 2"
     that-is-not-an: "&7That is not an answer for the current question."
   botcommand:
+    trail-line: "  &8{t}"
+    attribution-worst: "&6[ml] &eworst {p1} decisions:&7"
     6-menu-frendered-for: "§6[menu] §frendered for {p1}"
     6-pl-fwatched-placements: "§6[pl] §fwatched {p1} placements"
     6-shop-fwatched: "§6[shop] §fwatched {p1}"

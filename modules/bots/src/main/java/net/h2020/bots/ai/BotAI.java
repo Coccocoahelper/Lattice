@@ -58,6 +58,8 @@ public final class BotAI {
         net.h2020.bots.ai.ml.DuelPolicy.install(p);
         net.h2020.bots.ai.ml.NextOpponent.install(p);
         net.h2020.bots.ai.ml.MacroPolicy.install(p);
+        // the bookkeeping every learning model attributes through: whose decision, what it was made on, how it ended
+        net.h2020.bots.ai.ml.Attribution.install(p);
         net.h2020.bots.ai.ml.BehaviourModel.install(p);
         net.h2020.bots.ai.ml.QuestionBook.install(p);
         net.h2020.bots.ai.ml.ServerQuestions.install(p);
@@ -78,6 +80,9 @@ public final class BotAI {
             Raycast.setPerTick(cfg.getInt("raycasts-per-tick", 240));
         }
         listener = new AIListener();
+        Bukkit.getScheduler().runTaskTimer(p, new Runnable() {
+            @Override public void run() { net.h2020.bots.ai.ml.Attribution.sweep(System.currentTimeMillis()); }
+        }, 200L, 20L);
         Bukkit.getPluginManager().registerEvents(listener, p);
         task = Bukkit.getScheduler().runTaskTimer(p, new Runnable() {
             @Override public void run() { tickAll(); }
