@@ -150,6 +150,7 @@ public final class DuelsGame implements Game {
         p.setFlying(false);
         DuelsKit.apply(mode, p);
         DuelsKit.effects(mode, p);
+        serverLine("You joined " + mode.displayName() + " duel (" + order.size() + "/2)");
         p.sendMessage(ChatColor.YELLOW + "You joined " + ChatColor.AQUA + ChatColor.BOLD + mode.displayName()
                 + ChatColor.YELLOW + " duel " + ChatColor.GRAY + "(" + order.size() + "/2)");
         updateBoards();
@@ -402,6 +403,10 @@ public final class DuelsGame implements Game {
         state = GameState.ENDING;
         endSeconds = END_SECONDS;
         List<Player> ps = players();
+        // One recording per line, not per player: the end screen is the same text for everybody, and recording it
+        // inside the player loop duplicated the whole block once per participant (measured: a 5-line screen stored
+        // as 10).
+        List<String> shared = new ArrayList<String>();
         for (Player p : ps) {
             boolean won = winner != null && winner.equals(p.getUniqueId());
             List<String> block = new ArrayList<String>();
@@ -423,6 +428,7 @@ public final class DuelsGame implements Game {
             }
             block.add(ChatColor.GRAY + "" + ChatColor.STRIKETHROUGH + "------------------------------------------------");
             for (String l : block) p.sendMessage(l);
+            if (shared.isEmpty()) shared.addAll(block);
             LastGame.record(p, mode, mapName());
             PlayAgain.giveItem(p);
             if (won) title(p, ChatColor.GOLD + "" + ChatColor.BOLD + "VICTORY!",
@@ -430,6 +436,7 @@ public final class DuelsGame implements Game {
             else title(p, ChatColor.RED + "" + ChatColor.BOLD + "DEFEAT",
                     winner == null ? ChatColor.GRAY + "The duel was a draw." : ChatColor.GRAY + "You lost the duel.", 5, 60, 20);
         }
+        for (String l : shared) serverLine(l);          // once for the match, not once per participant
         for (Player p : ps) PlayAgain.sendPrompt(p, winner != null && winner.equals(p.getUniqueId()), false);
         updateBoards();
     }
@@ -489,6 +496,14 @@ public final class DuelsGame implements Game {
 
     private static String clock(int seconds) {
         return String.format("%d:%02d", seconds / 60, seconds % 60);
+    }
+
+    /** Record a duel line with the replay, when one is running. */
+    private void serverLine(String msg) {
+        try {
+            net.h2020.api.game.ReplayService rs = net.h2020.api.H2020.find(net.h2020.api.game.ReplayService.class);
+            if (rs != null) rs.serverLine(world, ChatColor.stripColor(msg));
+        } catch (Throwable ignored) { }
     }
 
     private void title(String t, String sub) {

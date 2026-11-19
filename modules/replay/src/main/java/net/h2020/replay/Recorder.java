@@ -46,6 +46,7 @@ public final class Recorder {
 
     public static void install(final JavaPlugin p) {
         plugin = p;
+        Bukkit.getPluginManager().registerEvents(new Chat(), plugin);
         Bukkit.getPluginManager().registerEvents(new Blocks(), p);
         dir = new File(p.getDataFolder(), "replays/games");
         if (!dir.isDirectory()) dir.mkdirs();
@@ -265,6 +266,88 @@ public final class Recorder {
         public void onBreak(org.bukkit.event.block.BlockBreakEvent e) {
             block(e.getPlayer(), e.getBlock().getLocation(), e.getBlock().getTypeId(), e.getBlock().getData(), false);
         }
+    }
+
+    /**
+     * A chat line in a recorded game. Written once per game rather than per player: a message belongs to the match,
+     * not to whoever happened to be standing in it, and duplicating it into every participant's stream would replay
+     * it a dozen times.
+     *
+     * <p>Kept as its own line type rather than an {@code "e"} event because the event channel is comma-split, and chat
+     * is exactly the kind of text that contains commas.
+     */
+    public static void chat(org.bukkit.World w, String speaker, String text, String kind) {
+        if (w == null || text == null) return;
+        String key = keyForWorld(w);
+        if (key == null) return;
+        BufferedWriter out = OPEN.get(key);
+        Long start = START.get(key);
+        if (out == null || start == null) return;
+        if (spoken.getOrDefault(key, 0) > 4000) return;      // a spam guard: a replay is not a log sink
+        spoken.merge(key, 1, Integer::sum);
+        try {
+            out.write("{\"t\":" + (System.currentTimeMillis() - start) + ",\"c\":[\""
+                    + esc(speaker) + "\",\"" + esc(text) + "\",\"" + esc(kind == null ? "chat" : kind) + "\"]}\n");
+        } catch (Throwable ignored) { }
+    }
+
+    private static final java.util.Map<String, Integer> spoken = new java.util.concurrent.ConcurrentHashMap<String, Integer>();
+
+    /** Which recording a world belongs to: the game running in it, or the arena. */
+    static String keyForWorld(org.bukkit.World w) {
+        if (w == null) return null;
+        net.h2020.api.game.GameManager gm = H2020.find(net.h2020.api.game.GameManager.class);
+        if (gm != null) {
+            for (net.h2020.api.game.Game g : gm.games()) {
+                try { if (w.equals(g.world())) return g.id(); } catch (Throwable ignored) { }
+            }
+        }
+        if (net.h2020.api.core.Worlds.isArena(w)) return ARENA;
+        return null;
+    }
+
+    /** JSON-escape a string: quotes, backslashes and control characters, so one message cannot break the file. */
+    private static String esc(String s) {
+        if (s == null) return "";
+        StringBuilder b = new StringBuilder(s.length() + 8);
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '"' || c == '\\') b.append('\\').append(c);
+            else if (c == '\n') b.append("\\n");
+            else if (c == '\r') b.append("\\r");
+            else if (c == '\t') b.append("\\t");
+            else if (c < 0x20) b.append(' ');
+            else b.append(c);
+        }
+        return b.toString();
+    }
+
+    /** Chat, in every form a game produces it: player chat, /shout, and the server's own broadcast lines. */
+    public static final class Chat implements org.bukkit.event.Listener {
+        @org.bukkit.event.EventHandler(priority = org.bukkit.event.EventPriority.MONITOR, ignoreCancelled = true)
+        public void onChat(org.bukkit.event.player.AsyncPlayerChatEvent e) {
+            chat(e.getPlayer().getWorld(), e.getPlayer().getName(), e.getMessage(), "chat");
+        }
+
+        @org.bukkit.event.EventHandler(priority = org.bukkit.event.EventPriority.MONITOR, ignoreCancelled = true)
+        public void onCommand(org.bukkit.event.player.PlayerCommandPreprocessEvent e) {
+            // a shout is chat with a command in front of it; a bare /shout with no argument is not worth a line
+            String m = e.getMessage();
+            int sp = m.indexOf(' ');
+            if (sp < 0) return;
+            String cmd = m.substring(0, sp).toLowerCase(java.util.Locale.ROOT);
+            if (!cmd.equals("/shout") && !cmd.equals("/sh")) return;
+            chat(e.getPlayer().getWorld(), e.getPlayer().getName(), m.substring(sp + 1), "shout");
+        }
+    }
+
+    /**
+     * The server's own messages: deaths, bed breaks, joins, the game's announcements. Read off the broadcast rather
+     * than re-deriving them, so a replay shows exactly the lines the players saw.
+     */
+    public static void serverLine(org.bukkit.World w, String text) {
+        if (w == null || text == null || text.isEmpty()) return;
+        chat(w, "", text, "server");
     }
 
     /** An arbitrary event line for a game: projectiles, items, breaks, explosions, effects. */

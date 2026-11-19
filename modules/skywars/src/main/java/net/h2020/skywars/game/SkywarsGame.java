@@ -1050,7 +1050,16 @@ public final class SkywarsGame implements SkywarsView {
     private static String blank(int i) { return ChatColor.values()[i].toString() + ChatColor.RESET; }
 
     // =========================================================================================================
+    /** Record a game line with the replay, when one is running. */
+    private void serverLine(String msg) {
+        try {
+            net.h2020.api.game.ReplayService rs = H2020.find(net.h2020.api.game.ReplayService.class);
+            if (rs != null && msg != null) rs.serverLine(world, ChatColor.stripColor(msg));
+        } catch (Throwable ignored) { }
+    }
+
     private void broadcast(String msg) {
+        serverLine(msg);
         for (Player p : players()) p.sendMessage(msg);
         // mirror game messages to the console like a real server's chat log
         if (msg != null && !ChatColor.stripColor(msg).trim().isEmpty()) Bukkit.getLogger().info("[" + id + "] " + ChatColor.stripColor(msg));

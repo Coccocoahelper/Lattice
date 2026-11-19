@@ -472,7 +472,18 @@ public final class BedwarsGame implements BedwarsView {
     public void markPlaced(Block b) { placed.add(key(b)); }
     public void unmarkPlaced(Block b) { placed.remove(key(b)); }
 
+    /** Record a game line with the replay, when one is running. */
+    private void serverLine(String msg) {
+        try {
+            net.h2020.api.game.ReplayService rs = H2020.find(net.h2020.api.game.ReplayService.class);
+            if (rs != null && msg != null) rs.serverLine(world, org.bukkit.ChatColor.stripColor(msg));
+        } catch (Throwable ignored) { }
+    }
+
     public void broadcast(String msg) {
+        // the replay keeps the game's own lines, stripped of colour: a replay of a match with the kill feed missing
+        // answers "who was where" and not "what happened"
+        serverLine(msg);
         for (BwPlayer bp : players.values()) bp.player.sendMessage(msg);
         // mirror game messages (kills, beds, eliminations) to the console like a real server's chat log
         if (msg != null && !org.bukkit.ChatColor.stripColor(msg).trim().isEmpty())
@@ -484,6 +495,7 @@ public final class BedwarsGame implements BedwarsView {
      * other people's kills to you.
      */
     public void broadcastAlive(String msg) {
+        serverLine(msg);
         // everyone still in the game, including somebody waiting out their respawn; eliminated players are out
         for (BwPlayer bp : players.values()) {
             if (!bp.eliminated) bp.player.sendMessage(msg);

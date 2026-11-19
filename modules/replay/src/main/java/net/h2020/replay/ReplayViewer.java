@@ -80,6 +80,11 @@ public final class ReplayViewer {
         long ticks;
         int eventIdx;
         long appliedEventT = -1;
+        /** Chat and server lines, in recorded order: {t, speaker, text, kind}. Replayed as the clock passes them. */
+        List<Object[]> chat = new ArrayList<Object[]>();
+        int chatIdx;
+        /** The chat the viewer has already been shown, so a seek does not replay the whole match into their chat. */
+        long shownChatUpTo = -1;
         /** A seek happened while paused: apply exactly one frame so the scene matches the new position. */
         boolean forceTick;
         Map<Integer, org.bukkit.entity.Entity> live = new HashMap<Integer, org.bukkit.entity.Entity>();
@@ -100,6 +105,10 @@ public final class ReplayViewer {
         Bukkit.getPluginManager().registerEvents(new Controls(), p);
         net.h2020.api.H2020.register(net.h2020.api.game.ReplayService.class, new net.h2020.api.game.ReplayService() {
             @Override public void openBrowser(Player who) { ReplayViewer.openBrowser(who); }
+            @Override public void serverLine(World w, String text) { Recorder.serverLine(w, text); }
+            @Override public void chatLine(World w, String speaker, String text, String kind) {
+                Recorder.chat(w, speaker, text, kind);
+            }
         });
     }
 
@@ -176,6 +185,11 @@ public final class ReplayViewer {
 
     public static void command(CommandSender s, String[] a) {
         String sub = a.length > 1 ? a[1].toLowerCase() : "list";
+        if (sub.equals("chatdump")) {          // console: prove the chat timeline a replay will show
+            if (a.length < 3) { s.sendMessage(ChatColor.RED + "chatdump <gameId>"); return; }
+            chatDump(s, a[2]);
+            return;
+        }
         if (sub.equals("menudump")) {          // console: prove the GUI contents without a client
             Player who = a.length > 2 ? Bukkit.getPlayerExact(a[2]) : null;
             if (who == null) { s.sendMessage(ChatColor.RED + "menudump <player> [family] [page]"); return; }
@@ -387,6 +401,70 @@ public final class ReplayViewer {
         return n;
     }
 
+    /**
+     * Show the chat as the clock reaches it. Real chat text rather than a summary: a replay is meant to answer "what
+     * happened in that game", and the banter, the callouts and the death messages are most of the answer.
+     *
+     * <p>A seek moves the cursor forward without dumping the backlog into the viewer's chat - the lines they skipped
+     * past are skipped, because a wall of forty old messages is not a replay control.
+     */
+    private static void applyChat(Session ses, long t, Player p) {
+        if (ses.chat.isEmpty()) return;
+        if (t < ses.shownChatUpTo) {                 // seeked backwards: start again from the first line after t
+            ses.chatIdx = 0;
+            while (ses.chatIdx < ses.chat.size() && (Long) ses.chat.get(ses.chatIdx)[0] < t) ses.chatIdx++;
+        }
+        ses.shownChatUpTo = t;
+        while (ses.chatIdx < ses.chat.size() && (Long) ses.chat.get(ses.chatIdx)[0] <= t) {
+            Object[] row = ses.chat.get(ses.chatIdx++);
+            String speaker = (String) row[1];
+            String text = (String) row[2];
+            String kind = (String) row[3];
+            try {
+                if ("server".equals(kind)) {
+                    p.sendMessage(text);
+                } else if ("shout".equals(kind)) {
+                    p.sendMessage(ChatColor.AQUA + "[SHOUT] " + ChatColor.WHITE + speaker + ChatColor.GRAY + ": " + text);
+                } else {
+                    p.sendMessage(ChatColor.WHITE + speaker + ChatColor.GRAY + ": " + ChatColor.WHITE + text);
+                }
+            } catch (Throwable ignored) { }
+        }
+    }
+
+    /**
+     * Read a {@code "c"} line: {t, [speaker, text, kind]}. Split on quotes rather than commas - a chat message is
+     * exactly the string that contains commas, so the event channel's split(",") would tear it apart.
+     */
+    private static Object[] parseChat(String line, long t) {
+        int start = line.indexOf("\"c\":[");
+        if (start < 0) return null;
+        start += 5;
+        List<String> parts = new ArrayList<String>();
+        StringBuilder cur = new StringBuilder();
+        boolean inStr = false;
+        for (int i = start; i < line.length(); i++) {
+            char c = line.charAt(i);
+            if (c == '\\' && inStr && i + 1 < line.length()) {
+                char n = line.charAt(++i);
+                cur.append(n == 'n' ? '\n' : n == 'r' ? '\r' : n == 't' ? '\t' : n);
+                continue;
+            }
+            if (c == '"') {
+                if (inStr) { parts.add(cur.toString()); cur.setLength(0); }
+                inStr = !inStr;
+                continue;
+            }
+            if (!inStr) { if (c == ']') break; continue; }
+            cur.append(c);
+        }
+        if (parts.isEmpty()) return null;
+        String speaker = parts.get(0);
+        String text = parts.size() > 1 ? parts.get(1) : "";
+        String kind = parts.size() > 2 ? parts.get(2) : "chat";
+        return new Object[]{t, speaker, text, kind};
+    }
+
     /** bedwars / skywars / duels / practice, from a mode name, so a family filter works. */
     private static String familyOf(String mode) {
         String m = mode == null ? "" : mode.toLowerCase(java.util.Locale.ROOT);
@@ -424,6 +502,7 @@ public final class ReplayViewer {
         List<Map<String, double[]>> frames = new ArrayList<Map<String, double[]>>();
         List<Object[]> events = new ArrayList<Object[]>();
         List<Object[]> npcList = new ArrayList<Object[]>();
+        List<Object[]> chatList = new ArrayList<Object[]>();
         List<long[]> blocks = new ArrayList<long[]>();
         Map<String, String> names = new LinkedHashMap<String, String>();
         BufferedReader r = null;
@@ -526,6 +605,7 @@ public final class ReplayViewer {
         ses.frames = frames;
         ses.blocks = blocks;
         ses.events = events;
+        ses.chat = chatList;             // the parse collected it; without this the list was built and thrown away
         ses.npcs.addAll(spawnNpcs(world, npcList));
         if (!npcList.isEmpty()) plugin.getLogger().info("[replay] " + gameId + ": " + ses.npcs.size()
                 + " static NPCs spawned of " + npcList.size() + " recorded");
@@ -769,6 +849,41 @@ public final class ReplayViewer {
         p.setAllowFlight(ses.savedFlight);
         if (!ses.savedFlight) p.setFlying(false);
         p.updateInventory();
+    }
+
+    /**
+     * Print the chat a recording holds, in order, with its timestamps. This is the headless proof that the lines are
+     * parsed and ordered correctly: a replay plays these at exactly these moments, so a wrong order here is a wrong
+     * order in the replay.
+     */
+    private static void chatDump(CommandSender s, String gameId) {
+        File f = new File(Recorder.dir(), gameId + ".jsonl");
+        if (!f.isFile()) { s.sendMessage(ChatColor.RED + "No recording called " + gameId); return; }
+        int n = 0;
+        try {
+            BufferedReader r = new BufferedReader(new FileReader(f));
+            String line;
+            java.util.List<Object[]> rows = new ArrayList<Object[]>();
+            while ((line = r.readLine()) != null) {
+                if (!line.contains("\"c\":[")) continue;
+                Object[] row = parseChat(line, (long) num(line, "t", 0));
+                if (row != null) rows.add(row);
+            }
+            r.close();
+            s.sendMessage(ChatColor.GOLD + gameId + ChatColor.GRAY + ": " + rows.size() + " chat line(s)");
+            for (Object[] row : rows) {
+                long t = (Long) row[0];
+                String who = (String) row[1];
+                String text = (String) row[2];
+                String kind = (String) row[3];
+                s.sendMessage(ChatColor.DARK_GRAY + "  " + clock(t) + " " + ChatColor.GRAY + "["
+                        + kind + "] " + (who.isEmpty() ? "" : ChatColor.WHITE + who + ": ") + ChatColor.GRAY + text);
+                if (++n >= 40) { s.sendMessage(ChatColor.DARK_GRAY + "  ..."); break; }
+            }
+            if (rows.isEmpty()) s.sendMessage(ChatColor.GRAY + "  (this recording predates chat capture)");
+        } catch (Throwable t) {
+            s.sendMessage(ChatColor.RED + "could not read it: " + t);
+        }
     }
 
     /** The player picker: one head per recorded player, click to follow them. */
@@ -1045,6 +1160,7 @@ public final class ReplayViewer {
                 }
                 applyBlocks(ses, t, p);              // the islands build themselves as the replay runs
                 applyEvents(ses, t, p);              // arrows, dropped items, crack stages, explosions
+                applyChat(ses, t, p);                // what was said, as the clock passes each line
                 if (ses.ticks++ % 5 == 0) {
                     long total = ses.times.get(ses.times.size() - 1)[0];
                     actionBar(p, ChatColor.GRAY + clock(Math.min(t, total)) + ChatColor.DARK_GRAY + " / "
