@@ -201,6 +201,11 @@ public final class BotManager implements BotService, Listener {
     }
 
     @Override
+    public net.h2020.api.bot.BotBrain arenaBrain() {
+        return new net.h2020.bots.ai.brain.ArenaBrain();
+    }
+
+    @Override
     public Bot bot(Player p) {
         if (p == null) return null;
         FakeBot b = bots.get(p.getUniqueId());

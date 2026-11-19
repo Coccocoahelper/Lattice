@@ -192,6 +192,10 @@ public final class DuelsGame implements Game {
             if (gm != null) { try { gm.sendToLobby(p, GameFamily.DUELS); } catch (Throwable ignored) { } }
         }
         order.clear();
+        hits.clear();
+        roundsWon.clear();
+        lastHitAt.clear();
+        lastAttacker.clear();
         module.unregister(this);
         if (gm != null) {
             try { gm.finished(this); } catch (Throwable t) {

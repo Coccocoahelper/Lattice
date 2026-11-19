@@ -151,6 +151,11 @@ public final class DuelsListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent e) {
+        // the per-player scratch this listener keeps is dropped with the player, or a long session grows it for
+        // every body that ever fought
+        java.util.UUID u = e.getPlayer().getUniqueId();
+        lastKnock.remove(u);
+        healthBefore.remove(u);
         DuelsGame g = module.gameOf(e.getPlayer());
         if (g != null) g.removePlayer(e.getPlayer());
     }

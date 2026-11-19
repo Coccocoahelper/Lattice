@@ -87,8 +87,9 @@ public final class FireballDrill implements Drill {
         if (--next > 0) return;
         java.util.List<Player> alive = g.alivePlayers();
         if (alive.isEmpty()) { next = 20; return; }
-        Player target = alive.get(g.world().getPlayers().size() > 1
-                ? (int) (Math.random() * alive.size()) : 0);
+        // pick from the participants, never from the world: getPlayers() counts spectators, and the two sizes are not
+        // the same thing - the old guard could take the random branch for a one-player drill
+        Player target = alive.get(alive.size() > 1 ? (int) (Math.random() * alive.size()) : 0);
         Fireball f = g.world().spawn(muzzle, Fireball.class);
         f.setIsIncendiary(false);
         f.setYield(1.0f);

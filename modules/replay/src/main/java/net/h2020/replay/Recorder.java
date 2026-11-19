@@ -32,10 +32,13 @@ public final class Recorder {
     public static final long MAX_GAME_MS = 25L * 60L * 1000L;
     public static final int KEEP = 200;      // replays stay on disk: they are the hindsight training set
 
-    private static final Map<String, BufferedWriter> OPEN = new HashMap<String, BufferedWriter>();
-    private static final Map<String, Long> START = new HashMap<String, Long>();
-    private static final Map<String, Long> LAST = new HashMap<String, Long>();
-    private static final Map<java.util.UUID, Integer> FLAGS = new HashMap<java.util.UUID, Integer>();
+    // Concurrent: chat is delivered on an async thread (AsyncPlayerChatEvent is asynchronous by contract) while the
+    // frame writer runs on the main thread. Plain HashMaps here were a corrupted map waiting to happen - a rehash
+    // during a concurrent get can spin forever, which would hang the chat thread, not just lose a line.
+    private static final Map<String, BufferedWriter> OPEN = new java.util.concurrent.ConcurrentHashMap<String, BufferedWriter>();
+    private static final Map<String, Long> START = new java.util.concurrent.ConcurrentHashMap<String, Long>();
+    private static final Map<String, Long> LAST = new java.util.concurrent.ConcurrentHashMap<String, Long>();
+    private static final Map<java.util.UUID, Integer> FLAGS = new java.util.concurrent.ConcurrentHashMap<java.util.UUID, Integer>();
     private static final Map<java.util.UUID, int[]> LAST_EQ = new HashMap<java.util.UUID, int[]>();
     private static File dir;
     private static final String ARENA = "arena";
@@ -121,6 +124,7 @@ public final class Recorder {
     private static void frameWorld(String id, org.bukkit.World world, long t) {
         BufferedWriter w = OPEN.get(id);
         if (w == null) return;
+        Object lock = LOCKS.computeIfAbsent(id, k -> new Object());
         StringBuilder sb = new StringBuilder(256);
         sb.append("{\"t\":").append(t).append(",\"p\":[");
         boolean first = true;
@@ -135,7 +139,9 @@ public final class Recorder {
                     .append(packed(p.getItemInHand())).append(",0,0,0,0,0]");
         }
         sb.append("]}");
-        try { w.write(sb.toString()); w.write('\n'); frames++; } catch (Throwable ignored) { }
+        synchronized (lock) {
+            try { w.write(sb.toString()); w.write('\n'); frames++; } catch (Throwable ignored) { }
+        }
     }
 
     private static boolean hasBot(Game g, BotService bs) {
@@ -285,13 +291,21 @@ public final class Recorder {
         if (out == null || start == null) return;
         if (spoken.getOrDefault(key, 0) > 4000) return;      // a spam guard: a replay is not a log sink
         spoken.merge(key, 1, Integer::sum);
-        try {
-            out.write("{\"t\":" + (System.currentTimeMillis() - start) + ",\"c\":[\""
-                    + esc(speaker) + "\",\"" + esc(text) + "\",\"" + esc(kind == null ? "chat" : kind) + "\"]}\n");
-        } catch (Throwable ignored) { }
+        // one writer at a time per game: a chat line from the async thread landing between the main thread's frame
+        // bytes would splice two JSON lines together and lose both
+        Object lock = LOCKS.computeIfAbsent(key, k -> new Object());
+        synchronized (lock) {
+            try {
+                out.write("{\"t\":" + (System.currentTimeMillis() - start) + ",\"c\":[\""
+                        + esc(speaker) + "\",\"" + esc(text) + "\",\"" + esc(kind == null ? "chat" : kind) + "\"]}\n");
+                out.flush();
+            } catch (Throwable ignored) { }
+        }
     }
 
     private static final java.util.Map<String, Integer> spoken = new java.util.concurrent.ConcurrentHashMap<String, Integer>();
+    /** Per-game write lock: the frame writer is on the main thread, chat is on the async one. */
+    private static final java.util.Map<String, Object> LOCKS = new java.util.concurrent.ConcurrentHashMap<String, Object>();
 
     /** Which recording a world belongs to: the game running in it, or the arena. */
     static String keyForWorld(org.bukkit.World w) {
@@ -358,9 +372,12 @@ public final class Recorder {
         BufferedWriter w = OPEN.get(key);
         Long start = START.get(key);
         if (w == null || start == null) return;
-        try {
-            w.write("{\"t\":" + (System.currentTimeMillis() - start) + ",\"e\":" + body + "}\n");
-        } catch (Throwable ignored) { }
+        Object lock = LOCKS.computeIfAbsent(key, k -> new Object());
+        synchronized (lock) {
+            try {
+                w.write("{\"t\":" + (System.currentTimeMillis() - start) + ",\"e\":" + body + "}\n");
+            } catch (Throwable ignored) { }
+        }
     }
 
     /** One place (id != 0) or break (id 0 with the old block in id2) at a recorded time. */
@@ -427,14 +444,20 @@ public final class Recorder {
     }
 
     private static void close(String id) {
-        BufferedWriter w = OPEN.remove(id);
-        START.remove(id);
-        LAST.remove(id);
+        Object lock = LOCKS.computeIfAbsent(id, k -> new Object());
+        BufferedWriter w;
+        synchronized (lock) {
+            w = OPEN.remove(id);
+            START.remove(id);
+            LAST.remove(id);
+            if (w != null) {
+                try {
+                    w.write("{\"end\":1}\n");
+                    w.close();
+                } catch (Throwable ignored) { }
+            }
+        }
         if (w == null) return;
-        try {
-            w.write("{\"end\":1}\n");
-            w.close();
-        } catch (Throwable ignored) { }
         // prune when a recording ends too: a long session would otherwise only ever trim at the next game start
         prune();
     }

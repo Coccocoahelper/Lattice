@@ -144,8 +144,9 @@ public final class GameSenseDrill implements Drill {
             if (due == null) { ask(p, g); continue; }
             if (clock >= due) {
                 int[] s = row(p);
-                int idx = question.get(p.getUniqueId());
-                Object[] sc = SCENARIOS[idx];
+                Integer idxBoxed = question.get(p.getUniqueId());
+                if (idxBoxed == null) { ask(p, g); continue; }     // the question is gone: never unbox a null
+                Object[] sc = SCENARIOS[idxBoxed];
                 s[1]++;
                 s[2] = 0;
                 p.sendMessage(net.h2020.api.core.Messages.get("practice.gamesensedrill.time-the-call-was","p1",((int) sc[2] + 1),"p2",((String[]) sc[1])[(int) sc[2]]));
@@ -220,6 +221,16 @@ public final class GameSenseDrill implements Drill {
     }
 
     @Override public void onJoin(PracticeGame g, Player p) { score.put(p.getUniqueId(), new int[4]); }
+
+    /** Four maps keyed by player and no cleanup: every drill session leaked an entry for each body that ever joined. */
+    @Override
+    public void onQuit(PracticeGame g, Player p) {
+        java.util.UUID u = p.getUniqueId();
+        score.remove(u);
+        question.remove(u);
+        deadline.remove(u);
+        asked.remove(u);
+    }
 
     @Override
     public String hud(PracticeGame g, Player p) {

@@ -76,7 +76,9 @@ public final class BowDrill implements Drill {
         m.addEnchant(Enchantment.ARROW_DAMAGE, 1, true);
         bow.setItemMeta(m);
         p.getInventory().setItem(0, bow);
-        p.getInventory().setItem(9, new ItemStack(Material.ARROW, 1));
+        // slot 1, not 9: the second row is not a hotbar slot, and a bot's combat stack only considers the hotbar, so
+        // a drill bot with its only arrow in slot 9 could never draw
+        p.getInventory().setItem(1, new ItemStack(Material.ARROW, 1));
     }
 
     @Override

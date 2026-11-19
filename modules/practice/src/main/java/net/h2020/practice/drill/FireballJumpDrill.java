@@ -106,8 +106,9 @@ public final class FireballJumpDrill implements Drill {
 
             // a boost: thrown within the last two seconds and moving up fast without a jump having been pressed
             Long thrown = lastThrow.get(p.getUniqueId());
-            if (thrown != null && now - thrown < 2000 && p.getVelocity().getY() > 0.42) {
-                lastThrow.remove(p.getUniqueId());
+            if (thrown != null && now - thrown < 2000 && p.getVelocity().getY() > 0.42
+                    && now - r[0] > 250) {          // one boost per launch: without the window a single throw counted
+                                                     // twice whenever the climb stayed fast for two ticks
                 if (r[0] == 0) r[0] = now;
                 r[2]++;
                 p.playSound(p.getLocation(), Sound.SUCCESSFUL_HIT, 0.6f, 1.8f);

@@ -53,5 +53,11 @@ public interface BotService {
      * person is practising. Null when this server has no clutch.
      */
     default BotBrain clutchBrain(org.bukkit.Location home) { return BrainFactory.none(); }
+
+    /**
+     * A bot that finds and fights the nearest other body: what a range drill needs, since a target on a plinth is an
+     * enemy as far as the combat stack is concerned. Null when this server has no arena brain.
+     */
+    default BotBrain arenaBrain() { return BrainFactory.none(); }
 }
 
