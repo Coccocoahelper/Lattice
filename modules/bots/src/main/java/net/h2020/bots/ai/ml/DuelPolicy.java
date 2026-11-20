@@ -345,7 +345,7 @@ public final class DuelPolicy {
             baseline = y.getDouble("baseline", 0);
             windows = y.getLong("windows", 0);
             fights = y.getLong("fights", 0);
-        } catch (Throwable ignored) { }
+        } catch (Throwable t) { net.h2020.bots.ai.ml.ModelFile.warnOnce("DuelPolicy", file, t); }
     }
 
     public static void save() {
@@ -360,7 +360,7 @@ public final class DuelPolicy {
             y.set("windows", windows);
             y.set("fights", fights);
             if (!file.getParentFile().exists()) file.getParentFile().mkdirs();
-            y.save(file);
+            net.h2020.bots.ai.ml.ModelFile.save(y, file);
             dirty = false;
         } catch (Throwable ignored) { }
     }

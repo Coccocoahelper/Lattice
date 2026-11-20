@@ -129,7 +129,7 @@ public final class RoleModel {
             baseline = y.getDouble("baseline", 0);
             decisions = y.getLong("decisions", 0);
             rewards = y.getLong("rewards", 0);
-        } catch (Throwable ignored) { }
+        } catch (Throwable t) { net.h2020.bots.ai.ml.ModelFile.warnOnce("RoleModel", file, t); }
     }
 
     public static void save() {
@@ -143,7 +143,7 @@ public final class RoleModel {
             y.set("decisions", decisions);
             y.set("rewards", rewards);
             if (!file.getParentFile().exists()) file.getParentFile().mkdirs();
-            y.save(file);
+            net.h2020.bots.ai.ml.ModelFile.save(y, file);
             dirty = false;
         } catch (Throwable ignored) { }
     }

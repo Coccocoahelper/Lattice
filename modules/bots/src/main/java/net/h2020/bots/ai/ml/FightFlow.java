@@ -183,7 +183,7 @@ public final class FightFlow {
             for (int i = 0; i < Math.min(M, wz.size()); i++) WZ[i] = wz.get(i);
             samples = y.getLong("samples", 0);
             error = y.getDouble("error", 0.5);
-        } catch (Throwable ignored) { }
+        } catch (Throwable t) { net.h2020.bots.ai.ml.ModelFile.warnOnce("FightFlow", file, t); }
     }
 
     public static void save() {
@@ -197,7 +197,7 @@ public final class FightFlow {
             y.set("samples", samples);
             y.set("error", error);
             if (!file.getParentFile().exists()) file.getParentFile().mkdirs();
-            y.save(file);
+            net.h2020.bots.ai.ml.ModelFile.save(y, file);
             dirty = false;
         } catch (Throwable ignored) { }
     }

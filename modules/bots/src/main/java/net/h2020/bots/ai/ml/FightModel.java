@@ -125,7 +125,7 @@ public final class FightModel {
             samples = y.getLong("samples", 0);
             accuracy = y.getDouble("accuracy", 0.5);
             lossEma = y.getDouble("loss", 0.7);
-        } catch (Throwable ignored) { }
+        } catch (Throwable t) { net.h2020.bots.ai.ml.ModelFile.warnOnce("FightModel", file, t); }
     }
 
     public static void save() {
@@ -144,7 +144,7 @@ public final class FightModel {
             y.set("accuracy", accuracy);
             y.set("loss", lossEma);
             if (!file.getParentFile().exists()) file.getParentFile().mkdirs();
-            y.save(file);
+            net.h2020.bots.ai.ml.ModelFile.save(y, file);
             dirty = false;
         } catch (Throwable ignored) { }
     }

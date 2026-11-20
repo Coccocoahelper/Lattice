@@ -225,7 +225,7 @@ public final class HumanPlacements {
             List<Double> c = y.getDoubleList("class");
             for (int i = 0; i < Math.min(CLASS.length, c.size()); i++) CLASS[i] = c.get(i);
             samples = y.getLong("samples", 0);
-        } catch (Throwable ignored) { }
+        } catch (Throwable t) { net.h2020.bots.ai.ml.ModelFile.warnOnce("HumanPlacements", file, t); }
     }
 
     public static void save() {
@@ -240,7 +240,7 @@ public final class HumanPlacements {
             y.set("class", c);
             y.set("samples", samples);
             if (!file.getParentFile().exists()) file.getParentFile().mkdirs();
-            y.save(file);
+            net.h2020.bots.ai.ml.ModelFile.save(y, file);
             dirty = false;
         } catch (Throwable ignored) { }
     }

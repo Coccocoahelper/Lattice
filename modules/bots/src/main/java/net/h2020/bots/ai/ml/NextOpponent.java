@@ -170,7 +170,7 @@ public final class NextOpponent {
             }
             for (int i = 0; i < Math.min(N, w.size()); i++) W[i] = w.get(i);
             samples = y.getLong("samples", 0);
-        } catch (Throwable ignored) { }
+        } catch (Throwable t) { net.h2020.bots.ai.ml.ModelFile.warnOnce("NextOpponent", file, t); }
     }
 
     public static void save() {
@@ -183,7 +183,7 @@ public final class NextOpponent {
             y.set("n", N);
             y.set("samples", samples);
             if (!file.getParentFile().exists()) file.getParentFile().mkdirs();
-            y.save(file);
+            net.h2020.bots.ai.ml.ModelFile.save(y, file);
             dirty = false;
         } catch (Throwable ignored) { }
     }

@@ -395,7 +395,23 @@ public final class DuelsGame implements Game {
             title(w, ChatColor.GOLD + "" + ChatColor.BOLD + "ROUND WON!", ChatColor.GRAY + mode.displayName());
         }
         if (loser != null) title(loser, ChatColor.RED + "" + ChatColor.BOLD + "ROUND LOST", ChatColor.GRAY + "Next round...");
-        // a Hypixel duel is one round except the modes that say otherwise
+        // A Hypixel duel is one round, and every shipped mode says rounds == 1. The field exists for a mode that asks
+        // for more, so it is honoured rather than ignored: a mode with rounds > 1 plays them, announcing the score.
+        int need = Math.max(1, mode.rounds);
+        int won = roundsWon.containsKey(winner) ? roundsWon.get(winner) : 0;
+        if (need > 1 && won < need && loser == null) {
+            // no loser means the round ended without a body to reset (a draw): play another
+            beginRound();
+            return;
+        }
+        if (need > 1 && won < need) {
+            for (Player p : players()) {
+                p.sendMessage(ChatColor.GRAY + "Round " + won + "/" + need + " to "
+                        + (Bukkit.getPlayer(winner) == null ? "?" : Bukkit.getPlayer(winner).getName()));
+            }
+            beginRound();
+            return;
+        }
         endMatch(winner);
     }
 

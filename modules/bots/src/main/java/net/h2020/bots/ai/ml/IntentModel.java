@@ -233,7 +233,7 @@ public final class IntentModel {
             List<Double> w = y.getDoubleList("weights");
             for (int i = 0; i < Math.min(W.length, w.size()); i++) W[i] = w.get(i);
             answers = y.getLong("answers", 0);
-        } catch (Throwable ignored) { }
+        } catch (Throwable t) { net.h2020.bots.ai.ml.ModelFile.warnOnce("IntentModel", file, t); }
     }
 
     public static void save() {
@@ -245,7 +245,7 @@ public final class IntentModel {
             y.set("weights", w);
             y.set("answers", answers);
             if (!file.getParentFile().exists()) file.getParentFile().mkdirs();
-            y.save(file);
+            net.h2020.bots.ai.ml.ModelFile.save(y, file);
             dirty = false;
         } catch (Throwable ignored) { }
     }

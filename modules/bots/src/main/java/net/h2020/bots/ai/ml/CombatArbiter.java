@@ -284,7 +284,7 @@ public final class CombatArbiter {
             overrides = y.getLong("overrides", 0);
             asks = y.getLong("asks", 0);
             observes = y.getLong("observes", 0);
-        } catch (Throwable ignored) { }
+        } catch (Throwable t) { net.h2020.bots.ai.ml.ModelFile.warnOnce("CombatArbiter", file, t); }
     }
 
     public static void save() {
@@ -302,7 +302,7 @@ public final class CombatArbiter {
             y.set("asks", asks);
             y.set("observes", observes);
             if (!file.getParentFile().exists()) file.getParentFile().mkdirs();
-            y.save(file);
+            net.h2020.bots.ai.ml.ModelFile.save(y, file);
             dirty = false;
         } catch (Throwable ignored) { }
     }

@@ -51,7 +51,7 @@ public final class MlSettings {
             org.bukkit.configuration.file.YamlConfiguration y = new org.bukkit.configuration.file.YamlConfiguration();
             y.set("train-from-bots", trainFromBots);
             if (!file.getParentFile().exists()) file.getParentFile().mkdirs();
-            y.save(file);
+            net.h2020.bots.ai.ml.ModelFile.save(y, file);
         } catch (Throwable ignored) { }
     }
 }

@@ -131,7 +131,7 @@ public final class AimPolicy {
                 RATE[i] = y.getDouble("arm" + i + ".rate", 0.55);
             }
             fights = y.getLong("fights", 0);
-        } catch (Throwable ignored) { }
+        } catch (Throwable t) { net.h2020.bots.ai.ml.ModelFile.warnOnce("AimPolicy", file, t); }
     }
 
     public static void save() {
@@ -145,7 +145,7 @@ public final class AimPolicy {
             }
             y.set("fights", fights);
             if (!file.getParentFile().exists()) file.getParentFile().mkdirs();
-            y.save(file);
+            net.h2020.bots.ai.ml.ModelFile.save(y, file);
             dirty = false;
         } catch (Throwable ignored) { }
     }

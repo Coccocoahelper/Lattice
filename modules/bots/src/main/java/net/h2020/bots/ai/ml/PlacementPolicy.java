@@ -463,7 +463,7 @@ public final class PlacementPolicy {
             baseline = y.getDouble("baseline", 0.5);
             fights = y.getLong("fights", 0);
             decisions = y.getLong("decisions", 0);
-        } catch (Throwable ignored) { }
+        } catch (Throwable t) { net.h2020.bots.ai.ml.ModelFile.warnOnce("PlacementPolicy", file, t); }
     }
 
     public static void save() {
@@ -478,7 +478,7 @@ public final class PlacementPolicy {
             y.set("fights", fights);
             y.set("decisions", decisions);
             if (!file.getParentFile().exists()) file.getParentFile().mkdirs();
-            y.save(file);
+            net.h2020.bots.ai.ml.ModelFile.save(y, file);
             dirty = false;
         } catch (Throwable ignored) { }
     }
