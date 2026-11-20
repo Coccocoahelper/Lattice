@@ -59,5 +59,8 @@ public interface BotService {
      * enemy as far as the combat stack is concerned. Null when this server has no arena brain.
      */
     default BotBrain arenaBrain() { return BrainFactory.none(); }
+
+    /** The arena brain with the bow forced: what a range drill hands its bot. */
+    default BotBrain rangedBrain() { return BrainFactory.none(); }
 }
 

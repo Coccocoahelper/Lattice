@@ -8,12 +8,21 @@ import org.bukkit.entity.Player;
  * Flat PvP arena: no objectives, no bed, no chores. Find the nearest other fighter and fight it, with the same combat
  * stack (stances, aim model, zest tapping) that a real game uses - which is the point of the arena.
  */
-public final class ArenaBrain extends BaseBrain {
+public final class ArenaBrain extends BaseBrain implements EmergencyBrain {
     private long nextScan;
     private Player target;
 
+    /** A range drill sets this: the arena brain still finds and closes on the target, but always with the bow. */
+    private boolean rangedOnly;
+    /** The mob a ranged brain is currently drawing at. */
+    private org.bukkit.entity.LivingEntity mobTarget;
+
+    public ArenaBrain rangedOnly() { this.rangedOnly = true; return this; }
+
     @Override
-    protected void onActive() { }
+    protected void onActive() {
+        if (rangedOnly) ctx.combat.forceBow = true;
+    }
 
     private long repathAt;
     private org.bukkit.Location roamTo;
@@ -33,6 +42,18 @@ public final class ArenaBrain extends BaseBrain {
         if (other) { ctx.nav.stop(); ctx.combat.tick(); return; }
         // No target in range: walk to it instead of standing still. The arena used to leave a bot rooted the moment
         // its opponent died or spawned across the pad, which is most of the "bots barely move" report.
+        if (rangedOnly) {
+            if (mobTarget != null && !mobTarget.isDead()
+                    && mobTarget.getWorld() == ctx.player.getWorld()) {
+                ctx.motor.aimEntity(net.h2020.bots.ai.motor.Motor.P_TASK, mobTarget,
+                        net.h2020.api.bot.AimIntent.COMBAT);
+                ctx.motor.halt();
+            } else {
+                idleRoam();
+            }
+            ctx.combat.tick();
+            return;
+        }
         ctx.combat.tick();
         if (target == null) { idleRoam(); return; }
         boolean sameWorld = target.getLocation().getWorld() == ctx.player.getWorld();
@@ -64,6 +85,7 @@ public final class ArenaBrain extends BaseBrain {
         Player best = null;
         double bd = 1e9;
         World mine = ctx.player.getWorld();
+        if (!rangedOnly) {
         for (Player p : mine.getPlayers()) {
             if (p == ctx.player || p.isDead()) continue;
             // getPlayers() on a world can hand back a body whose location still belongs to the world it left (a bot
@@ -75,6 +97,18 @@ public final class ArenaBrain extends BaseBrain {
             if (d < bd) { bd = d; best = p; }
         }
         return best;
+        }
+        // ranged: the nearest living thing at all, because a drill's targets are its own mobs
+        org.bukkit.entity.LivingEntity lbe = null;
+        for (org.bukkit.entity.Entity e : mine.getLivingEntities()) {
+            if (!(e instanceof org.bukkit.entity.LivingEntity)) continue;
+            if (e instanceof Player) { if (e == ctx.player) continue; }
+            if (e.isDead()) continue;
+            double d = ctx.pos().distance(e.getLocation());
+            if (d < bd) { bd = d; lbe = (org.bukkit.entity.LivingEntity) e; }
+        }
+        mobTarget = lbe;
+        return null;      // the player-wide target is none; mobAim() drives the bow
     }
 
     @Override

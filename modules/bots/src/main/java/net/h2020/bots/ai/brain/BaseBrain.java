@@ -64,7 +64,7 @@ public abstract class BaseBrain implements BotBrain {
             // (combat package) clutches when knocked off / the calm heal after a fight pre-empt the brain this tick
             ctx.c.setTickPurpose(ctx.combat.engaged() || ctx.nav.active());
             if (!ctx.combat.emergencyTick()) think();
-            else org.bukkit.Bukkit.getLogger().info("[brainprobe] emergency took the tick: " + getClass().getSimpleName());
+
             ctx.nav.settle();
             // a player in water holds space: swims to the surface and bobs there, high enough that pushing into a
             // bank triggers vanilla's 0.3 "jump out of water" boost. Without it the body sinks (and on the bottom of

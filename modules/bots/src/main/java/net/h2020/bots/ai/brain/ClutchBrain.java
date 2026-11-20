@@ -41,8 +41,6 @@ public final class ClutchBrain extends BaseBrain implements EmergencyBrain {
 
     @Override
     protected void onActive() {
-        org.bukkit.Bukkit.getLogger().info("[clutchbrain] ACTIVE for " + ctx.player.getName()
-                + " home=" + home + " world=" + ctx.player.getWorld().getName());
         if (home == null) home = ctx.pos().clone();
         ctx.combat.clutchMode = true;              // the clutch kit stays in hand
         holdBlocks();
@@ -52,10 +50,6 @@ public final class ClutchBrain extends BaseBrain implements EmergencyBrain {
     protected void think() {
         Player p = ctx.player;
         tick++;
-        if (tick % 20 == 0) org.bukkit.Bukkit.getLogger().info("[clutchbrain] think tick=" + tick
-                + " at " + String.format("%.1f,%.1f,%.1f", p.getLocation().getX(), p.getLocation().getY(), p.getLocation().getZ())
-                + " ground=" + p.isOnGround() + " vy=" + String.format("%.2f", ctx.c.velocity().getY())
-                + " blocks=" + Inv.count(p, Inv.BLOCK));
 
         // blocks in hand, topped up: a clutch with an empty hand is not a clutch
         int blocks = Inv.count(p, Inv.BLOCK);

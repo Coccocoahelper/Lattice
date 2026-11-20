@@ -78,9 +78,15 @@ public final class Messages {
             if (!where.getParentFile().isDirectory() && !where.getParentFile().mkdirs()) {
                 plugin.getLogger().warning("could not create " + where.getParentFile());
             }
-            file.save(where);
+            // Serialise first and only then touch the file: a value YAML cannot emit (an unquoted anchor, a stray
+            // control character) used to throw here every boot and leave the file exactly as broken as it found it,
+            // while the failure surfaced somewhere unrelated - a drill that would not start, with no mention of
+            // messages.yml anywhere near it.
+            String text = file.saveToString();
+            java.nio.file.Files.write(where.toPath(), text.getBytes(StandardCharsets.UTF_8));
         } catch (Exception e) {
-            plugin.getLogger().log(Level.WARNING, "could not write " + where.getName(), e);
+            plugin.getLogger().log(Level.WARNING, "could not write " + where.getName()
+                    + " (left untouched; a value starting with & must be quoted)", e);
         }
         if (added > 0) plugin.getLogger().info("messages: " + added + " key(s) added to " + where.getName());
     }

@@ -63,6 +63,8 @@ public final class Combat {
 
     // options from the brain
     public boolean allowRod = true;
+    /** Set by a range drill: every fight is a bow fight, whatever the persona likes. */
+    public boolean forceBow;
     public boolean allowBow = true, allowThrowables = true, allowFireball = false, allowPearl = false, allowGapple = true;
     public boolean allowChase = true;
     /** Our bed is gone (set by the Bed Wars brain): trade kills and beds, and use the clutch kit. */
@@ -255,7 +257,9 @@ public final class Combat {
         bestDist = Double.MAX_VALUE;
         bestDistTick = ctx.tick;
         throwsLeft = AIMath.range(ctx.rng, 2, 6);
-        usingBowThisFight = ctx.rng.nextDouble() < ctx.persona.bowLiking;
+        // a drill can insist on the bow: a range drill's bot that rolls "melee" stands at the plinth hitting a zombie
+        // and never practises the thing the drill is named after
+        usingBowThisFight = forceBow || ctx.rng.nextDouble() < ctx.persona.bowLiking;
         pearlUsed = false;
         retreating = false;
         stickKilled = false;
@@ -589,10 +593,6 @@ public final class Combat {
         // the same protection.
         boolean inGame = ctx.bot.brain() instanceof net.h2020.bots.ai.brain.GameBrain
                 || ctx.bot.brain() instanceof net.h2020.bots.ai.brain.EmergencyBrain;
-        if (ctx.tick % 40 == 0 && ctx.player.getWorld().getName().startsWith("practice")) {
-            org.bukkit.Bukkit.getLogger().info("[brainprobe] " + ctx.player.getName() + " emergencyTick inGame=" + inGame
-                    + " brain=" + (ctx.bot.brain() == null ? "null" : ctx.bot.brain().getClass().getSimpleName()));
-        }
         if (!inGame) return false;
         CombatStats.tick(engaged());
         // a fireball coming at us owns the tick, fight or not: punch it back, or step out of its line

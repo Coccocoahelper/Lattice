@@ -359,7 +359,7 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
                 // a target and fights it with the whole combat stack. Without this the bot stood at spawn with a bow
                 // in its hand for the whole session - Hits 0/0, which reads as a broken drill rather than a bored bot.
                 if (g.drill() instanceof BowDrill) {
-                    bot.setBrain(bs.arenaBrain());
+                    bot.setBrain(bs.rangedBrain());
                 }
                 if (!(g.drill() instanceof BridgeDrill) && !(g.drill() instanceof BedDefenceDrill)
                         && !(g.drill() instanceof BlockInDrill) && !(g.drill() instanceof BlockClutchDrill)
