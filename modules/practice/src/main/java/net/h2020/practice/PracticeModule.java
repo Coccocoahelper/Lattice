@@ -706,11 +706,20 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
         if (hit != null) ((BowDrill) g.drill()).onArrowHit(g, p, arrow, hit);
     }
 
+    /**
+     * The target an arrow found. 1.8 reports the block the arrow stopped in rather than the body it hit, so the
+     * target is resolved by proximity - and it has to look for the drill's own targets, which are fake players now,
+     * not the armour stands this used to expect. Looking for the wrong entity class made every shot a miss.
+     */
     private Entity nearestTarget(Location at) {
-        for (Entity e : at.getWorld().getNearbyEntities(at, 2.0, 2.5, 2.0)) {
-            if (e instanceof org.bukkit.entity.ArmorStand) return e;
+        Entity best = null;
+        double bd = Double.MAX_VALUE;
+        for (Entity e : at.getWorld().getNearbyEntities(at, 2.5, 3.0, 2.5)) {
+            if (!(e instanceof Player)) continue;
+            double d = e.getLocation().distanceSquared(at);
+            if (d < bd) { bd = d; best = e; }
         }
-        return null;
+        return best;
     }
 
     /** Tab completion: the drill names, then bots/leave/stats. */
