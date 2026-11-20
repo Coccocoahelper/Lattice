@@ -36,7 +36,7 @@ public final class FireballJumpDrill implements Drill {
     private PracticeArena arena;
     private Location spawn;
     private Location landing;
-    private final Map<UUID, long[]> rows = new HashMap<UUID, long[]>();      // {start, crossings, boosts, best, done}
+    private final Map<UUID, long[]> rows = new HashMap<UUID, long[]>();      // {start, crossings, boosts, best, done, latch}
     private final Map<UUID, Long> lastThrow = new HashMap<UUID, Long>();
     /** Fireballs in flight, kept at the Bed Wars constant speed: vanilla 1.8 adds 0.1 a tick otherwise. */
     private final List<Fireball> held = new ArrayList<Fireball>();
@@ -95,6 +95,7 @@ public final class FireballJumpDrill implements Drill {
         for (int i = held.size() - 1; i >= 0; i--) {
             Fireball f = held.get(i);
             if (!f.isValid()) { held.remove(i); continue; }
+            if (f.getTicksLived() > 120) { f.remove(); held.remove(i); continue; }   // gone and forgotten
             Vector v = f.getVelocity();
             double len = v.length();
             if (len > 1e-4) f.setVelocity(v.multiply(net.h2020.api.game.Projectiles.FIREBALL / len));
@@ -114,8 +115,13 @@ public final class FireballJumpDrill implements Drill {
                 p.playSound(p.getLocation(), Sound.SUCCESSFUL_HIT, 0.6f, 1.8f);
             }
 
-            // a crossing: standing on the far platform
-            if (p.getLocation().getZ() <= -(GAP + PLATFORM * 2) + PLATFORM + 0.5 && p.isOnGround()) {
+            // a crossing: arriving on the far platform. Latched on the launch, so a body standing there does not
+            // count once per tick - the old test re-scored and re-teleported on every tick of the same landing.
+            boolean away = r[5] != 0;
+            boolean onFar = p.getLocation().getZ() <= -(GAP + PLATFORM * 2) + PLATFORM + 0.5 && p.isOnGround();
+            if (!onFar) r[5] = 1;                       // has been off the far platform since the last crossing
+            if (onFar && away) {
+                r[5] = 0;
                 long ms = r[0] > 0 ? now - r[0] : 0;
                 r[1]++;
                 r[4]++;
@@ -130,6 +136,18 @@ public final class FireballJumpDrill implements Drill {
 
     @Override public void onFall(PracticeGame g, Player p) { row(p)[0] = 0; p.teleport(spawn); }
 
+    @Override public void onQuit(PracticeGame g, Player p) {
+        rows.remove(p.getUniqueId());
+        lastThrow.remove(p.getUniqueId());
+    }
+
+    @Override public void cleanup(PracticeGame g) {
+        for (Fireball f : held) { try { f.remove(); } catch (Throwable ignored) { } }
+        held.clear();
+        rows.clear();
+        lastThrow.clear();
+    }
+
     @Override
     public String hud(PracticeGame g, Player p) {
         long[] r = row(p);
@@ -142,7 +160,7 @@ public final class FireballJumpDrill implements Drill {
 
     private long[] row(Player p) {
         long[] r = rows.get(p.getUniqueId());
-        if (r == null) { r = new long[5]; rows.put(p.getUniqueId(), r); }
+        if (r == null) { r = new long[6]; rows.put(p.getUniqueId(), r); }
         return r;
     }
 

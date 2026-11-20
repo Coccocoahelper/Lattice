@@ -418,6 +418,7 @@ practice:
   practicegame:
     spectating-fly-to-look: "&7Spectating &f{p1}&7 - fly to look around, &f/practice leave&7 to stop"
   practicemodule:
+    stopped-sessions: '&7Stopped &f{p1}&7 practice session(s).'
     bots-are-not-available: "&7Bots are not available on this server."
     could-not-start-the: "&cCould not start the drill - see the console."
     dead-hp-gm-at: "  {p1} dead={p2} hp={p3} gm={p4} at {p5},{p6},{p7}  {p8}"

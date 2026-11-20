@@ -131,6 +131,8 @@ public final class BlockInDrill implements Drill {
     private final Map<UUID, Map<Long, Material>> broken = new HashMap<UUID, Map<Long, Material>>();
     private final Map<UUID, long[]> rows = new HashMap<UUID, long[]>();      // {start, sealed, wasted, best, done}
     private final Map<UUID, List<int[]>> traces = new HashMap<UUID, List<int[]>>();
+    /** One "wrong material" warning per attempt, not one per tick. */
+    private final java.util.Set<UUID> r0Notified = new java.util.HashSet<UUID>();
 
     @Override public String id() { return "blockin"; }
     @Override public String display() { return "Block In"; }
@@ -219,12 +221,23 @@ public final class BlockInDrill implements Drill {
             Map<Long, Material> h = hole(p);
             if (h.isEmpty()) continue;                             // nothing broken: nothing to close
             boolean closed = true;
-            for (Long k : h.keySet()) {
-                if (arena.world().getBlockAt(unkeyX(k), unkeyY(k), unkeyZ(k)).getType() == Material.AIR) {
-                    closed = false;
-                    break;
-                }
+            int wrong = 0;
+            for (java.util.Map.Entry<Long, Material> e : h.entrySet()) {
+                Material now = arena.world().getBlockAt(unkeyX(e.getKey()), unkeyY(e.getKey()),
+                        unkeyZ(e.getKey())).getType();
+                if (now == Material.AIR) { closed = false; break; }
+                // the material matters: a hole filled with whatever was in the hand is not the defence restored
+                if (e.getValue() != null && now != e.getValue()) wrong++;
             }
+            if (closed && wrong > 0) {
+                // sealed, but with the wrong blocks: report it and let them fix it rather than scoring it
+                if (r0Notified.add(p.getUniqueId())) {
+                    p.sendMessage(ChatColor.RED + "" + wrong + " of " + h.size()
+                            + " blocks are the wrong material - put back what you took out");
+                }
+                continue;
+            }
+            r0Notified.remove(p.getUniqueId());
             if (!closed) continue;
             long[] r = row(p);
             long ms = r[0] > 0 ? System.currentTimeMillis() - r[0] : 0;
@@ -233,8 +246,11 @@ public final class BlockInDrill implements Drill {
             p.sendMessage(Messages.get("practice.blockindrill.sealed", "p1", ms, "p2", h.size()));
             p.playSound(p.getLocation(), Sound.LEVEL_UP, 0.7f, 1.6f);
             RunLog.record(p, 1, ms, h.size(), (int) r[2], h.size(), trace(p));
-            // the hole this person just shut becomes the shape everybody else practises on
-            saveLearned(p, ms, h);
+            // The hole this person just shut becomes the shape everybody else practises on - but only a person's.
+            // A bot runs this drill too, and writing its hole into the reference defeats the point of the file, which
+            // exists to learn how a human does it.
+            if (!net.h2020.practice.PracticeModule.isPracticeBot(p)) saveLearned(p, ms, h);
+            else net.h2020.api.stats.CombatStats.inc("practice.blockin.bot_solution");
             h.clear();
             r[0] = 0; r[1] = 0; r[2] = 0;
             trace(p).clear();
@@ -268,6 +284,22 @@ public final class BlockInDrill implements Drill {
         if (y < BED_Y || y > BED_Y + 3) return false;
         if (x >= BED_X && x <= BED_X + 1 && z == BED_Z && y == BED_Y) return false;   // the bed is not defence
         return true;
+    }
+
+    @Override
+    public void onQuit(PracticeGame g, Player p) {
+        broken.remove(p.getUniqueId());
+        rows.remove(p.getUniqueId());
+        traces.remove(p.getUniqueId());
+        r0Notified.remove(p.getUniqueId());
+    }
+
+    @Override
+    public void cleanup(PracticeGame g) {
+        broken.clear();
+        rows.clear();
+        traces.clear();
+        r0Notified.clear();
     }
 
     /** Every learned hole in absolute cells, for a bot to open and close itself. */

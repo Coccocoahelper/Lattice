@@ -43,6 +43,11 @@ public final class FireballDrill implements Drill {
     /** Fireballs launched this session, so a drill can be checked without watching the arena. */
     private int launched;
     private final Map<UUID, int[]> score = new HashMap<UUID, int[]>();   // {deflected, hit, streak, best}
+    /**
+     * Fireballs still in the air. One that misses flies past and never dies on its own - a long session left hundreds
+     * of them drifting out of the arena, each one an entity the server keeps ticking.
+     */
+    private final java.util.List<Fireball> inFlight = new java.util.ArrayList<Fireball>();
 
     @Override public String id() { return "fireball"; }
     @Override public String display() { return "Fireball Deflecting"; }
@@ -84,6 +89,7 @@ public final class FireballDrill implements Drill {
 
     @Override
     public void tick(PracticeGame g) {
+        sweep();
         if (--next > 0) return;
         java.util.List<Player> alive = g.alivePlayers();
         if (alive.isEmpty()) { next = 20; return; }
@@ -103,11 +109,37 @@ public final class FireballDrill implements Drill {
         // launch to your chest, which left no time to read the line. Slower is not easier to deflect, it is
         // actually practice - you get to see the approach and choose the swing.
         f.setVelocity(dir.multiply(FIREBALL_SPEED));
+        inFlight.add(f);
         launched++;
         next = MIN_GAP + (int) (Math.random() * (MAX_GAP - MIN_GAP));
     }
 
     @Override public void onJoin(PracticeGame g, Player p) { score.put(p.getUniqueId(), new int[4]); }
+
+    /** Drop the ones that are gone or have flown past the arena, and the per-player rows with their player. */
+    private void sweep() {
+        for (int i = inFlight.size() - 1; i >= 0; i--) {
+            Fireball f = inFlight.get(i);
+            if (!f.isValid()) { inFlight.remove(i); continue; }
+            // a fireball past the player's end of the lane is not coming back
+            if (f.getLocation().getZ() > spawn.getZ() + 6 || f.getTicksLived() > 200) {
+                f.remove();
+                inFlight.remove(i);
+            }
+        }
+    }
+
+    @Override
+    public void onQuit(PracticeGame g, Player p) {
+        score.remove(p.getUniqueId());
+    }
+
+    @Override
+    public void cleanup(PracticeGame g) {
+        for (Fireball f : inFlight) { try { f.remove(); } catch (Throwable ignored) { } }
+        inFlight.clear();
+        score.clear();
+    }
 
     /** A fireball damaged by the player is a deflect: send it back the way it came. */
     @Override
@@ -130,6 +162,14 @@ public final class FireballDrill implements Drill {
     /** A fireball that reaches the player is a miss, but it costs health and a fall, not the session. */
     @Override
     public boolean onDamage(PracticeGame g, Player p, EntityDamageEvent e) {
+        // Only a fireball counts against the drill. The lane has a rim and a fall, and a player who clipped the edge
+        // used to lose their streak to fall damage - a miss the drill never fired.
+        boolean fromFireball = false;
+        if (e instanceof org.bukkit.event.entity.EntityDamageByEntityEvent) {
+            org.bukkit.entity.Entity d = ((org.bukkit.event.entity.EntityDamageByEntityEvent) e).getDamager();
+            fromFireball = d instanceof Fireball;
+        }
+        if (!fromFireball) return false;
         int[] s = row(p);
         s[1]++;
         s[2] = 0;

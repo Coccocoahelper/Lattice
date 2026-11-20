@@ -252,6 +252,18 @@ public final class BedDefenceDrill implements Drill {
     }
 
     @Override
+    public void onQuit(PracticeGame g, Player p) {
+        run.remove(p.getUniqueId());
+        trace.remove(p.getUniqueId());
+    }
+
+    @Override
+    public void cleanup(PracticeGame g) {
+        run.clear();
+        trace.clear();
+    }
+
+    @Override
     public List<String> stats(PracticeGame g, Player p) {
         long[] r = row(p);
         List<String> out = new ArrayList<String>();

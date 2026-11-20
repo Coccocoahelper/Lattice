@@ -174,6 +174,12 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
         if (p == null) {
             // console: only the drills that can run without a player, i.e. with bots in them. This is how a drill is
             // exercised headlessly, and how a bot run is measured without a human standing in the arena.
+            // console verbs first: `practice stop` and `practice debug` are two words, and the length guard below
+            // used to swallow them with a usage line before they were ever looked at
+            String verb = args.length > 0 ? args[0].toLowerCase(java.util.Locale.ROOT) : "";
+            if (verb.equals("stop") || verb.equals("end")) { stopAll(sender); return true; }
+            if (verb.equals("debug")) { debug(sender); return true; }
+            if (verb.equals("stats")) { debug(sender); return true; }
             if (args.length < 3) {
                 net.h2020.api.core.Messages.send(sender, "practice.command.console-usage");
                 return true;
@@ -211,6 +217,13 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
         if ((sub.equals("beddefence") || sub.equals("defence") || sub.equals("defense"))
                 && args.length > 1 && isEditorVerb(args[1])) {
             return bedDefenceCommand(p, sender, args);
+        }
+        if (sub.equals("stop") || sub.equals("end")) {
+            // `practice stop` was never a verb. Every headless run in this repo has been issuing it as a no-op, so
+            // sessions piled up on top of each other and a later `practice debug` read whichever one it found first -
+            // which is how a bow drill reported the previous drill's numbers.
+            stopAll(sender);
+            return true;
         }
         if (sub.equals("stats")) { stats(p); return true; }
         if (sub.equals("debug")) { debug(sender); return true; }
@@ -404,6 +417,18 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
                 bot.setBrain(bs.bridgeBrain(dx, dz, Math.max(2, now), technique));
             }
         }.runTaskTimer(plugin, 20L, 5L);
+    }
+
+    /**
+     * Is this body a bot? Used by drills that record what a person did, so a bot running the same drill does not
+     * write into the human reference file.
+     */
+    public static boolean isPracticeBot(org.bukkit.entity.Player p) {
+        if (p == null) return false;
+        try {
+            net.h2020.api.bot.BotService bs = H2020.find(net.h2020.api.bot.BotService.class);
+            return bs != null && bs.isBot(p);
+        } catch (Throwable ignored) { return false; }
     }
 
     /** The cells of a bed-defence level as the bot brain wants them. */
@@ -601,6 +626,17 @@ public final class PracticeModule implements Module, GameProvider, Listener, Com
     }
 
     /** Everything a drill can be checked on from the console: the world, who is in it, and what is ticking in it. */
+    /** End every running session. Console-friendly: a drill runner wants a clean arena between runs. */
+    private void stopAll(CommandSender to) {
+        java.util.List<PracticeGame> all = new java.util.ArrayList<PracticeGame>(games.values());
+        for (PracticeGame g : all) {
+            try { g.shutdown(); } catch (Throwable ignored) { }
+        }
+        games.clear();
+        byPlayer.clear();
+        to.sendMessage(net.h2020.api.core.Messages.get("practice.practicemodule.stopped-sessions", "p1", all.size()));
+    }
+
     private void debug(CommandSender to) {
         if (games.isEmpty()) { net.h2020.api.core.Messages.send(to, "practice.command.no-sessions"); return; }
         for (PracticeGame g : games.values()) {
