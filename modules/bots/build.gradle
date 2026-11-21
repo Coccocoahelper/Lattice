@@ -21,4 +21,10 @@ tasks.withType(JavaCompile).configureEach {
     options.compilerArgs += ['-Xlint:-options']
 }
 
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+}
+
+test { useJUnit(); testLogging { events "passed", "failed"; exceptionFormat "short" } }
+
 jar { archiveFileName = 'lattice-bots.jar' }

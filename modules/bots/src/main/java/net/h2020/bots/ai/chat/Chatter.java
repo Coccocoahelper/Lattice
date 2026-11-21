@@ -26,6 +26,17 @@ public final class Chatter {
     private static final String[] LOBBY = {"lol", "anyone party?", "who wants to 1v1", "lag", "bedwars?", "hi", "anyone wanna duel",
             "skywars?", "lmao", "sup"};
 
+    /**
+     * Planning lines. These are not decoration: each one carries a callout the other bots parse, so saying "rush blue"
+     * actually starts a rush. Written the way people type them - lower case, abbreviated, sometimes with the colour
+     * dropped because the team already knows.
+     */
+    private static final String[] PLAN_RUSH = {"rush %s", "%s next", "going %s", "rush %s now", "%s bed", "we rush %s"};
+    private static final String[] PLAN_BED = {"i take bed", "ill take the bed", "cover me im going bed", "bed is mine", "im on bed"};
+    private static final String[] PLAN_DEFEND = {"ill def", "someone def", "def pls", "im staying home", "defending"};
+    private static final String[] ACK = {"ok", "omw", "on it", "coming", "yep", "kk", "aight"};
+    private static final String[] ASK = {"where we going", "who we rushing", "who has bed", "plan?", "%s?"};
+
     private static final class Pending {
         final String msg; final long due; final boolean command;
         Pending(String m, long d) { this(m, d, false); }
@@ -45,10 +56,14 @@ public final class Chatter {
     public void tick() {
         Pending p = queue.peekFirst();
         if (p == null || ctx.tick < p.due) return;
-        queue.pollFirst();
+        // Check the gap BEFORE taking the message off the queue. Popping first and returning dropped the line, so a
+        // callout that came due while another was still cooling down was lost rather than delayed - and a plan callout
+        // is the one kind of chat that has to arrive.
         if (ctx.tick - lastSent < 50) return; // nobody spams within 2.5s
+        queue.pollFirst();
         lastSent = ctx.tick;
         try {
+            org.bukkit.Bukkit.getLogger().info("[say] " + ctx.player.getName() + ": " + p.msg);
             if (p.command) ctx.c.command(p.msg); else ctx.c.chat(p.msg);
         } catch (Throwable ignored) {}
     }
@@ -108,6 +123,38 @@ public final class Chatter {
 
     public void callout(String text, double chance) {
         if (ctx.rng.nextDouble() < chance * (0.25 + chatty())) say(text, 0);
+    }
+
+    /**
+     * Announce the plan for the next push: "rush blue". The colour is the team this bot is actually going for, so the
+     * line is true, and the other bots read it back as a RUSH callout.
+     */
+    public void planRush(String colour, double chance) {
+        if (colour == null) return;
+        if (ctx.rng.nextDouble() >= chance * (0.2 + 1.4 * chatty())) return;
+        String line = PLAN_RUSH[ctx.rng.nextInt(PLAN_RUSH.length)];
+        say(line.contains("%s") ? String.format(line, colour) : line, AIMath.range(ctx.rng, 0, 10));
+    }
+
+    /** Claim the bed on this push, so a teammate covers instead of doubling up. */
+    public void planBed(double chance) {
+        if (ctx.rng.nextDouble() < chance * (0.25 + chatty())) say(PLAN_BED[ctx.rng.nextInt(PLAN_BED.length)], 0);
+    }
+
+    /** Offer to stay back. */
+    public void planDefend(double chance) {
+        if (ctx.rng.nextDouble() < chance * (0.25 + chatty())) say(PLAN_DEFEND[ctx.rng.nextInt(PLAN_DEFEND.length)], 0);
+    }
+
+    /** Answer a callout, the way a teammate does: short, and late enough to look typed. */
+    public void ack(double chance) {
+        if (ctx.rng.nextDouble() < Math.max(chance, 0.15 + 0.7 * chatty()))
+            say(ACK[ctx.rng.nextInt(ACK.length)], AIMath.range(ctx.rng, 4, 30));
+    }
+
+    /** Ask the team what the plan is, when this bot has none. */
+    public void askPlan(double chance) {
+        if (ctx.rng.nextDouble() < 0.25 * (0.2 + chatty())) say(ASK[ctx.rng.nextInt(ASK.length)], 0);
     }
 
     // ----------------------------------------------------------------------------------- typing

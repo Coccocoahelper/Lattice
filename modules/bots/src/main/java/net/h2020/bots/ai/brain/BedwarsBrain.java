@@ -557,7 +557,9 @@ public final class BedwarsBrain extends GameBrain {
         if (t == null || !teamMode()) return;
         if (ctx.rng.nextDouble() > 0.2 + 0.5 * ctx.persona.skill.chattiness) return;
         String n = t.name();
-        if (n.startsWith("rush-")) ctx.chat.callout("rushing " + n.substring(5), 0.35);
+        if (n.startsWith("rush-")) {
+            ctx.chat.planRush(n.substring(5), 0.85);
+        }
         else if (n.equals("collect-emerald")) ctx.chat.callout(ctx.rng.nextBoolean() ? "mid" : "going mid", 0.25);
         else if (n.equals("collect-diamond")) ctx.chat.callout(ctx.rng.nextBoolean() ? "dias" : "diamonds", 0.25);
         else if (n.equals("deposit")) ctx.chat.callout("dropping at base", 0.3);
@@ -1383,6 +1385,13 @@ public final class BedwarsBrain extends GameBrain {
         return n;
     }
 
+    /** A team colour by its chat name, or null. */
+    private TeamColor colourFrom(String name) {
+        if (name == null) return null;
+        for (TeamColor c : TeamColor.values()) if (c.name().equalsIgnoreCase(name)) return c;
+        return null;
+    }
+
     private TeamColor chooseTarget() {
         // rush with the team: if a teammate is already on a bed, that is the bed (no split pushes)
         TeamColor together = TeamPlay.rushTargetOfTeam(this);
@@ -1416,10 +1425,41 @@ public final class BedwarsBrain extends GameBrain {
         TeamTalk.Line line = TeamTalk.latest(talkVersion, ctx.player);
         if (line == null) return false;
         talkVersion = TeamTalk.version();
+        // A plan question gets an answer even though it carries no intent: the team asked what the plan is, and a
+        // bot that ignores it is the reason a team of bots never coordinates. Answer with what this bot is doing.
+        if (line.main() == TeamTalk.Intent.NONE) {
+            String raw = line.raw.toLowerCase(java.util.Locale.ROOT);
+            if (raw.contains("rush") || raw.contains("going") || raw.contains("plan") || raw.contains("bed")) {
+                if (task instanceof RushTask && ((RushTask) task).target != null
+                        && view.bedAlive(((RushTask) task).target)) {
+                    ctx.chat.planRush(((RushTask) task).target.name().toLowerCase(java.util.Locale.ROOT), 0.8);
+                } else if (color != null && view.bedAlive(color)) {
+                    ctx.chat.planDefend(0.25);
+                }
+            }
+            return false;
+        }
         Player from = org.bukkit.Bukkit.getPlayerExact(line.sender);
         if (from == null || from.getWorld() != ctx.player.getWorld() || from.isDead()) return false;
-        if (!teammates().contains(from)) return false;                   // enemy chatter is not a callout for us
-        if (ctx.rng.nextDouble() > 0.35 + 0.6 * ctx.persona.skill.awareness) return false;
+        boolean fromMate = false;
+        for (Player q : teammates()) if (q.getName().equalsIgnoreCase(line.sender)) { fromMate = true; break; }
+        if (!fromMate) {
+            // Not a teammate. In a free-for-all (the arena, a solo queue) there are no teammates at all, and a plan
+            // still has to be readable or the whole planning layer is dead outside team modes. Take it, but only when
+            // the line is a PLAN - an enemy saying "inc" is them calling us out, not giving us orders.
+            boolean plan = line.has(TeamTalk.Intent.RUSH) || line.has(TeamTalk.Intent.BED);
+            if (!plan) {
+                if (TeamTalk.debug()) org.bukkit.Bukkit.getLogger().info("[tt] " + ctx.player.getName()
+                        + " ignores " + line.sender + " (not a teammate)");
+                return false;
+            }
+            if (TeamTalk.debug()) org.bukkit.Bukkit.getLogger().info("[tt] " + ctx.player.getName()
+                    + " hears a plan from " + line.sender + " in a free-for-all: '" + line.raw + "'");
+        }
+        if (ctx.rng.nextDouble() > 0.35 + 0.6 * ctx.persona.skill.awareness) {
+            org.bukkit.Bukkit.getLogger().info("[tt] " + ctx.player.getName() + " did not notice " + line.sender);
+            return false;
+        }
         switch (TeamTalk.intent(line.raw)) {
             case INC: {
                 Location bed = color == null ? null : view.bedLocation(color);
@@ -1451,6 +1491,51 @@ public final class BedwarsBrain extends GameBrain {
                 switchTo(new CollectTask(this, gen, CollectTask.Kind.IRON, ShopPlanner.iron(ctx.player) + 8, 20 * 20));
                 return true;
             }
+            case RUSH: {
+                // A teammate named a bed. Join it: the plan is worth more than whatever chore this bot was doing, and
+                // a rush nobody joins is one bot feeding a 1v3. The colour has to still have a bed, or there is
+                // nothing to rush.
+                TeamColor want = colourFrom(line.colour);
+                if (want == null || want == color || !view.bedAlive(want)) return false;
+                if (task instanceof RushTask && ((RushTask) task).target == want) return false;
+                if (task != null) task.abort();
+                switchTo(new RushTask(this, want));
+                if (TeamTalk.debug()) org.bukkit.Bukkit.getLogger().info("[teamtalk] " + ctx.player.getName()
+                        + " joins rush-" + want.name().toLowerCase(java.util.Locale.ROOT)
+                        + " because " + line.sender + " said '" + line.raw + "'");
+                ctx.chat.ack(0.5);
+                return true;
+            }
+            case BED: {
+                // Somebody claimed the bed. If this bot is already rushing that bed, cover the claimer instead of
+                // racing them to the same block: two bodies on one bed is how a push loses its fight.
+                if (!(task instanceof RushTask)) return false;
+                TeamColor t = ((RushTask) task).target;
+                if (t == null || !view.bedAlive(t)) return false;
+                Player claimer = from;
+                if (claimer == ctx.player) return false;
+                if (ctx.combat.target() == null && ctx.pos().distance(claimer.getLocation()) < 14) {
+                    ctx.combat.engage(claimer);     // stand with them: the fight is the cover
+                    ctx.chat.ack(0.4);
+                    return true;
+                }
+                return false;
+            }
+            case DEFEND: {
+                if (color == null || !view.bedAlive(color)) return false;
+                if (task instanceof GuardTask) return false;
+                // someone is staying home: whoever is furthest from the bed keeps pushing, the nearest one turns back
+                Location bed = view.bedLocation(color);
+                if (bed == null) return false;
+                if (ctx.pos().distance(bed) < 32) switchTo(new GuardTask(this, 20 * 25));
+                else return false;
+                ctx.chat.ack(0.45);
+                return true;
+            }
+            case GG:
+            case GL:
+                ctx.chat.ack(0.35);
+                return false;            // social: answered, never worth a task change
             default:
                 return false;
         }
