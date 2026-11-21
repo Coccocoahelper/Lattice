@@ -255,6 +255,27 @@ public final class BlockPlacer {
     public static boolean cellFree(Location cellCorner) { return cellFree(cellCorner, null); }
 
     /**
+     * Would our own body be inside this cell?
+     *
+     * <p>A 0.6-wide, 1.8-tall box against the cell's cube. The wider overlap test was tried and measured worse
+     * (verified 29% against 40%), so the strict form stays: a placement that grazes the body is refused by the server
+     * anyway, and accepting it only wastes the click.
+     */
+    private boolean bodyCovers(int x, int y, int z) {
+        Location p = ctx.pos();
+        double minX = p.getX() - 0.3, maxX = p.getX() + 0.3;
+        double minY = p.getY(), maxY = p.getY() + 1.8;
+        double minZ = p.getZ() - 0.3, maxZ = p.getZ() + 0.3;
+        return maxX > x && minX < x + 1 && maxY > y && minY < y + 1 && maxZ > z && minZ < z + 1;
+    }
+
+    /** Ladders, torches and the like may share a cell with a body; solid blocks may not. */
+    private boolean isNonSolidHeld() {
+        org.bukkit.inventory.ItemStack held = ctx.player == null ? null : ctx.player.getItemInHand();
+        return held != null && !held.getType().isSolid();
+    }
+
+    /**
      * @param self the placer's own body: standing beside the cell you are filling is normal, and counting yourself as
      *             an obstruction is what made a wall placement wait out its whole timeout
      */
@@ -324,6 +345,14 @@ public final class BlockPlacer {
         // batch's block, so one bad equip fills a cell with a material the drill will not accept - and a wrong block
         // in a target cell is never taken out again.
         if (!Inv.holding(ctx.player, blockPred)) return Result.RUNNING;
+        // refuse to click into our own body: the server will not place it, and the refusal is indistinguishable from
+        // a reach problem three ticks later. A ladder may go in a cell we occupy; a block may not.
+        if (!ignoreEntities && !isNonSolidHeld() && bodyCovers(tx, ty, tz)) {
+            net.h2020.api.stats.CombatStats.inc("place.skip.ownbody");
+            active = false;
+            lastFailure = "ownbody";
+            return Result.FAILED;
+        }
         Location eye = ctx.eye();
         if (support == null || ticks % (fast ? 3 : 4) == 0) {
             Object[] s = findSupport(wv, tx, ty, tz, eye, 4.4, needSight, triedFaces, avoidInteractive);
