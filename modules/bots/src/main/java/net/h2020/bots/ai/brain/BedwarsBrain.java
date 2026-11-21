@@ -1443,11 +1443,15 @@ public final class BedwarsBrain extends GameBrain {
         if (from == null || from.getWorld() != ctx.player.getWorld() || from.isDead()) return false;
         boolean fromMate = false;
         for (Player q : teammates()) if (q.getName().equalsIgnoreCase(line.sender)) { fromMate = true; break; }
+        if (TeamTalk.debug()) org.bukkit.Bukkit.getLogger().info("[tt] " + ctx.player.getName()
+                + " hear=" + line.sender + " mate=" + fromMate + " intents=" + line.intents + " raw='" + line.raw + "'");
         if (!fromMate) {
             // Not a teammate. In a free-for-all (the arena, a solo queue) there are no teammates at all, and a plan
             // still has to be readable or the whole planning layer is dead outside team modes. Take it, but only when
-            // the line is a PLAN - an enemy saying "inc" is them calling us out, not giving us orders.
-            boolean plan = line.has(TeamTalk.Intent.RUSH) || line.has(TeamTalk.Intent.BED);
+            // there are genuinely no mates: in a team mode an enemy's "rush gray" is deception, not a plan, and taking
+            // it means the whole lobby funnels into whichever colour the loudest bot happens to name.
+            boolean hasMates = !teammates().isEmpty();
+            boolean plan = !hasMates && (line.has(TeamTalk.Intent.RUSH) || line.has(TeamTalk.Intent.BED));
             if (!plan) {
                 if (TeamTalk.debug()) org.bukkit.Bukkit.getLogger().info("[tt] " + ctx.player.getName()
                         + " ignores " + line.sender + " (not a teammate)");

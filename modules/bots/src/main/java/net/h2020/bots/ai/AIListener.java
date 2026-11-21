@@ -68,8 +68,11 @@ final class AIListener implements Listener {
         net.h2020.bots.ai.ml.ShopWatch.observed(p);
     }
 
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.LOWEST)
     public void onChat(AsyncPlayerChatEvent e) {
+        // LOWEST and not ignoreCancelled: the game modules cancel chat at HIGH so they can re-route it into [TEAM] /
+        // shout / spectator channels, which meant the AI never saw a message sent inside a game - the one place it
+        // matters. Reading chat must happen before anyone else decides what to do with it.
         net.h2020.bots.ai.perception.TeamTalk.say(e.getPlayer(), e.getMessage());
         // a yes/no answer to a behaviour question is a training label
         String raw = e.getMessage() == null ? "" : e.getMessage().trim();
