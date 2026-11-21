@@ -59,6 +59,16 @@ public final class PlacementPolicy {
     private static final double[] W = new double[ACTIONS * N];
     private static double baseline = 0.5;
     private static long decisions, fights, recorded;
+    /**
+     * Running mean of the score paid per placement, subtracted before the update.
+     *
+     * <p>Every reward this policy has been given turned out to have a positive mean - NONE scored zero, then the shaped
+     * geometric term scored +1 for most placements - and a positive mean drives every action's bias up until the model
+     * is just learning "place blocks". Subtracting the running mean leaves the gradient unbiased (the baseline does not
+     * depend on the action chosen) and makes each action's bias settle near zero, so the weights describe which tactic
+     * is better than this bot's average, which is the question being asked.
+     */
+    private static double rewardBaseline;
     private static File file;
     private static boolean dirty;
 
@@ -360,6 +370,8 @@ public final class PlacementPolicy {
             double speed = u[N + 2];
             double outcome = outcomeScore(s, u);   // what the block itself achieved, independent of the fight result
             double sc = (adv + minedSc) * (1.0 + 0.25 * speed) + 0.9 * outcome + s.shaped;
+            rewardBaseline = rewardBaseline == 0 ? sc : 0.985 * rewardBaseline + 0.015 * sc;
+            sc -= rewardBaseline;
             for (int i = 0; i < N; i++) W[a * N + i] += lr * sc * (1 - prob) * u[2 + i];
         }
         if (resolvedNone > 0) net.h2020.api.stats.CombatStats.add("ml.place.outcome.none", resolvedNone);
@@ -568,6 +580,8 @@ public final class PlacementPolicy {
             // no fight-level advantage term here: there is no result to be advantaged by. The placement's own outcome
             // is the whole signal, which is the honest thing to learn from an unfinished fight.
             double sc = 0.9 * outcome + minedSc * (1.0 + 0.25 * speed) + s.shaped;
+            rewardBaseline = rewardBaseline == 0 ? sc : 0.985 * rewardBaseline + 0.015 * sc;
+            sc -= rewardBaseline;
             for (int i = 0; i < N; i++) W[a * N + i] += lr * sc * (1 - prob) * u[2 + i];
         }
         if (resolvedNone > 0) net.h2020.api.stats.CombatStats.add("ml.place.outcome.none", resolvedNone);
@@ -625,6 +639,8 @@ public final class PlacementPolicy {
             for (int i = 0; i < Math.min(W.length, w.size()); i++) W[i] = w.get(i);
             baseline = y.getDouble("baseline", 0.5);
             fights = y.getLong("fights", 0);
+            recorded = y.getLong("recorded", 0);
+            rewardBaseline = y.getDouble("rewardBaseline", 0);
             decisions = y.getLong("decisions", 0);
         } catch (Throwable t) { net.h2020.bots.ai.ml.ModelFile.warnOnce("PlacementPolicy", file, t); }
     }
@@ -640,6 +656,8 @@ public final class PlacementPolicy {
             y.set("baseline", baseline);
             y.set("fights", fights);
             y.set("decisions", decisions);
+            y.set("recorded", recorded);
+            y.set("rewardBaseline", rewardBaseline);
             if (!file.getParentFile().exists()) file.getParentFile().mkdirs();
             net.h2020.bots.ai.ml.ModelFile.save(y, file);
             dirty = false;
