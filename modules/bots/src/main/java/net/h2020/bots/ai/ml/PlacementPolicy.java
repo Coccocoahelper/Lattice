@@ -458,7 +458,54 @@ public final class PlacementPolicy {
         if (o == OUTCOME_HIT) return 1.0;
         if (o == OUTCOME_COLLAPSE) return 0.5;
         if (o == OUTCOME_TAKEN) return -0.6;
-        return 0;
+        // NONE is 62% of placements and scored 0, which made the reward positively skewed: doing nothing cost nothing
+        // while the minority of lucky hits paid, so every action drifted upward and the policy learned "place blocks"
+        // instead of "place this block here". A placement that achieves nothing is a small loss - it spent a click, a
+        // block and the exposure of placing - so only actions that beat that baseline gain weight.
+        return -0.12;
+    }
+
+    /**
+     * The fight ended without a decided winner (the bot disengaged, or both left): credit the placements it made at a
+     * fraction of a normal fight's weight.
+     *
+     * <p>This is not the same as {@link #discard}: an abandoned fight has no winner, but each placement in it still has
+     * its own outcome - it collapsed the opponent, it got us hit, or it achieved nothing - and those labels do not
+     * depend on who would have won. Discarding the whole window threw that away, and with retreat logic in place a
+     * disengage is the most common way a fight ends, so it was throwing away most of the policy's data.
+     */
+    public static void finishPartial(java.util.UUID id, double weight) {
+        State s = state(id);
+        if (s == null) return;
+        if (s.pending.isEmpty()) { discard(id); return; }
+        fights++;
+        double lr = LR * Math.max(0.0, Math.min(1.0, weight)) / (1.0 + fights / 300.0);
+        double minedSc = -0.25 * Math.min(3, s.minedFast);
+        int resolvedNone = 0;
+        for (int ri = 0; ri < s.pending.size(); ri++) {
+            double[] u = s.pending.get(ri);
+            if (ri < s.resolved.size() && !s.resolved.get(ri)) { u[N + 3] = OUTCOME_NONE; resolvedNone++; }
+            int a = (int) u[0];
+            double prob = u[1];
+            double speed = u[N + 2];
+            double outcome = outcomeScore(s, u);
+            // no fight-level advantage term here: there is no result to be advantaged by. The placement's own outcome
+            // is the whole signal, which is the honest thing to learn from an unfinished fight.
+            double sc = 0.9 * outcome + minedSc * (1.0 + 0.25 * speed);
+            for (int i = 0; i < N; i++) W[a * N + i] += lr * sc * (1 - prob) * u[2 + i];
+        }
+        if (resolvedNone > 0) net.h2020.api.stats.CombatStats.add("ml.place.outcome.none", resolvedNone);
+        net.h2020.api.stats.CombatStats.inc("ml.place.finish.partial");
+        s.pending.clear();
+        s.resolved.clear();
+        s.armedPending = -1;
+        s.armedDoneAt = -1;
+        s.foeSpeed0 = -1;
+        s.lastOutcome = OUTCOME_NONE;
+        s.lastResolved = -1;
+        s.lastResolvedDoneAt = -1;
+        s.minedFast = 0;
+        dirty = true;
     }
 
     /** The fight ended without a result (both walked away): nothing to learn from it. */

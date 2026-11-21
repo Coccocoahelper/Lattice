@@ -313,7 +313,11 @@ public final class Combat {
                 fightFeatures = null;
                 net.h2020.api.stats.CombatStats.inc("ml.fight.label.disengage");
             }
-            net.h2020.bots.ai.ml.PlacementPolicy.discard(ctx.player.getUniqueId());
+            // Credit the placements from a fight we left, at a reduced weight, instead of discarding them. discard()
+            // existed because an abandoned fight has an unknown ending, but the per-placement OUTCOMES are still known
+            // and they are the signal the policy actually learns from - their hit/collapse/taken labels do not depend
+            // on who would have won.
+            net.h2020.bots.ai.ml.PlacementPolicy.finishPartial(ctx.player.getUniqueId(), 0.4);
             fightScored = true;
             ctx.c.setAimPolicy(0, 1.0);
         }

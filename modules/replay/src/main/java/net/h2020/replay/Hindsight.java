@@ -61,7 +61,9 @@ public final class Hindsight {
     public static void pass(int maxRows, boolean anyState) {
         passes++;
         decisionRows += decisions(maxRows);
-        if (MlSettings.trainFromBots()) gameSamples += games(anyState ? 3 : 1, anyState);
+        // Manual passes read the whole corpus (anyState is only true for those); the automatic periodic pass keeps a
+        // small window so a background job cannot spend the tick budget re-reading 350 MB of recordings.
+        if (MlSettings.trainFromBots()) gameSamples += games(anyState ? Integer.MAX_VALUE : 1, anyState);
     }
 
     // ---------------------------------------------------------------------------------------------- decisions
