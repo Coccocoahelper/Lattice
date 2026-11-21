@@ -194,6 +194,11 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                     if (args.length > 1 && args[1].equalsIgnoreCase("reset")) net.h2020.bots.ai.stats.DeathStats.reset();
                     break;
                 }
+                case "instantclick": {
+                    net.h2020.bots.ai.motor.BridgeTuning.instantClick = !net.h2020.bots.ai.motor.BridgeTuning.instantClick;
+                    sender.sendMessage("instant bridge click: " + net.h2020.bots.ai.motor.BridgeTuning.instantClick);
+                    break;
+                }
                 case "bridgetech": {
                     // force one bridging method for every bridge, so a single technique can be measured on its own
                     if (args.length > 1 && args[1].equalsIgnoreCase("auto")) {

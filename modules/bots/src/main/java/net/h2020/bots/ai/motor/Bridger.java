@@ -86,6 +86,8 @@ public final class Bridger {
     /** Tick the crouch comes up after a tap click; set from skill at each placement. */
     private long unsneakAt = -100;
     private int clickCooldown, clickWait;
+    /** Tick the last block landed, so a block's cost is measurable rather than assumed. */
+    private long blockStartTick;
     private boolean rayWasOn;
     private int blocksUntilGlance;
     private boolean forgetSneak;
@@ -412,6 +414,19 @@ public final class Bridger {
                 // real technique backs up and places over the void instead; that is a stance change, not a flag.
                 duoTicks = 0;
             }
+            // per-block cost, split into the thing that actually spends it
+            if (blockStartTick > 0) {
+                long cost = ctx.tick - blockStartTick;
+                net.h2020.api.stats.CombatStats.add("bridge.cost.sum", cost);
+                net.h2020.api.stats.CombatStats.inc("bridge.cost.n");
+                if (cost <= 4) net.h2020.api.stats.CombatStats.inc("bridge.cost.fast");
+                else if (cost <= 8) net.h2020.api.stats.CombatStats.inc("bridge.cost.mid");
+                else net.h2020.api.stats.CombatStats.inc("bridge.cost.slow");
+                net.h2020.api.stats.CombatStats.add("bridge.cost.turn", preTurn);
+                net.h2020.api.stats.CombatStats.add("bridge.cost.walk", preWalk);
+                net.h2020.api.stats.CombatStats.add("bridge.cost.wait", preWait);
+            }
+            blockStartTick = ctx.tick;
             ticksOnBlock = 0;
             rayWasOn = false;
             clickWait = 0;
@@ -600,6 +615,15 @@ public final class Bridger {
                     && tb.getY() + tf.getModY() == sy && tb.getZ() + tf.getModZ() == nz;
         } else {
             rayOn = tb != null && tf == want && tb.getX() == sx && tb.getY() == sy && tb.getZ() == sz;
+            // How often is the crosshair on a face that fills the target cell but is not the wanted one? A strict
+            // face is right for the technique, but the pitch is clamped into the 78-80 band and the geometry's ideal
+            // angle is often steeper than that, so the ray lands on the neighbouring face and the bot waits for a
+            // face that will never come.
+            if (!rayOn && tb != null) {
+                boolean fills = tb.getX() + tf.getModX() == nx && tb.getY() + tf.getModY() == sy
+                        && tb.getZ() + tf.getModZ() == nz;
+                if (fills) net.h2020.api.stats.CombatStats.inc("bridge.ray.wrongface");
+            }
         }
 
         if (settleTicks > 0) {
@@ -711,7 +735,7 @@ public final class Bridger {
             else if (clickCooldown == 0) {
                 ctx.c.rightClick();
                 clicked = true;
-                clickCooldown = (tech == Tech.NINJA || tech == Tech.NINJA2) ? 0
+                clickCooldown = (tech == Tech.NINJA || tech == Tech.NINJA2 || BridgeTuning.instantClick) ? 0
                         : Math.max(1, AIMath.msToTicks(ctx.rng, ctx.persona.bridgeClickMs) - 1);
             }
         }

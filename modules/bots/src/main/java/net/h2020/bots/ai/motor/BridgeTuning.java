@@ -25,6 +25,8 @@ public final class BridgeTuning {
      * impossible to judge from mixed statistics.
      */
     public static volatile Bridger.Tech forceTech = null;
+    /** A/B knob: skip the per-block reaction delay, to measure what it costs. */
+    public static volatile boolean instantClick; 
 
     /** While a diagonal stance keeps failing, diagonals go back to the straight bridge instead of retrying forever. */
     private static volatile long diagonalBlockedUntil = 0;
