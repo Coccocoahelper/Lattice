@@ -51,7 +51,7 @@ public final class PlacementPolicy {
 
     /** What a placement did in the twelve ticks after it went down. */
     public static final int OUTCOME_NONE = 0, OUTCOME_HIT = 1, OUTCOME_COLLAPSE = 2, OUTCOME_TAKEN = 3;
-    private static final int OUTCOME_WINDOW = 12;
+    private static final int OUTCOME_WINDOW = 7;
     /** Rows carried into one fight-level update. Beyond this the credit is too diffuse to attribute. */
     private static final int MAX_PENDING = 24;
 
@@ -75,6 +75,8 @@ public final class PlacementPolicy {
         int lastResolved = -1;
         long lastResolvedDoneAt = -1;
         int minedFast;
+        /** Dense shaped credit from placements that landed in a sensible or pointless spot. */
+        double shaped;
         final int[] armed = new int[ACTIONS];
         final int[][] outcomes = new int[ACTIONS][4];
     }
@@ -135,6 +137,32 @@ public final class PlacementPolicy {
         return x;
     }
 
+    /**
+     * How much the learned weights are trusted relative to the hand-written prior.
+     *
+     * <p>The prior is written on a scale of about +-1.0 and an action's learned dot product lands near +-0.2 after
+     * hundreds of samples, so a fixed 1:1 sum meant the model could never change a decision - it only re-ranked the
+     * priors. Measured: shelter kept being chosen at a 0% hit rate while stomp sat at 34%, because shelter's +0.4
+     * prior outweighed everything the data said.
+     *
+     * <p>The scale ramps with evidence: a fresh model follows the prior exactly (so a new bot never acts randomly),
+     * and after LEARNED_SATURATION recorded placements the learned term is worth LEARNED_FULL.
+     */
+    private static double learnedScale() {
+        double t = Math.min(1.0, recorded / LEARNED_SATURATION);
+        return 1.0 + (LEARNED_FULL - 1.0) * t;
+    }
+
+    /**
+     * Placements after which the learned term is fully amplified. Placements rather than fights: each one carries its
+     * own outcome label, so 700 placements say far more about which tactic pays in which state than 80 fight results
+     * do - and fights accumulate too slowly (80 in seven minutes of continuous duelling) to ramp anything inside a
+     * session.
+     */
+    private static final double LEARNED_SATURATION = 500.0;
+    /** Times the learned term is scaled once saturated. Prior is +-1 and the dot is +-0.2, so ~6 is parity. */
+    private static final double LEARNED_FULL = 6.0;
+
     /** The persona's habits: the score the action starts with before any learning. */
     private static double prior(Style style, int action, double d, boolean onLine, boolean losing, double hp) {
         switch (action) {
@@ -167,7 +195,7 @@ public final class PlacementPolicy {
         // placement that is physically impossible here (those keep their negative priors)
         double[] human = HumanPlacements.state(ctx.player, target);
         for (int a = 0; a < ACTIONS; a++) {
-            score[a] = prior(style, a, d, onLine, losing, hp) + dot(a, x);
+            score[a] = prior(style, a, d, onLine, losing, hp) + learnedScale() * dot(a, x);
             if (a == BED_BLOCKOFF) score[a] = -1e9;   // driven by the bed raid, never by the duel placement policy
             int h = humanClass(a);
             if (h >= 0) score[a] += 0.55 * HumanPlacements.prob(h, human);
@@ -331,7 +359,7 @@ public final class PlacementPolicy {
             double prob = u[1];
             double speed = u[N + 2];
             double outcome = outcomeScore(s, u);   // what the block itself achieved, independent of the fight result
-            double sc = (adv + minedSc) * (1.0 + 0.25 * speed) + 0.9 * outcome;
+            double sc = (adv + minedSc) * (1.0 + 0.25 * speed) + 0.9 * outcome + s.shaped;
             for (int i = 0; i < N; i++) W[a * N + i] += lr * sc * (1 - prob) * u[2 + i];
         }
         if (resolvedNone > 0) net.h2020.api.stats.CombatStats.add("ml.place.outcome.none", resolvedNone);
@@ -370,6 +398,15 @@ public final class PlacementPolicy {
         s.foeSpeed0 = horizontalSpeed(target);
         int a = (int) s.pending.get(s.armedPending)[0];
         if (a >= 0 && a < ACTIONS) s.armed[a]++;
+        // Dense geometric credit, decided now instead of hoping for a reaction. 96% of placements used to resolve to
+        // NONE, leaving the policy 3 hits out of 286 outcomes; but whether a block was worth placing is mostly a
+        // question about where the bodies are, which is known at this instant. Small weight, so a real hit still
+        // dominates - this only says "that was a reasonable block to place here".
+        int gi = geometricValue(id, tick, target);
+        if (gi != 0) {
+            s.shaped += gi * 0.10;
+            net.h2020.api.stats.CombatStats.inc(gi > 0 ? "ml.place.shape.good" : "ml.place.shape.bad");
+        }
         net.h2020.api.stats.CombatStats.inc("ml.place.armed");
     }
 
@@ -382,6 +419,45 @@ public final class PlacementPolicy {
         // the block stopped him dead: that is the stomp's own effect and it counts even if no hit follows
         if (s.foeSpeed0 >= 0.08 && speed <= s.foeSpeed0 * 0.5) { resolve(s, OUTCOME_COLLAPSE); return; }
         if (tick - s.armedDoneAt > OUTCOME_WINDOW) resolve(s, OUTCOME_NONE);
+    }
+
+    /**
+     * Was the block that just landed in a useful place? Decided from geometry at the moment it lands.
+     *
+     * <p>Returns +1 for a placement that stands between the two bodies at fight range, -1 for one placed with the
+     * opponent far away or already past it, 0 when there is no target to judge against. This is the dense signal the
+     * sparse hit/collapse/taken labels could not provide: 96% of placements never produced a reaction at all, which is
+     * information about the SITUATION, not about the block.
+     */
+    private static int geometricValue(java.util.UUID id, long tick, Player target) {
+        State s = state(id);
+        if (s == null || target == null) return 0;
+        if (s.lastX == null) return 0;
+        Player me = org.bukkit.Bukkit.getPlayer(id);
+        if (me == null || !me.isOnline()) return 0;
+        if (me.getWorld() != target.getWorld()) return 0;
+        double d = me.getLocation().distance(target.getLocation());
+        // a placement is judged at fighting distance: too far and it is just building, which is a different decision
+        if (d > 9.0) return 0;
+        double dy = Math.abs(me.getLocation().getY() - target.getLocation().getY());
+        if (dy > 2.5) return 0;                       // not the same fight
+        if (d < 1.2) return -1;                       // a block at touching range is a wall in our own face
+        // a block placed while the opponent is closing and in front of us is the useful case; one placed while they are
+        // behind us or walking away is not
+        org.bukkit.util.Vector toFoe = target.getLocation().toVector().subtract(me.getLocation().toVector());
+        toFoe.setY(0);
+        if (toFoe.lengthSquared() < 1e-6) return 0;
+        toFoe.normalize();
+        org.bukkit.util.Vector look = me.getLocation().getDirection();
+        look.setY(0);
+        if (look.lengthSquared() < 1e-6) return 0;
+        look.normalize();
+        double facing = toFoe.dot(look);
+        // facing the opponent at 2-8 blocks: this is where a stomp/wall/ramp does its work
+        if (facing > 0.35 && d >= 2.0 && d <= 8.0) return 1;
+        // turned away or behind them: the block is not part of this exchange
+        if (facing < -0.2) return -1;
+        return 0;
     }
 
     /** A hit of ours landed: a placement that was still being judged gets credit for it (a hit beats a collapse). */
@@ -491,7 +567,7 @@ public final class PlacementPolicy {
             double outcome = outcomeScore(s, u);
             // no fight-level advantage term here: there is no result to be advantaged by. The placement's own outcome
             // is the whole signal, which is the honest thing to learn from an unfinished fight.
-            double sc = 0.9 * outcome + minedSc * (1.0 + 0.25 * speed);
+            double sc = 0.9 * outcome + minedSc * (1.0 + 0.25 * speed) + s.shaped;
             for (int i = 0; i < N; i++) W[a * N + i] += lr * sc * (1 - prob) * u[2 + i];
         }
         if (resolvedNone > 0) net.h2020.api.stats.CombatStats.add("ml.place.outcome.none", resolvedNone);
@@ -505,6 +581,7 @@ public final class PlacementPolicy {
         s.lastResolved = -1;
         s.lastResolvedDoneAt = -1;
         s.minedFast = 0;
+        s.shaped = 0;
         dirty = true;
     }
 
