@@ -673,13 +673,16 @@ final class BlockTactics {
      * be built at any distance inside bow range.
      */
     private boolean doShelter(Scene f) {
-        if (f.blocks < 2 || f.d < 3.0 || f.d > 14 || f.dy > 2.0) return false;
-        if (ctx.tick - lastWall <= 60 || ctx.rng.nextDouble() >= 0.35) return false;
+        if (f.blocks < 2 || f.d < 3.0 || f.d > 14 || f.dy > 2.0) { CombatStats.inc("why.shelter.dist"); return false; }
+        if (ctx.tick - lastWall <= 60) { CombatStats.inc("why.shelter.cooldown"); return false; }
+        if (ctx.rng.nextDouble() >= 0.85) { CombatStats.inc("why.shelter.roll"); return false; }
         int[] dir = lineDir(f.me, f.tl);
         if (dir == null) return false;
         int bx = f.x + dir[0], bz = f.z + dir[1];
-        if (!Shape.floor(f.wv.shape(bx, f.y - 1, bz))) return false;
-        if (!f.wv.passable(bx, f.y, bz) || !f.wv.passable(bx, f.y + 1, bz)) return false;
+        if (!Shape.floor(f.wv.shape(bx, f.y - 1, bz))) { CombatStats.inc("why.shelter.noground"); return false; }
+        if (!f.wv.passable(bx, f.y, bz) || !f.wv.passable(bx, f.y + 1, bz)) {
+            CombatStats.inc("why.shelter.blocked"); return false;
+        }
         lastWall = ctx.tick;
         started = ctx.tick;
         cells = new int[][]{{bx, f.y, bz}, {bx, f.y + 1, bz}};
