@@ -45,6 +45,12 @@ import java.util.Random;
 public final class FightModel {
     public static final int N = 30;
     private static final double LR = 0.09;
+    /**
+     * Largest magnitude a weight may reach. On a standardised feature a weight of 12 already saturates the sigmoid by
+     * itself, so anything beyond this is divergence rather than signal - and the model reached -73 before the clamp
+     * existed.
+     */
+    private static final double WEIGHT_CLAMP = 12.0;
     private static final long MIN_SAMPLES = 30;
     /** Fights after which the learned weights have fully replaced the hand-written baseline. */
     private static final double BLEND_SAMPLES = 150;
@@ -294,12 +300,12 @@ public final class FightModel {
      * and the learned weights are blended in as fights are seen (fully after {@link #BLEND_SAMPLES}).
      */
     public static double predict(double[] x) {
-        double pPrior = sigmoid((PRIOR_B + dot(PRIOR_W, x)) / PRIOR_TEMP);
+        double pPrior = sigmoid(clampLogit((PRIOR_B + dot(PRIOR_W, x)) / PRIOR_TEMP));
         double t = Math.min(1.0, samples / BLEND_SAMPLES);
         if (t <= 0) return pPrior;
         double[] z = new double[N];
         standardise(x, z);
-        double pLearned = sigmoid(bias + dot(W, z));
+        double pLearned = sigmoid(clampLogit(bias + dot(W, z)));
         return calibrate(pPrior * (1 - t) + pLearned * t);
     }
 
@@ -385,7 +391,15 @@ public final class FightModel {
         // the bias is a single scalar with no scale problem, so it keeps the plain step
         bias -= lr * clamped * wgt;
         // light L2 so a long session cannot run the weights away
-        for (int i = 1; i < N; i++) W[i] *= (1 - 0.0005);
+        // clamp after the step: a standardised feature can be several sd from the mean, so one unusual fight can push a
+        // weight hard, and nothing was pulling it back. Measured divergence: bias weight -73.0 with log-loss 4.9.
+        for (int i = 1; i < N; i++) {
+            W[i] *= (1 - 0.0005);
+            if (W[i] > WEIGHT_CLAMP) W[i] = WEIGHT_CLAMP;
+            else if (W[i] < -WEIGHT_CLAMP) W[i] = -WEIGHT_CLAMP;
+        }
+        if (bias > WEIGHT_CLAMP) bias = WEIGHT_CLAMP;
+        else if (bias < -WEIGHT_CLAMP) bias = -WEIGHT_CLAMP;
         double ll = -(y * Math.log(p + 1e-9) + (1 - y) * Math.log(1 - p + 1e-9));
         // Seed from the first real sample rather than a constant: a model with five fights was reporting a loss that was
         // 93% inherited from the seed value, which made "log-loss 1.25" and "log-loss 0.70" equally meaningless.
@@ -437,7 +451,18 @@ public final class FightModel {
         standardise(x, z);
         double d = bias;
         for (int i = 0; i < N; i++) d += W[i] * z[i];
-        return sigmoid(d);
+        return sigmoid(clampLogit(d));
+    }
+
+    /**
+     * Bound the total logit. Clamping individual weights does not bound their sum: 30 features at the +-12 weight clamp
+     * is +-360, and sigmoid(360) is 1e-156 - a model that is certain and wrong, which showed up as log-loss 12.6 with
+     * 2% accuracy. Twelve logits is already p = 1 - 6e-6.
+     */
+    private static double clampLogit(double d) {
+        if (d > 12) return 12;
+        if (d < -12) return -12;
+        return d;
     }
 
     public static boolean confident() { return samples >= MIN_SAMPLES; }

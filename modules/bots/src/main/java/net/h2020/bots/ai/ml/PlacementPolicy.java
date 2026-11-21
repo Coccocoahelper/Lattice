@@ -284,9 +284,17 @@ public final class PlacementPolicy {
         // remember this row as the one whose placement is about to go down; the row stores its own pending index
         // until the outcome overwrites it, and resolved keeps unresolved rows scoring zero
         if (u[0] == NONE) {
-            // a no-op decision places nothing: it must not swallow the next real placement's outcome
-            s.armedPending = -1;
+            // A no-op decision places nothing, so it must not BECOME the armed row - but it must not clear a window
+            // that is still being judged either. Clearing it unconditionally destroyed the open window of the
+            // placement that had just gone down (27241 polls found nothing armed). Leaving a FINISHED window in place
+            // is just as wrong the other way (placementDone refuses to re-arm), so retire only a window that already
+            // resolved.
             u[N + 3] = OUTCOME_NONE;
+            if (s.armedPending >= 0 && s.armedDoneAt >= 0) {
+                s.armedPending = -1;
+                s.armedDoneAt = -1;
+                s.foeSpeed0 = -1;
+            }
         } else {
             s.armedPending = s.pending.size() - 1;
             u[N + 3] = s.armedPending;
@@ -425,11 +433,23 @@ public final class PlacementPolicy {
     /** Every combat tick: resolve the armed placement's outcome once the window closes or its stomp lands. */
     public static void poll(java.util.UUID id, long tick, Player target) {
         State s = state(id);
-        if (s == null) return;
-        if (s.armedPending < 0 || s.armedDoneAt < 0 || s.lastOutcome != OUTCOME_NONE) return;
+        if (s == null) { net.h2020.api.stats.CombatStats.inc("ml.place.poll.nostate"); return; }
+        // armedPending is cleared by resolve(), so it - not lastOutcome - is the "still being judged" flag. Testing
+        // lastOutcome here meant the guard was true the instant the placement armed (it initialises to NONE) and the
+        // collapse check below never ran at all.
+        if (s.armedPending < 0 || s.armedDoneAt < 0) {
+            net.h2020.api.stats.CombatStats.inc(s.armedPending < 0 ? "ml.place.poll.notarmed" : "ml.place.poll.notdone");
+            return;
+        }
         double speed = horizontalSpeed(target);
         // the block stopped him dead: that is the stomp's own effect and it counts even if no hit follows
-        if (s.foeSpeed0 >= 0.08 && speed <= s.foeSpeed0 * 0.5) { resolve(s, OUTCOME_COLLAPSE); return; }
+        if (s.foeSpeed0 < 0.08) {
+            net.h2020.api.stats.CombatStats.inc("ml.place.poll.foeStill");
+        } else if (speed <= s.foeSpeed0 * 0.5) {
+            resolve(s, OUTCOME_COLLAPSE); return;
+        } else {
+            net.h2020.api.stats.CombatStats.inc("ml.place.poll.moving");
+        }
         if (tick - s.armedDoneAt > OUTCOME_WINDOW) resolve(s, OUTCOME_NONE);
     }
 
@@ -487,7 +507,10 @@ public final class PlacementPolicy {
     public static void onTaken(java.util.UUID id, long tick) {
         State s = state(id);
         if (s == null) return;
-        if (s.armedPending < 0 || s.armedDoneAt < 0) return;
+        if (s.armedPending < 0 || s.armedDoneAt < 0) {
+            net.h2020.api.stats.CombatStats.inc(s.armedPending < 0 ? "ml.place.poll.notarmed" : "ml.place.poll.notdone");
+            return;
+        }
         if (tick - s.armedDoneAt <= OUTCOME_WINDOW) resolve(s, OUTCOME_TAKEN);
     }
 

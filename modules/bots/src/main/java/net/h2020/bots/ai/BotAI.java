@@ -311,6 +311,10 @@ public final class BotAI {
             return;
         }
         if (net.h2020.api.core.Worlds.isArena(b.player().getWorld())) {
+            // A brain the trainer installed explicitly - an adversarial punisher - must survive this. Only fall back to
+            // the arena's default when nothing more specific is in place; otherwise this line silently replaced the
+            // punisher with a plain ArenaBrain a tick after it was set, and every duel was trainee-vs-trainee.
+            if (cur instanceof net.h2020.bots.ai.brain.AdversarialBrain) return;
             if (!(cur instanceof net.h2020.bots.ai.brain.ArenaBrain)) b.setBrain(new net.h2020.bots.ai.brain.ArenaBrain());
             return;
         }

@@ -308,10 +308,16 @@ public final class Combat {
             // learn from. Weighted below 1.0 because leaving is not the same evidence as being killed: the bot chose to
             // stop, so the fight's true outcome is unknown, only that it was not going well enough to continue.
             if (!fightScored && fightFeatures != null) {
-                net.h2020.bots.ai.ml.FightModel.learn(fightFeatures, false, 0.55);
-                net.h2020.bots.ai.ml.FightModel.observe(fightPred, false);
+                // Label from who was actually ahead when the bot left, not from an assumption that leaving means
+                // losing. Labelling every disengage a loss made the training set almost entirely negative whenever the
+                // bots retreated often, and the model learned "I always lose" - measured as accuracy 2% with log-loss
+                // 12.6. A retreat from a won position is a win the bot threw away; that is what the label should say.
+                boolean ahead = target != null && ctx.player.getHealth() > target.getHealth() + 1.0;
+                net.h2020.bots.ai.ml.FightModel.learn(fightFeatures, ahead, 0.55);
+                net.h2020.bots.ai.ml.FightModel.observe(fightPred, ahead);
                 fightFeatures = null;
-                net.h2020.api.stats.CombatStats.inc("ml.fight.label.disengage");
+                net.h2020.api.stats.CombatStats.inc(ahead ? "ml.fight.label.disengage.ahead"
+                        : "ml.fight.label.disengage.behind");
             }
             // Credit the placements from a fight we left, at a reduced weight, instead of discarding them. discard()
             // existed because an abandoned fight has an unknown ending, but the per-placement OUTCOMES are still known
@@ -634,6 +640,9 @@ public final class Combat {
     // ------------------------------------------------------------------------------------------------ tick
 
     public void tick() {
+        // the placement outcome window is per tick and must not depend on which branch the fight takes: it used to be
+        // polled only from v2Tick, and 157 armed placements produced 12 polls, so almost every window closed untested.
+        if (target != null) net.h2020.bots.ai.ml.PlacementPolicy.poll(ctx.player.getUniqueId(), ctx.tick, target);
         // an arbiter decision is scored on the exchange it produced, twelve ticks later
         if (arbAt >= 0 && ctx.tick - arbAt > 12) {
             net.h2020.bots.ai.ml.CombatArbiter.resolve(ctx, (int) (hitsLanded - arbLanded0), (int) (hitsTaken - arbTaken0),
@@ -774,8 +783,6 @@ public final class Combat {
     // ------------------------------------------------------------------------------------------------ v2
 
     private void v2Tick(Location me, Location tl, double d, long stalledFor, long noHitsFor) {
-        // the fight tick owns the placement outcome window: one poll per tick, no second scheduler
-        net.h2020.bots.ai.ml.PlacementPolicy.poll(ctx.player.getUniqueId(), ctx.tick, target);
         if (stalledFor > 200 && noHitsFor > 200) {
             // unreachable: a pearl across the gap first, if we have one
             if (tryEngagePearl(tl, d)) return;

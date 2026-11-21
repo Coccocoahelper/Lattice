@@ -203,10 +203,19 @@ public final class Trainer {
      * one group per quadrant, all on {@link ArenaBrain}. Arena fights never end on their own, so every duel is
      * recycled after {@code duelSecondsWanted} seconds with fresh bodies. No {@code Game} exists in this mode.
      */
+    /** Trainer duels must be lethal, or the fight model is trained on a pad where losing is impossible. */
+    private static void setLethal(boolean v) {
+        try {
+            Class<?> type = arenaType();
+            if (type != null) type.getMethod("setLethal", boolean.class).invoke(null, Boolean.valueOf(v));
+        } catch (Throwable ignored) { }
+    }
+
     public static String startDuels(int maxDuelsWanted, int duelSecondsWanted) {
         if (running) return "already running (" + (duelsMode ? duelStartTimes.size() + " duels" : "target " + target + "/" + maxGames + ")");
         if (Arena.running()) return "arena is running - stop it first";
         if (!ensureInstalled()) return "replay plugin not available";
+        setLethal(true);
 
         BotService bs = H2020.find(BotService.class);
         if (bs == null) return "bots module not available";
@@ -252,6 +261,7 @@ public final class Trainer {
     }
 
     public static String stop() {
+        setLethal(false);
         if (!running) return "trainer not running";
         long elapsed = Math.max(0L, System.currentTimeMillis() - runStartedAt);
         long started = gamesStarted, finished = gamesFinished, forced = gamesForced;
@@ -487,6 +497,8 @@ public final class Trainer {
             }
             ids.add(id);
             duelBotIds.add(id);
+            // the first body of each duel is the trainee; the others punish it
+            if (i > 0 && p != null) PUNISHERS.add(p.getUniqueId());
             // The arena's own path finishes the join two ticks later, once the fake client has logged in: same retry
             // the game path uses. Teleport + kit + ArenaBrain is exactly what /h2020 arena bot gives a bot.
             final Bot spawned = bot;
@@ -513,8 +525,23 @@ public final class Trainer {
             if (plugin != null) plugin.getLogger().warning("[trainer] duel join failed for "
                     + (p == null ? "?" : p.getName()) + ": " + t);
         }
-        if (!(bot.brain() instanceof ArenaBrain)) bot.setBrain(new ArenaBrain());
+        // index 0 of a duel is the trainee; the rest are adversarial. The trainee uses the ordinary arena brain so the
+        // policy it trains is the one it plays with; a punisher presses it, which is what turns a placement into
+        // something with a cost. Without this the duel taught the policy that all placements are worth the same.
+        // By role, unconditionally. Testing "is this already an ArenaBrain" made the trainee branch dead code - a new
+        // bot is born with one - so every body became a punisher and no policy was ever trained by one.
+        if (isPunisher(p)) {
+            bot.setBrain(new net.h2020.bots.ai.brain.AdversarialBrain());
+            net.h2020.api.stats.CombatStats.inc("train.duel.punisher");
+        } else {
+            bot.setBrain(new ArenaBrain());
+            net.h2020.api.stats.CombatStats.inc("train.duel.trainee");
+        }
     }
+
+    /** Punishers are every member of a duel except the first: one trainee, two that press it. */
+    private static final java.util.Set<java.util.UUID> PUNISHERS = new java.util.HashSet<java.util.UUID>();
+    private static boolean isPunisher(Player p) { return p != null && PUNISHERS.contains(p.getUniqueId()); }
 
     /**
      * A duel slot is also its quadrant: slots 0..3 are (-x,-z), (+x,-z), (-x,+z), (+x,+z). The ring phase advances

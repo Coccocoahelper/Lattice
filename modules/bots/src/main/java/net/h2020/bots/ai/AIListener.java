@@ -175,6 +175,12 @@ final class AIListener implements Listener {
             double dist = attacker.getEyeLocation().distance(victim.getLocation().add(0, 0.9, 0));
             net.h2020.bots.ai.ml.HumanFights.engaged(attacker, victim, dist);
         }
+        double after = victim.getHealth() - e.getFinalDamage();
+        net.h2020.api.stats.CombatStats.inc("dmg.landed");
+        if (after <= 0) net.h2020.api.stats.CombatStats.inc("dmg.wouldkill");
+        else if (after <= 4) net.h2020.api.stats.CombatStats.inc("dmg.low");
+        int bucket = (int) Math.max(0, Math.min(19, Math.floor(victim.getHealth())));
+        net.h2020.api.stats.CombatStats.inc("dmg.hp." + bucket);
         BaseBrain vb = BotAI.brainOf(victim);
         if (vb != null) vb.onHurt(attacker, e.getFinalDamage());
         BaseBrain ab = BotAI.brainOf(attacker);
