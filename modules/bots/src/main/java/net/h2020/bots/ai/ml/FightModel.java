@@ -74,7 +74,8 @@ public final class FightModel {
     private static double bias;
     private static long samples;
     private static double accuracy = 0.5;
-    private static double lossEma = 0.7;
+    private static double lossEma = 0.693;
+    private static long lossN;
     /** Platt calibration of the predicted probability: p' = sigmoid(calA * logit(p) + calB). */
     private static double calA = 1.0, calB = 0.0;
     private static double brier = 0.25;
@@ -86,6 +87,21 @@ public final class FightModel {
     private static File file;
     private static boolean dirty;
     private static final Random R = new Random(7);
+    /** Adam over the weight vector; the bias is a lone scalar and keeps a plain step. */
+    private static final Adam OPT = new Adam(N);
+    private static final double[] GRAD = new double[N];
+    /**
+     * Running mean and variance per feature (Welford, online), used to standardise the vector before the dot product.
+     * The features are hand-scaled to "comparable ranges" but they are not comparable: the bias is a constant 1.0, the
+     * health advantage sits near 0 for most fights, and ping/300 barely moves. A logistic surface fitted on those is
+     * ill-conditioned - some weights need to be ten times larger than others to express the same evidence - and that is
+     * what log-loss 0.701 (worse than guessing 0.5) looks like from the outside.
+     */
+    /** Fake observations of mean 0 / variance 1, so the basis is sane before any real data exists. */
+    private static final double VAR_PRIOR = 8.0;
+    private static final double[] F_MEAN = new double[N];
+    private static final double[] F_M2 = new double[N];
+    private static long fN;
 
     static {
         resetToPrior();
@@ -113,9 +129,23 @@ public final class FightModel {
             org.bukkit.configuration.file.YamlConfiguration y =
                     org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(file);
             List<Double> w = y.getDoubleList("weights");
-            if (y.getInt("n", 0) != N) {   // feature vector changed shape: the old weights mean nothing here
+            // v2 = standardised features. Weights written by v1 were fitted on the raw vector and mean something
+            // different here, so they cannot be loaded: restart from the statistical prior rather than predict
+            // confidently from a basis that no longer exists.
+            if (y.getInt("n", 0) != N || y.getInt("featureVersion", 1) != 2) {
                 net.h2020.api.stats.CombatStats.inc("ml.fightmodel.reset");
                 return;
+            }
+            fN = y.getLong("fn", 0);
+            List<Double> mean = y.getDoubleList("fMean");
+            List<Double> m2 = y.getDoubleList("fM2");
+            for (int i = 0; i < Math.min(N, mean.size()); i++) F_MEAN[i] = mean.get(i);
+            for (int i = 0; i < Math.min(N, m2.size()); i++) F_M2[i] = m2.get(i);
+            double[] optState = new double[N * 2 + 1];
+            List<Double> os = y.getDoubleList("opt");
+            if (os.size() == optState.length) {
+                for (int i = 0; i < os.size(); i++) optState[i] = os.get(i);
+                OPT.restore(optState);
             }
             for (int i = 0; i < Math.min(N, w.size()); i++) W[i] = w.get(i);
             bias = y.getDouble("bias", bias);
@@ -124,7 +154,8 @@ public final class FightModel {
             brier = y.getDouble("brier", brier);
             samples = y.getLong("samples", 0);
             accuracy = y.getDouble("accuracy", 0.5);
-            lossEma = y.getDouble("loss", 0.7);
+            lossEma = y.getDouble("loss", 0.693);
+            lossN = y.getLong("lossN", 0);
         } catch (Throwable t) { net.h2020.bots.ai.ml.ModelFile.warnOnce("FightModel", file, t); }
     }
 
@@ -136,6 +167,15 @@ public final class FightModel {
             for (double v : W) w.add(v);
             y.set("weights", w);
             y.set("n", N);
+            y.set("featureVersion", 2);
+            y.set("fn", fN);
+            List<Double> mean = new ArrayList<Double>(N), m2 = new ArrayList<Double>(N);
+            for (int i = 0; i < N; i++) { mean.add(F_MEAN[i]); m2.add(F_M2[i]); }
+            y.set("fMean", mean);
+            y.set("fM2", m2);
+            List<Double> os = new ArrayList<Double>();
+            for (double d : OPT.state()) os.add(d);
+            y.set("opt", os);
             y.set("bias", bias);
             y.set("calA", calA);
             y.set("calB", calB);
@@ -143,6 +183,7 @@ public final class FightModel {
             y.set("samples", samples);
             y.set("accuracy", accuracy);
             y.set("loss", lossEma);
+            y.set("lossN", lossN);
             if (!file.getParentFile().exists()) file.getParentFile().mkdirs();
             net.h2020.bots.ai.ml.ModelFile.save(y, file);
             dirty = false;
@@ -256,7 +297,9 @@ public final class FightModel {
         double pPrior = sigmoid((PRIOR_B + dot(PRIOR_W, x)) / PRIOR_TEMP);
         double t = Math.min(1.0, samples / BLEND_SAMPLES);
         if (t <= 0) return pPrior;
-        double pLearned = sigmoid(bias + dot(W, x));
+        double[] z = new double[N];
+        standardise(x, z);
+        double pLearned = sigmoid(bias + dot(W, z));
         return calibrate(pPrior * (1 - t) + pLearned * t);
     }
 
@@ -280,6 +323,40 @@ public final class FightModel {
     }
 
     /** Learn from a finished fight (win = the target died first). */
+    /** Welford's online update of the per-feature mean and variance. Skipped for the constant bias term. */
+    private static void observeFeatures(double[] x) {
+        fN++;
+        for (int i = 1; i < N; i++) {
+            double d = x[i] - F_MEAN[i];
+            F_MEAN[i] += d / fN;
+            F_M2[i] += d * (x[i] - F_MEAN[i]);
+        }
+    }
+
+    /**
+     * Standardise in place into {@code out}: {@code (x - mean) / sd}, with the bias left at 1 so it still acts as an
+     * intercept. Only applied once there are enough samples for the statistics to mean anything - standardising against
+     * the first three fights' variance would be worse than not standardising at all.
+     */
+    /**
+     * Standardise into {@code out}: {@code (x - mean) / sd}, bias left at 1 so it still acts as an intercept.
+     *
+     * <p>Always applied, from the first sample, because a basis that switches on part-way through invalidates every
+     * weight fitted before the switch - measured as log-loss 5.0 against 0.7 without it. The statistics carry a weak
+     * prior (mean 0, variance 1, weight {@link #VAR_PRIOR}) so the first few fights are standardised against a sane
+     * guess rather than against their own tiny sample.
+     */
+    private static void standardise(double[] x, double[] out) {
+        out[0] = 1.0;
+        for (int i = 1; i < N; i++) {
+            double denom = Math.max(1, fN - 1 + VAR_PRIOR);
+            double mean = F_MEAN[i] * fN / Math.max(1, fN + VAR_PRIOR);
+            double var = (F_M2[i] + VAR_PRIOR) / denom;
+            double sd = Math.sqrt(var);
+            out[i] = sd > 1e-6 ? (x[i] - mean) / sd : 0.0;
+        }
+    }
+
     public static void learn(double[] x, boolean win) { learn(x, win, 1.0); }
 
     /**
@@ -289,7 +366,10 @@ public final class FightModel {
      */
     public static void learn(double[] x, boolean win, double weight) {
         if (x == null || weight <= 0) return;
-        double p = predictRaw(x);
+        observeFeatures(x);
+        double[] z = new double[N];
+        standardise(x, z);
+        double p = predictRaw(z);
         double y = win ? 1 : 0;
         double lr = LR * Math.min(1.0, weight) / (1.0 + samples / 400.0);
         // wins are the rarer class: give them more weight, and clamp a single outlier fight so one 1-hp win
@@ -297,11 +377,20 @@ public final class FightModel {
         double err = p - y;
         double wgt = win ? 1.25 : 1.0;
         double clamped = Math.max(-0.85, Math.min(0.85, err));
-        for (int i = 0; i < N; i++) W[i] -= lr * wgt * clamped * x[i];
-        bias -= lr * wgt * clamped;
+        // Gradient of the logistic loss, handed to Adam rather than applied with one global rate. The vector mixes a
+        // constant bias with hp/20 and ping/300 terms, and a single rate is always wrong for one end of it: the common
+        // features converged in a few samples and the rare ones never moved at all.
+        for (int i = 0; i < N; i++) GRAD[i] = clamped * wgt * z[i];
+        OPT.step(W, GRAD, lr);
+        // the bias is a single scalar with no scale problem, so it keeps the plain step
+        bias -= lr * clamped * wgt;
         // light L2 so a long session cannot run the weights away
         for (int i = 1; i < N; i++) W[i] *= (1 - 0.0005);
-        lossEma = 0.98 * lossEma + 0.02 * (-(y * Math.log(p + 1e-9) + (1 - y) * Math.log(1 - p + 1e-9)));
+        double ll = -(y * Math.log(p + 1e-9) + (1 - y) * Math.log(1 - p + 1e-9));
+        // Seed from the first real sample rather than a constant: a model with five fights was reporting a loss that was
+        // 93% inherited from the seed value, which made "log-loss 1.25" and "log-loss 0.70" equally meaningless.
+        lossEma = lossN == 0 ? ll : 0.98 * lossEma + 0.02 * ll;
+        lossN++;
         if (weight >= 0.9) samples++;
         else shadows++;
         dirty = true;
@@ -344,9 +433,11 @@ public final class FightModel {
     public static double calB() { return calB; }
 
     private static double predictRaw(double[] x) {
-        double z = bias;
-        for (int i = 0; i < N; i++) z += W[i] * x[i];
-        return sigmoid(z);
+        double[] z = new double[N];
+        standardise(x, z);
+        double d = bias;
+        for (int i = 0; i < N; i++) d += W[i] * z[i];
+        return sigmoid(d);
     }
 
     public static boolean confident() { return samples >= MIN_SAMPLES; }
@@ -359,8 +450,10 @@ public final class FightModel {
 
     public static List<String> report() {
         List<String> out = new ArrayList<String>();
-        out.add(String.format("§6[ml] §efights seen: §f%d§7, accuracy §f%.0f%%§7, log-loss §f%.3f§7, learned blend §f%d%%§7 (statistics until then: §f%s§7)",
-                samples, accuracy * 100, lossEma, (int) (100 * Math.min(1, samples / BLEND_SAMPLES)), "bedwars duel baseline"));
+        out.add(String.format("§6[ml] §efights seen: §f%d§7, accuracy §f%.0f%%§7, log-loss §f%.3f§7 over §f%d§7 (§f%.3f§7 = a coin flip), "
+                        + "learned blend §f%d%%§7 (statistics until then: §f%s§7)",
+                samples, accuracy * 100, lossEma, lossN, Math.log(2.0),
+                (int) (100 * Math.min(1, samples / BLEND_SAMPLES)), "bedwars duel baseline"));
         out.add(String.format("§6[ml] §ecalibration: brier §f%.3f§7, ece §f%.3f§7, platt a=§f%.2f§7 b=§f%.2f§7",
                 brier, ece(), calA, calB));
         String[] names = {"bias", "myHp", "theirHp", "hpDiff", "gearDiff", "closeness", "blocks", "gapple", "buffed",

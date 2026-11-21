@@ -302,6 +302,17 @@ public final class Combat {
             int hits = hitsLanded - hitsAtStart;
             int swings = ctx.c.swings() - swingsAtStart;
             net.h2020.bots.ai.ml.AimPolicy.record(aimArm, hits, swings, avgFightDist());
+            // A disengage is a LOSS the model can learn from, and it used to teach nothing: only onDeath and onKill
+            // ever called learn(), so every fight the bot walked away from - which retreat logic now makes the common
+            // outcome - produced no sample at all. That is why a nine-minute game gave the fight model five fights to
+            // learn from. Weighted below 1.0 because leaving is not the same evidence as being killed: the bot chose to
+            // stop, so the fight's true outcome is unknown, only that it was not going well enough to continue.
+            if (!fightScored && fightFeatures != null) {
+                net.h2020.bots.ai.ml.FightModel.learn(fightFeatures, false, 0.55);
+                net.h2020.bots.ai.ml.FightModel.observe(fightPred, false);
+                fightFeatures = null;
+                net.h2020.api.stats.CombatStats.inc("ml.fight.label.disengage");
+            }
             net.h2020.bots.ai.ml.PlacementPolicy.discard(ctx.player.getUniqueId());
             fightScored = true;
             ctx.c.setAimPolicy(0, 1.0);
