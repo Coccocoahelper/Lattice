@@ -26,6 +26,24 @@ import java.util.List;
  * in BlockTactics; this only decides what to try among the things that are possible.
  */
 public final class PlacementPolicy {
+    /** Action name, for a counter or a log line that has to say which tactic it means. */
+    public static String name(int a) {
+        switch (a) {
+            case STOMP: return "stomp";
+            case DUEL_PILLAR: return "duelpillar";
+            case MIDDLE_EXIT: return "middleexit";
+            case HEAD_HITTER: return "headhitter";
+            case TOWER: return "tower";
+            case WALL: return "wall";
+            case CUT: return "cut";
+            case SHELTER: return "shelter";
+            case BACKSTEP: return "backstep";
+            case RAMP: return "ramp";
+            case DRIVE_THRU: return "drivethru";
+            default: return "none";
+        }
+    }
+
     public static final int NONE = 0, STOMP = 1, DUEL_PILLAR = 2, MIDDLE_EXIT = 3, HEAD_HITTER = 4, TOWER = 5,
             WALL = 6, CUT = 7, SHELTER = 8, BACKSTEP = 9, RAMP = 10, DRIVE_THRU = 11, BED_BLOCKOFF = 12;
     public static final int ACTIONS = 13;

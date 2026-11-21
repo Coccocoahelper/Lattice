@@ -332,6 +332,7 @@ final class BlockTactics {
         net.h2020.api.stats.CombatStats.inc("tactics.reached");
         int[] order = net.h2020.bots.ai.ml.PlacementPolicy.rank(ctx.player.getUniqueId(), ctx, style, target, d,
                 f.onLine, losing, winProb);
+        net.h2020.api.stats.CombatStats.inc("tactics.order." + Math.min(6, order.length));
         for (int i = 0; i < order.length; i++) {
             boolean started;
             switch (order[i]) {
@@ -348,8 +349,14 @@ final class BlockTactics {
                 case net.h2020.bots.ai.ml.PlacementPolicy.DRIVE_THRU: started = doDriveThru(f); break;
                 default: started = false; break;
             }
+            if (!started) {
+                net.h2020.api.stats.CombatStats.inc("tactics.declined."
+                        + net.h2020.bots.ai.ml.PlacementPolicy.name(order[i]));
+            }
             if (started) {
                 net.h2020.api.stats.CombatStats.inc("tactics.started");
+                net.h2020.api.stats.CombatStats.inc("tactics.started."
+                        + net.h2020.bots.ai.ml.PlacementPolicy.name(order[i]));
                 net.h2020.bots.ai.ml.PlacementPolicy.record(ctx.player.getUniqueId(), order, i);
                 net.h2020.bots.ai.ml.SelfStats.onBedBlock(ctx.player, ctx.tick);
                 return true;
@@ -515,25 +522,30 @@ final class BlockTactics {
      * committed approach is the one moment the wall cannot be dodged, so it is not left to a coin flip.
      */
     private boolean doStomp(Scene f) {
-        if (f.d < 2.0 || f.d > 5.5 || f.dy > 1.4) return false;
-        if (f.blocks < 1) return false;
-        if (ctx.tick - lastStomp <= 30) return false;
+        if (f.d < 2.0 || f.d > 5.5 || f.dy > 1.4) { CombatStats.inc("why.stomp.dist"); return false; }
+        if (f.blocks < 1) { CombatStats.inc("why.stomp.blocks"); return false; }
+        if (ctx.tick - lastStomp <= 30) { CombatStats.inc("why.stomp.cooldown"); return false; }
         boolean charging = movingTowardMe(f.target, f.me);
-        if (!charging && f.d >= 3.1) return false;
+        if (!charging && f.d >= 3.1) { CombatStats.inc("why.stomp.notcharging"); return false; }
         if (!charging && ctx.rng.nextDouble() >= style.stomp) return false;
         Location ahead = net.h2020.bots.ai.ml.FightFlow.aheadOf(ctx, f.target, f.d, 3);
         int tx = floor(ahead.getX()), ty = floor(f.tl.getY() + 0.01), tz = floor(ahead.getZ());
         int[] dir = lineDir(f.me, f.tl);
         if (dir == null) return false;
         int sx = tx + dir[0], sz = tz + dir[1];
-        if (!f.wv.passable(sx, ty, sz) || !f.wv.passable(sx, ty + 1, sz)) return false;
+        if (!f.wv.passable(sx, ty, sz) || !f.wv.passable(sx, ty + 1, sz)) {
+            CombatStats.inc("why.stomp.blocked"); return false;
+        }
         // The wall is in front of them, but it has to be in our reach and in our sight to go up at all. A cell
         // alongside a moving opponent is often behind their shoulder by the time the crosshair arrives (measured:
         // 28 walls tried, 3 placed), so when that anchor is not visible we put the wall between us instead - still
         // in front of them, two blocks off our own face, and always reachable.
         if (BlockPlacer.findSupport(f.wv, sx, ty, sz, ctx.eye(), 4.4, true) == null) {
+            CombatStats.inc("why.stomp.nosight");
             int ax = floor(f.me.getX()) + dir[0] * 2, az = floor(f.me.getZ()) + dir[1] * 2;
-            if (!f.wv.passable(ax, ty, az) || !f.wv.passable(ax, ty + 1, az)) return false;
+            if (!f.wv.passable(ax, ty, az) || !f.wv.passable(ax, ty + 1, az)) {
+                CombatStats.inc("why.stomp.nofallback"); return false;
+            }
             if (BlockPlacer.findSupport(f.wv, ax, ty, az, ctx.eye(), 4.4, true) != null) { sx = ax; sz = az; }
         }
         boolean air = !f.target.isOnGround() || f.tl.getY() - ty > 0.35;
@@ -617,7 +629,8 @@ final class BlockTactics {
 
     /** Tower: re-establish height when they got above us, or get out of melee when low and chased. */
     private boolean doTower(Scene f) {
-        if (!style.blockIn || f.onLine) return false;
+        if (!style.blockIn) { CombatStats.inc("why.tower.nostyle"); return false; }
+        if (f.onLine) { CombatStats.inc("why.tower.online"); return false; }
         double up = f.tl.getY() - f.me.getY();
         // 1) they are above us: stack back up to their level
         if (up > 1.6 && up < 4.5 && f.d < 7 && f.blocks >= 2 && ctx.tick - lastRise > 300
@@ -759,8 +772,14 @@ final class BlockTactics {
     }
 
     private boolean doWall(Scene f) {
-        if (!style.bridgeBlock || !f.onLine || f.d < 2.8 || f.d > 8 || f.blocks < 2 || f.dy > 1.2) return false;
-        if (ctx.tick - lastWall <= 200 || ctx.rng.nextDouble() >= 0.2) return false;
+        CombatStats.inc("why.wall.called");
+        if (!style.bridgeBlock) { CombatStats.inc("why.wall.style"); return false; }
+        if (!f.onLine) { CombatStats.inc("why.wall.online"); return false; }
+        if (f.d < 2.8 || f.d > 8) { CombatStats.inc("why.wall.dist"); return false; }
+        if (f.blocks < 2) { CombatStats.inc("why.wall.blocks"); return false; }
+        if (f.dy > 1.2) { CombatStats.inc("why.wall.dy"); return false; }
+        if (ctx.tick - lastWall <= 200) { CombatStats.inc("why.wall.cooldown"); return false; }
+        if (ctx.rng.nextDouble() >= 0.2) { CombatStats.inc("why.wall.roll"); return false; }
         int[] dir = lineDir(f.me, f.tl);
         if (dir == null) return false;
         int bx = f.x + dir[0], bz = f.z + dir[1];
