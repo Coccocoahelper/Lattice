@@ -351,7 +351,39 @@ public final class BedwarsBrain extends GameBrain {
         nextDecision = ctx.tick + AIMath.range(ctx.rng, 4, 16);
     }
 
-    @Override
+    /** Below this there is no fight worth finishing unless it is already won. */
+    private static final double RETREAT_HP = 7.0;
+    private long denyFinalCooldown;
+
+    /**
+     * Run away from an enemy, preferring ground that exists. Called when dying would be elimination, so the point is
+     * not raw distance: heading straight back along a bridge with the enemy behind is how a retreat becomes the death
+     * it was trying to avoid, so try the two tangents first and only fall back to straight away.
+     */
+    private void fleeFrom(Player enemy) {
+        org.bukkit.Location me = ctx.pos();
+        org.bukkit.Location them = enemy.getLocation();
+        if (me.getWorld() != them.getWorld()) return;
+        double dx = me.getX() - them.getX(), dz = me.getZ() - them.getZ();
+        double d = Math.sqrt(dx * dx + dz * dz);
+        if (d < 0.01) { dx = 1; dz = 0; d = 1; }
+        double[][] dirs = {{-dz / d, dx / d}, {dz / d, -dx / d}, {dx / d, dz / d}};
+        int fx = me.getBlockX(), fy = me.getBlockY(), fz = me.getBlockZ();
+        for (double[] dir : dirs) {
+            for (int dist : new int[]{6, 4, 2}) {
+                int ax = fx + (int) Math.round(dir[0] * dist), az = fz + (int) Math.round(dir[1] * dist);
+                // ground to stand on, and head room to stand in
+                if (!net.h2020.bots.ai.world.Shape.floor(ctx.world().shape(ax, fy - 1, az))) continue;
+                if (!ctx.world().passable(ax, fy, az) || !ctx.world().passable(ax, fy + 1, az)) continue;
+                ctx.nav.goTo(new org.bukkit.Location(me.getWorld(), ax + 0.5, fy, az + 0.5), 1.5);
+                CombatStats.inc("retreat.flee.path");
+                return;
+            }
+        }
+        ctx.nav.goTo(me.clone().add(dx / d * 3, 0, dz / d * 3), 1.5);
+        CombatStats.inc("retreat.flee.blind");
+    }
+
     protected void think() {
         if (aware == null) aware = new net.h2020.bots.ai.perception.Awareness(ctx);
         aware.tick();
@@ -383,6 +415,18 @@ public final class BedwarsBrain extends GameBrain {
         // the fight is lost and it knows it: get the valuables out before the hit lands
         boolean locked = task != null && !task.interruptible();
         if (!locked && doomedItems()) return;
+        // Dying is an elimination when the bed is gone, and an elimination is worth denying: a player who is about to
+        // be finished walks into the void and takes the kill with them. It was never a behaviour here - a bot with no
+        // bed and no health stood still and handed over the final. The test is deliberately narrow, because this is
+        // only right when all three hold: no bed, about to die, and an enemy who will land the hit.
+        if (!locked && !bedAliveNow() && ctx.health() <= 4.0 && ctx.combat.engaged()
+                && ctx.combat.winProbability() < 0.12 && ctx.tick > denyFinalCooldown + 100) {
+            denyFinalCooldown = ctx.tick;
+            CombatStats.inc("gamesense.denyfinal.try");
+            ctx.combat.disengage();
+            switchTo(new VoidTask(this));
+            return;
+        }
         // point-blank: a player standing on top of you is not a perception question. The sighting meter can lag when
         // his body is behind your aim (you were looking at the bed), and bots used to stand at 1.4 blocks doing nothing
         // while a player broke our bed. Being touched is information in itself.
@@ -410,6 +454,29 @@ public final class BedwarsBrain extends GameBrain {
             switchTo(new GuardTask(this, 20 * 20));
             bedAlertCooldown = ctx.tick;
             return;
+        }
+        // Retreating from a lost fight is the single decision that separates a player who is good from one who feeds.
+        // The brain had no retreat at all: it engaged on a gear edge and then fought to the death whatever happened.
+        // Two separate situations, because they cost different things:
+        //
+        //   - bed alive: dying is a respawn, so a low-health fight is worth leaving but not worth dying to leave.
+        //   - bed gone:   dying is elimination. At that point any fight this bot is losing is worth breaking off
+        //                 even if the disengage costs health getting out.
+        if (!locked && ctx.combat.engaged() && ctx.health() <= RETREAT_HP) {
+            boolean bedGone = !bedAliveNow();
+            // bed gone and health already low enough that the next hit is the last one: leave regardless of gear
+            Player foe = ctx.combat.target();
+            boolean losing = foe != null && (ctx.player.getHealth() < foe.getHealth() - 2 || gearEdge(foe) < 0);
+            boolean shouldLeave = bedGone ? losing : (losing && ctx.health() <= RETREAT_HP / 2);
+            if (shouldLeave) {
+                net.h2020.api.stats.CombatStats.inc(bedGone ? "retreat.final" : "retreat.respawn");
+                ctx.combat.disengage();
+                mustFight = false;
+                // run to the safest thing nearby: own base if close, otherwise away from the enemy
+                if (bedGone && foe != null) fleeFrom(foe);
+                else if (color != null && view.bedLocation(color) != null) ctx.nav.goTo(view.bedLocation(color), 2.0);
+                ctx.chat.callout("backing off", 0.2);
+            }
         }
         // a third party inside eight blocks turns a duel into a trap: break it off while there is still room
         if (mustFight && aware.thirdParty() && ctx.combat.target() != null && ctx.health() < 16) {
@@ -1210,13 +1277,18 @@ public final class BedwarsBrain extends GameBrain {
             boolean outStacked = ge <= -4;
             boolean noObjective = task == null || !(task instanceof RushTask)
                     || !((RushTask) task).committed();
-            java.util.List<Location> dgens = view.diamondGenerators();
-            boolean resourcesAvailable = !dgens.isEmpty() && ShopPlanner.diamonds(ctx.player) < 8;
-            if (outStacked && noObjective && resourcesAvailable && !threatNearBed(threat)) {
+            // "There is something better to do" means a diamond generator this bot can actually reach and farm, not
+            // merely that diamonds exist. Requiring fewer than eight held made this true for the whole game and turned
+            // the decline into a truce: 10323 refusals against 5 committed fights in one game.
+            boolean canFarm = !outStacked ? false : view.diamondGenerators().stream()
+                    .anyMatch(g -> g.getWorld() == ctx.player.getWorld()
+                            && g.distance(ctx.player.getLocation()) < 24 && ShopPlanner.diamonds(ctx.player) < 8);
+            if (outStacked && noObjective && canFarm && !threatNearBed(threat)) {
                 net.h2020.api.stats.CombatStats.inc("fight.declined.stacked");
                 return true;
             }
-            return false;
+            // fall through: a full-health bot that is not out-stacked still gets the position check below, which it
+            // never reached before
         }
         // out-geared and hurt: trading here is how a bot feeds a diamond sword
         if (threat != null && gearEdge(threat) <= -5 && ctx.health() < 12) {
