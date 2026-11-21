@@ -534,7 +534,7 @@ public final class Trainer {
             bot.setBrain(new net.h2020.bots.ai.brain.AdversarialBrain());
             net.h2020.api.stats.CombatStats.inc("train.duel.punisher");
         } else {
-            bot.setBrain(new ArenaBrain());
+            bot.setBrain(new ArenaBrain().committed());   // fight to a finish: a retreat is a wasted label
             net.h2020.api.stats.CombatStats.inc("train.duel.trainee");
         }
     }

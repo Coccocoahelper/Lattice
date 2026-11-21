@@ -18,6 +18,14 @@ public final class ArenaBrain extends BaseBrain implements EmergencyBrain {
 
     public ArenaBrain rangedOnly() { this.rangedOnly = true; return this; }
 
+    /**
+     * Fight to a finish. Used by trainer duels, where a retreat is a wasted sample: the fight model learns from who
+     * died, and a duel that ends by disengagement teaches it nothing about the outcome. Ordinary arena sparring keeps
+     * the retreat behaviour, which is correct there.
+     */
+    private boolean committed;
+    public ArenaBrain committed() { this.committed = true; return this; }
+
     @Override
     protected void onActive() {
         if (rangedOnly) ctx.combat.forceBow = true;
@@ -28,15 +36,24 @@ public final class ArenaBrain extends BaseBrain implements EmergencyBrain {
 
     @Override
     protected void think() {
+        if (committed) {
+            // a committed duel body does not break off: the generic retreat exists so a bot survives a real game, and
+            // here surviving is the failure mode - the label is the death.
+            ctx.combat.noRetreat(true);
+        }
         if (ctx.tick >= nextScan || target == null || !target.isOnline() || target.isDead()) {
             nextScan = ctx.tick + 10;
             target = nearest();
         }
         boolean other = target != null && target.getLocation().getWorld() == ctx.player.getWorld()
-                && ctx.pos().distance(target.getLocation()) < 24;
+                && ctx.pos().distance(target.getLocation()) < (committed ? 48 : 24);
         if (ctx.combat.target() != target) {
             if (other) ctx.combat.engage(target);
-            else ctx.combat.disengage();
+            else if (!committed) ctx.combat.disengage();
+        }
+        // a committed duel keeps the fight alive: a target that wandered out of reach is chased, not released
+        if (committed && target != null && ctx.combat.target() == null && target.isOnline() && !target.isDead()) {
+            ctx.combat.engage(target);
         }
         if (other) { ctx.nav.stop(); ctx.combat.tick(); return; }
         // No target in range: walk to it instead of standing still. The arena used to leave a bot rooted the moment

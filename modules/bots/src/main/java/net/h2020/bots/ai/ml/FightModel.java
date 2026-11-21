@@ -75,11 +75,29 @@ public final class FightModel {
         PRIOR_B = -0.15;
     }
 
+    /**
+     * How much of the decision the learned head has EARNED, from the two heads' own recent losses.
+     *
+     * <p>1.0 when the learned head is at least as good as the prior, 0 when it is clearly worse, linear in between. A
+     * count-based ramp gave a demonstrably worse model 68% of the decision on the strength of 103 samples; this asks
+     * whether it is actually better.
+     */
+    private static double skillWeight() {
+        if (lossN < 20 || priorLoss <= 0) return 0.0;
+        double gain = (priorLoss - lossEma) / Math.max(0.05, priorLoss);
+        if (gain <= 0) return 0.0;                       // not better: the prior keeps the decision
+        return Math.min(1.0, gain * 4.0);                // a 25% loss reduction earns the whole decision
+    }
+
+    /** Running loss of the hand-written prior on the same fights, for the comparison above. */
+    private static double priorLoss;
+
     /** Learned weights (seeded from the baseline, so a fresh model already answers with the statistics). */
     private static final double[] W = new double[N];
     private static double bias;
     private static long samples;
     private static double accuracy = 0.5;
+    private static long accuracyHits, accuracyN;
     private static double lossEma = 0.693;
     private static long lossN;
     /** Platt calibration of the predicted probability: p' = sigmoid(calA * logit(p) + calB). */
@@ -300,8 +318,11 @@ public final class FightModel {
      * and the learned weights are blended in as fights are seen (fully after {@link #BLEND_SAMPLES}).
      */
     public static double predict(double[] x) {
-        double pPrior = sigmoid(clampLogit((PRIOR_B + dot(PRIOR_W, x)) / PRIOR_TEMP));
-        double t = Math.min(1.0, samples / BLEND_SAMPLES);
+        double priorLogit = clampLogit((PRIOR_B + dot(PRIOR_W, x)) / PRIOR_TEMP);
+        double pPrior = sigmoid(priorLogit);
+        // Blend on measured skill, not on a sample count. A model that has seen 100 fights and predicts worse than the
+        // hand-written prior should not own 68% of the decision, which is what a count-based ramp did.
+        double t = Math.min(Math.min(1.0, samples / BLEND_SAMPLES), skillWeight());
         if (t <= 0) return pPrior;
         double[] z = new double[N];
         standardise(x, z);
@@ -404,8 +425,17 @@ public final class FightModel {
         // Seed from the first real sample rather than a constant: a model with five fights was reporting a loss that was
         // 93% inherited from the seed value, which made "log-loss 1.25" and "log-loss 0.70" equally meaningless.
         lossEma = lossN == 0 ? ll : 0.98 * lossEma + 0.02 * ll;
+        double[] z0 = new double[N];
+        standardise(x, z0);
+        double pp = sigmoid(clampLogit((PRIOR_B + dot(PRIOR_W, z0)) / PRIOR_TEMP));
+        double pll = -(y * Math.log(pp + 1e-9) + (1 - y) * Math.log(1 - pp + 1e-9));
+        priorLoss = lossN == 0 ? pll : 0.98 * priorLoss + 0.02 * pll;
         lossN++;
-        if (weight >= 0.9) samples++;
+        // A label is a real sample when it came from a fight that actually happened - a death, a kill, or a duel decided
+        // on health. It is a shadow only when it was reconstructed from a replay's damage deltas. The old test was
+        // `weight >= 0.9`, which silently filed every duel label (weight 0.7) as a shadow: the report read "fights seen:
+        // 0" while 5637 duels had been scored, and the model was never counted as having learned anything.
+        if (weight >= 0.55) samples++;
         else shadows++;
         dirty = true;
     }
@@ -413,7 +443,11 @@ public final class FightModel {
     /** Record whether the prediction that was made before the fight turned out right. */
     public static void observe(double prediction, boolean win) {
         boolean correct = (prediction >= 0.5) == win;
-        accuracy = 0.97 * accuracy + 0.03 * (correct ? 1 : 0);
+        // counted accuracy, not an EMA: the EMA mixed the trainee's and the punisher's streams and settled on a number
+        // that disagreed with the model's own log-loss (8% accuracy alongside a better-than-coin-flip loss).
+        accuracyHits += correct ? 1 : 0;
+        accuracyN++;
+        accuracy = accuracyN > 0 ? accuracyHits / (double) accuracyN : 0.5;
         double y = win ? 1 : 0;
         double p = Math.max(1e-4, Math.min(1 - 1e-4, prediction));
         net.h2020.api.stats.CombatStats.inc("ml.cal.observed");
@@ -421,10 +455,15 @@ public final class FightModel {
         // Platt fit on exactly the (prediction, outcome) pairs the fight model handed to the decision code
         double z = Math.log(p / (1 - p));
         double q = sigmoid(calA * z + calB);
-        double lr = 0.05;                       // 14 fights already move it visibly; the clamp keeps it sane
+        // Slow enough to track a trend rather than individual fights: at 0.05 a run of bad predictions drove calA to
+        // 0.45, which flattens every output toward 0.5 and turns one confident miss into log-loss 9.0 while brier
+        // still reads 0.095.
+        double lr = 0.012;
         calA -= lr * (q - y) * z;
         calB -= lr * (q - y);
-        calA = Math.max(0.15, Math.min(3.5, calA));
+        // a calibrator may temper the model, never flatten it: below 0.5 it is destroying the ranking it is meant to
+        // correct, which is what calA 0.446 was doing.
+        calA = Math.max(0.5, Math.min(3.5, calA));
         calB = Math.max(-2.5, Math.min(2.5, calB));
         brier = 0.98 * brier + 0.02 * (p - y) * (p - y);
         int bin = Math.min(9, Math.max(0, (int) (p * 10)));

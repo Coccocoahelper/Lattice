@@ -233,6 +233,13 @@ public final class Combat {
         this.items = new ItemUse(ctx, style);
     }
 
+    /** A committed duel body must not break off: the death is the label, so surviving is the failure. */
+    private boolean noRetreat;
+    /** How long a committed duel runs before it is decided on health instead of waiting for a kill. */
+    private static final long DUEL_DECIDE_TICKS = 300;
+    public void noRetreat(boolean v) { noRetreat = v; }
+    public boolean noRetreat() { return noRetreat; }
+
     public Player target() { return target; }
     public boolean engaged() { return target != null; }
     public long lastHurtTick() { return lastHurt; }
@@ -247,6 +254,11 @@ public final class Combat {
         if (t == null || t == target) return;
         target = t;
         engagedAt = ctx.tick;
+        // per-FIGHT damage, not lifetime: these two were never reset, so once a bot had been in the arena a while
+        // dmgDealt exceeded dmgTaken for ever and every duel scored "ahead" (measured 100%, the mirror of the 100%
+        // "behind" it replaced).
+        dmgDealt = 0;
+        dmgTaken = 0;
         anchor = ctx.pos();
         comboCount = 0;
         hitsTaken = 0;
@@ -297,6 +309,41 @@ public final class Combat {
     }
 
     public void disengage() {
+        if (noRetreat && target != null && !target.isDead() && ctx.player.getHealth() > 0) {
+            net.h2020.api.stats.CombatStats.inc("duel.retreat.refused");
+            // A duel that cannot be finished is also a wasted sample. If this exchange has run long enough to be
+            // decided on health, score it that way and reset - a health-based label is weaker than a death but it is
+            // exactly the question the fight model is asked (who is winning), and it keeps duels from stalling.
+            if (ctx.tick - engagedAt > DUEL_DECIDE_TICKS) {
+                // Judge the duel on damage exchanged, not on a health snapshot: the snapshot is taken at an arbitrary
+                // moment and for a bot mid-respawn reads full health. Damage dealt vs taken over the whole duel is what
+                // the fight was, and it is symmetric between the two sides.
+                double mine = dmgDealt, theirs = dmgTaken;
+                boolean ahead = mine > theirs + 1.0;
+                // the loser's side of the same duel is a sample in its own right: without it the set is 92% "behind",
+                // because the trainee is outnumbered two-to-one by punishers and is nearly always the one losing.
+                net.h2020.bots.ai.brain.BaseBrain foeBrain = net.h2020.bots.ai.BotAI.brainOf(target);
+                if (foeBrain != null && foeBrain.context() != null) {
+                    Combat foe = foeBrain.context().combat;
+                    if (foe.fightFeatures != null) {
+                        net.h2020.bots.ai.ml.FightModel.learn(foe.fightFeatures, !ahead, 0.7);
+                        net.h2020.bots.ai.ml.FightModel.observe(foe.fightPred, !ahead);
+                        foe.fightFeatures = null;
+                        foe.fightScored = true;
+                    }
+                }
+                if (fightFeatures != null) {
+                    net.h2020.bots.ai.ml.FightModel.learn(fightFeatures, ahead, 0.7);
+                    net.h2020.bots.ai.ml.FightModel.observe(fightPred, ahead);
+                    fightFeatures = null;
+                }
+                net.h2020.api.stats.CombatStats.inc(ahead ? "duel.decided.ahead" : "duel.decided.behind");
+                net.h2020.bots.ai.ml.PlacementPolicy.finishPartial(ctx.player.getUniqueId(), 0.7);
+                fightScored = true;
+                scoreFight(ahead);
+            }
+            return;      // a committed duel body fights to the death; this is the label, not a real game
+        }
         net.h2020.bots.ai.combat.ZestTap.grounded = false;
         if (target != null) {
             int hits = hitsLanded - hitsAtStart;

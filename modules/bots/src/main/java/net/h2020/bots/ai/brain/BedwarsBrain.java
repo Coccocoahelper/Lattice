@@ -462,7 +462,7 @@ public final class BedwarsBrain extends GameBrain {
         //   - bed alive: dying is a respawn, so a low-health fight is worth leaving but not worth dying to leave.
         //   - bed gone:   dying is elimination. At that point any fight this bot is losing is worth breaking off
         //                 even if the disengage costs health getting out.
-        if (!locked && ctx.combat.engaged() && ctx.health() <= RETREAT_HP) {
+        if (!locked && !ctx.combat.noRetreat() && ctx.combat.engaged() && ctx.health() <= RETREAT_HP) {
             boolean bedGone = !bedAliveNow();
             // bed gone and health already low enough that the next hit is the last one: leave regardless of gear
             Player foe = ctx.combat.target();
