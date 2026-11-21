@@ -30,6 +30,7 @@ import java.util.List;
  */
 public final class ClassicalChecks {
     private static long resolved;
+    private static int checkThrew;
     private static long checked;
     /** Distances to each island, sampled about once a second, to see which base somebody is closing on. */
     private static final java.util.Map<java.util.UUID, double[]> LAST_DIST = new java.util.HashMap<java.util.UUID, double[]>();
@@ -46,7 +47,11 @@ public final class ClassicalChecks {
     public static void tick() {
         for (Player p : Bukkit.getOnlinePlayers()) {
             if (p == null || !p.isOnline() || p.isDead()) continue;
-            try { check(p); checked++; } catch (Throwable ignored) { }
+            try { check(p); checked++; }
+            catch (Throwable t) {
+                net.h2020.api.stats.CombatStats.inc("check.threw");
+                if (checkThrew++ < 3) Bukkit.getLogger().warning("[ml] classical check failed for " + p.getName() + ": " + t);
+            }
         }
     }
 
@@ -275,6 +280,7 @@ public final class ClassicalChecks {
     private static void fact(Player p, int fact, boolean value, double confidence) {
         QuestionBook.setObserved(p, fact, value, confidence);
         resolved++;
+        net.h2020.api.stats.CombatStats.inc("check.fact");
     }
 
     public static List<String> report() {

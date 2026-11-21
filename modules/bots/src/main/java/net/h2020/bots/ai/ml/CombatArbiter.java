@@ -245,8 +245,8 @@ public final class CombatArbiter {
         StringBuilder sb = new StringBuilder("§6[ml] §ecombat arbiter: §f" + overrides + "§7 overrides, "
                 + observes + "§7 watched, §f" + asks + "§7 asks");
         for (int k = 0; k < KINDS; k++) {
-            sb.append(String.format(java.util.Locale.ROOT, " §7| %s %d/%d conf %d%% (asked %d, flat %d)",
-                    name(k), (int) SAMPLES[k], MIN_SAMPLES * 2, (int) (confidence(k) * 100),
+            sb.append(String.format(java.util.Locale.ROOT, " §7| %s %d samples conf %d%% (asked %d, no-edge %d)",
+                    name(k), (int) SAMPLES[k], (int) (confidence(k) * 100),
                     (int) ASKS[k], (int) SKIPS[k]));
         }
         List<String> out = new ArrayList<String>();

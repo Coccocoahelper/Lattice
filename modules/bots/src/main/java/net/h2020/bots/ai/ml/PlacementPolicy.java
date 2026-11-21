@@ -52,11 +52,13 @@ public final class PlacementPolicy {
     /** What a placement did in the twelve ticks after it went down. */
     public static final int OUTCOME_NONE = 0, OUTCOME_HIT = 1, OUTCOME_COLLAPSE = 2, OUTCOME_TAKEN = 3;
     private static final int OUTCOME_WINDOW = 12;
+    /** Rows carried into one fight-level update. Beyond this the credit is too diffuse to attribute. */
+    private static final int MAX_PENDING = 24;
 
     private static final double LR = 0.06;
     private static final double[] W = new double[ACTIONS * N];
     private static double baseline = 0.5;
-    private static long decisions, fights;
+    private static long decisions, fights, recorded;
     private static File file;
     private static boolean dirty;
 
@@ -194,7 +196,7 @@ public final class PlacementPolicy {
         }
         TRIES[order[0]] += 1;
         s.lastX = x;
-        decisions++;
+        decisions++;          // asked: a ranking was produced (most produce no placement at all)
         return order;
     }
 
@@ -229,6 +231,18 @@ public final class PlacementPolicy {
         u[N + 2] = s.lastSpeed;
         s.lastSpeed = 0.5;
         s.pending.add(u);
+        recorded++;           // learned: a placement actually started and will be credited
+        // Keep the window bounded. Rows are only consumed by finish(), so a long build between fights used to grow this
+        // without limit and then apply hundreds of updates carrying one fight-level reward: the model learned that a
+        // whole minute of placements was uniformly good or bad. Drop the oldest, which are the least attributable.
+        while (s.pending.size() > MAX_PENDING) {
+            s.pending.remove(0);
+            if (s.resolved.size() > 0) s.resolved.remove(0);
+            if (s.armedPending >= 0) s.armedPending--;
+            if (s.lastResolved >= 0) s.lastResolved--;
+            if (s.armedPending < 0) { s.armedDoneAt = -1; s.foeSpeed0 = -1; }
+            net.h2020.api.stats.CombatStats.inc("ml.place.pending.dropped");
+        }
         // remember this row as the one whose placement is about to go down; the row stores its own pending index
         // until the outcome overwrites it, and resolved keeps unresolved rows scoring zero
         if (u[0] == NONE) {
@@ -307,7 +321,12 @@ public final class PlacementPolicy {
         double lr = LR / (1.0 + fights / 300.0);
         // a block that was taken down within three seconds did not do its job, whatever the fight ended up doing
         double minedSc = -0.25 * Math.min(3, s.minedFast);
-        for (double[] u : s.pending) {
+        int resolvedNone = 0;
+        for (int ri = 0; ri < s.pending.size(); ri++) {
+            double[] u = s.pending.get(ri);
+            // a row the outcome window never reached is a NONE, not a gap: the placement happened and nothing came of
+            // it, which is information. Counting it keeps the policy from learning only from the exciting placements.
+            if (ri < s.resolved.size() && !s.resolved.get(ri)) { u[N + 3] = OUTCOME_NONE; resolvedNone++; }
             int a = (int) u[0];
             double prob = u[1];
             double speed = u[N + 2];
@@ -315,6 +334,7 @@ public final class PlacementPolicy {
             double sc = (adv + minedSc) * (1.0 + 0.25 * speed) + 0.9 * outcome;
             for (int i = 0; i < N; i++) W[a * N + i] += lr * sc * (1 - prob) * u[2 + i];
         }
+        if (resolvedNone > 0) net.h2020.api.stats.CombatStats.add("ml.place.outcome.none", resolvedNone);
         s.pending.clear();
         s.resolved.clear();
         s.armedPending = -1;
@@ -445,6 +465,7 @@ public final class PlacementPolicy {
     public static void discard(java.util.UUID id) {
         State s = state(id);
         if (s == null) return;
+        // abandoned: the fight resolved no outcome at all, so nothing here is credit either way - drop it uncounted
         s.pending.clear();
         s.resolved.clear();
         s.armedPending = -1;
@@ -567,8 +588,8 @@ public final class PlacementPolicy {
         String[] names = {"none", "stomp", "pillar2", "midExit", "headHit", "tower", "wall", "cut", "shelter", "backstep",
                 "ramp", "driveThru", "bed"};
         List<String> out = new ArrayList<String>();
-        out.add(String.format("§6[ml] §eplacements: §f%d§7 decisions, §f%d§7 fights scored, win baseline §f%.0f%%",
-                decisions, fights, baseline * 100));
+        out.add(String.format("§6[ml] §eplacements: §f%d§7 asked, §f%d§7 placed and recorded, §f%d§7 fights scored, win baseline §f%.0f%%",
+                decisions, recorded, fights, baseline * 100));
         int tracked = 0;
         for (State s : STATES.values()) if (!s.pending.isEmpty()) tracked++;
         out.add(String.format("§7[ml] §etracked per bot: §f%d§7 bots with pending state", tracked));
