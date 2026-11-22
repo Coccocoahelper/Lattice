@@ -25,8 +25,19 @@ import java.util.UUID;
 public final class QuestionBook {
     public static final int IN_GENERATOR = 0, LOW_HP = 1, DIAMOND_ARMOUR = 2, HAS_SWORD = 3,
             BRIDGING_TO_MID = 4, BRIDGING_TO_ENEMY = 5, BRIDGING_TO_BASE = 6, RUNNING = 7, FIGHTING = 8,
-            GATHERING_DIAMONDS = 9, GATHERING_EMERALDS = 10, DEFENDING = 11, SHOPPING = 12, HEALING = 13, BACKING_OFF = 14;
-    public static final int FACTS = 15;
+            GATHERING_DIAMONDS = 9, GATHERING_EMERALDS = 10, DEFENDING = 11, SHOPPING = 12, HEALING = 13, BACKING_OFF = 14,
+            // things a player can see about somebody else and the bots were guessing at
+            DIGGING_BED = 15,        // breaking the blocks around an enemy bed
+            HAS_PEARL = 16,          // an ender pearl in the bag
+            HAS_BOW = 17,            // a bow in the bag
+            TOOL_IN_HAND = 18,       // pick or axe, i.e. about to dig rather than fight
+            FULL_HP = 19,            // at or near full health, so not worth hunting
+            AT_MID = 20,             // at the emerald generators in the middle
+            STACKED = 21,            // diamond armour AND a good sword: the fight to avoid
+            INVISIBLE = 22;          // under an invisibility potion
+    public static final int FACTS = 23;
+    /** Bumped whenever the fact list changes: a saved weight array is indexed by fact, so it must be discarded. */
+    public static final int FACTS_VERSION = 2;
     public static final int N = BehaviourModel.N;
 
     private static final double[] W = new double[FACTS * N];
@@ -68,6 +79,14 @@ public final class QuestionBook {
             case SHOPPING: return "shopping";
             case HEALING: return "healing";
             case BACKING_OFF: return "backing off";
+            case DIGGING_BED: return "digging their bed";
+            case HAS_PEARL: return "has a pearl";
+            case HAS_BOW: return "has a bow";
+            case TOOL_IN_HAND: return "holding a tool";
+            case FULL_HP: return "on full hp";
+            case AT_MID: return "at mid";
+            case STACKED: return "stacked";
+            case INVISIBLE: return "invisible";
             default: return "?";
         }
     }
@@ -82,6 +101,14 @@ public final class QuestionBook {
             case BRIDGING_TO_ENEMY: return "bridging to their base? y/n";
             case BRIDGING_TO_BASE: return "bridging back? y/n";
             case RUNNING: return "u running rn? y/n";
+            case DIGGING_BED: return "digging their bed? y/n";
+            case HAS_PEARL: return "got a pearl? y/n";
+            case HAS_BOW: return "got a bow? y/n";
+            case TOOL_IN_HAND: return "u digging rn? y/n";
+            case FULL_HP: return "full hp? y/n";
+            case AT_MID: return "u at mid? y/n";
+            case STACKED: return "u stacked? y/n";
+            case INVISIBLE: return "u invis? y/n";
             default: return "y/n?";
         }
     }
@@ -231,6 +258,17 @@ public final class QuestionBook {
         try {
             org.bukkit.configuration.file.YamlConfiguration y =
                     org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(file);
+            // A saved array is indexed by fact AND by feature, so it is only valid for the exact fact list it was
+            // trained against. Loading a shorter one into a longer array silently shifts every weight onto the wrong
+            // fact, which shows up as facts confidently predicting the wrong thing rather than as a load error.
+            int savedVersion = y.getInt("facts-version", 0);
+            if (savedVersion != FACTS_VERSION) {
+                Bukkit.getLogger().info("[ml] question book: fact list changed (v" + savedVersion + " -> v"
+                        + FACTS_VERSION + "), discarding the old weights and starting from the priors");
+                net.h2020.api.stats.CombatStats.inc("questionbook.reset.version");
+                answers = 0;
+                return;
+            }
             List<Double> w = y.getDoubleList("weights");
             for (int i = 0; i < Math.min(W.length, w.size()); i++) W[i] = w.get(i);
             answers = y.getLong("answers", 0);
@@ -243,6 +281,7 @@ public final class QuestionBook {
             org.bukkit.configuration.file.YamlConfiguration y = new org.bukkit.configuration.file.YamlConfiguration();
             List<Double> w = new ArrayList<Double>(W.length);
             for (double v : W) w.add(v);
+            y.set("facts-version", FACTS_VERSION);
             y.set("weights", w);
             y.set("answers", answers);
             if (!file.getParentFile().exists()) file.getParentFile().mkdirs();

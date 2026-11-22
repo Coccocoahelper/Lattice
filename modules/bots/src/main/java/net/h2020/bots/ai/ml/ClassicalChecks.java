@@ -88,10 +88,13 @@ public final class ClassicalChecks {
     }
 
     private static void check(Player p) {
-        // a bot is not a sample: its state is known to it, and letting bot ticks into the human model is what made
-        // every prediction read "idle, wants to defend"
-        if (net.h2020.bots.ai.BotAI.isBotPlayer(p)) return;
-        checkBody(p, false);
+        // A bot is still worth LOOKING at, but it is not a sample for the human models. The distinction matters and
+        // the old code conflated them: skipping bots entirely meant no belief was ever written on a bot-only server,
+        // so every decision that reads a fact (pearl, invisibility, digging) saw 0.5 and never fired - measured
+        // check.fact 0 across a full game. Perceiving a bot is fine; training the activity model on one is what makes
+        // every prediction read "idle, wants to defend".
+        boolean bot = net.h2020.bots.ai.BotAI.isBotPlayer(p);
+        checkBody(p, false, bot);
     }
 
     /**
@@ -109,7 +112,7 @@ public final class ClassicalChecks {
         int[] probeFired = new int[QuestionBook.FACTS];
         long[] saved = FIRED.clone();
         try {
-            checkBody(p, true);
+            checkBody(p, true, true);
         } catch (Throwable t) {
             for (int f = 0; f < QuestionBook.FACTS; f++) FIRED[f] = saved[f];
             out.add("§c[ml] classical probe threw: §f" + t);
@@ -130,7 +133,7 @@ public final class ClassicalChecks {
             any = true;
         }
         if (any) out.add(never.toString());
-        else out.add("§aall fifteen facts decided by the checks on this player");
+        else out.add("§aall §f" + QuestionBook.FACTS + "§a facts decided by the checks on this player");
         return out;
     }
 
@@ -140,8 +143,9 @@ public final class ClassicalChecks {
         return n;
     }
 
-    private static void checkBody(Player p, boolean probe) {
-        if (!probe) CombatStats.inc("check.human");
+    private static void checkBody(Player p, boolean probe, boolean isBot) {
+        if (probe) { if (!isBot) CombatStats.inc("check.human"); }
+        else if (!isBot) CombatStats.inc("check.human");
 
         final Location at = p.getLocation();
         final long now = SoundBus.now();
@@ -270,7 +274,46 @@ public final class ClassicalChecks {
         fact(p, QuestionBook.HEALING, ate, ate ? 0.85 : 0.7);
 
 
+        // ---------------------------------------------------------------- what he is carrying that matters
+        // these four are pure inventory reads: no inference, no ambiguity, and the bots were guessing at all of them.
+        // A pearl and a bow change what a fight looks like from the other side, and a tool in hand means he is about
+        // to dig rather than swing, so "is he fighting" is not the same question as "is he dangerous".
+        boolean pearl = Inv.has(p, Inv.PEARL);
+        fact(p, QuestionBook.HAS_PEARL, pearl, 0.97);
+        boolean bow = Inv.has(p, Inv.BOW);
+        fact(p, QuestionBook.HAS_BOW, bow, 0.97);
+        boolean tool = hand != null && (net.h2020.bots.ai.inv.Items.isPickaxe(hand) || net.h2020.bots.ai.inv.Items.isAxe(hand));
+        // a sword is not a tool here even though it is an axe-class weapon: the fact is about digging
+        fact(p, QuestionBook.TOOL_IN_HAND, tool, 0.9);
+        // invisibility is visible to anybody who looks: no armour, no name tag. A potion effect is the honest read.
+        boolean invis = false;
+        try {
+            invis = p.hasPotionEffect(org.bukkit.potion.PotionEffectType.INVISIBILITY);
+        } catch (Throwable ignored) { }
+        fact(p, QuestionBook.INVISIBLE, invis, 0.98);
+
+        // ---------------------------------------------------------------- where in the game he is
+        // full health: worth a separate fact from LOW_HP because "not low" covers a man on 9 hearts and a man on 20,
+        // and a bot deciding whether to take a fight needs the second one
+        fact(p, QuestionBook.FULL_HP, hp >= 18.0, hp >= 20.0 ? 0.98 : 0.85);
+        // mid is the emerald generators: the island a stacked player camps and the one worth contesting
+        boolean atMid = GeneratorRegistry.near(p.getWorld(), GeneratorRegistry.EMERALD_GEN, at, 8.0);
+        fact(p, QuestionBook.AT_MID, atMid, atMid ? 0.9 : 0.75);
+        // stacked = diamond armour AND a real sword. Both are visible, and together they are the thing that decides
+        // whether an even fight is a good idea. Decided from the same reads as DIAMOND_ARMOUR and HAS_SWORD.
+        boolean goodSword = swordOwned && hand != null && (hand.getType() == Material.DIAMOND_SWORD
+                || hand.getType() == Material.IRON_SWORD || Inv.has(p, Inv.SWORD));
+        boolean stacked = diamondPieces >= 2 && goodSword;
+        fact(p, QuestionBook.STACKED, stacked, stacked ? 0.9 : 0.7);
+
+        // ---------------------------------------------------------------- digging a bed
+        // a break beside a bed that is not his own is somebody taking a bed apart. The break position is what makes
+        // this answerable: "is he placing blocks" and "is he breaking blocks" are different questions.
+        boolean digging = diggingBed(p);
+        fact(p, QuestionBook.DIGGING_BED, digging, digging ? 0.9 : 0.75);
+
         // ---------------------------------------------------------------- activity
+        if (!isBot) {
         if (bedDefence) BehaviourModel.noteClass(p, BehaviourModel.PLACING);
         else if (inGen || onDias || onEms) BehaviourModel.noteClass(p, BehaviourModel.GATHERING);
         else if (atShop) BehaviourModel.noteClass(p, BehaviourModel.SHOPPING);
@@ -278,6 +321,7 @@ public final class ClassicalChecks {
         else if (placing) BehaviourModel.noteClass(p, overVoid ? BehaviourModel.BRIDGING : BehaviourModel.PLACING);
         else if (still) BehaviourModel.noteClass(p, BehaviourModel.IDLE);
         else BehaviourModel.noteClass(p, BehaviourModel.TRAVELLING);
+        }
     }
 
     // ------------------------------------------------------------------ movement
@@ -372,6 +416,32 @@ public final class ClassicalChecks {
         if (bed == null) return false;
         // and he is not just passing: his feet are near that bed too
         return bed.distance(p.getLocation()) < 9;
+    }
+
+    /**
+     * Breaking the blocks around somebody else's bed.
+     *
+     * <p>Read from where the last break happened, not from what the player is looking at: a bed dig is a break within a
+     * few blocks of a bed that is not his own. His own bed is excluded because repairing a defence also breaks blocks,
+     * and that is the opposite of an attack.
+     */
+    private static boolean diggingBed(Player p) {
+        Location brokeAt = PlayerStats.lastBreak(p);
+        long when = PlayerStats.lastBreakTick(p);
+        if (brokeAt == null || when < 0 || !within(p, PLACE_WINDOW, when)) return false;
+        if (PlayerStats.recentBreaks(p) == 0) return false;
+        String own = HOME_ISLAND.get(p.getUniqueId());
+        List<Location> beds = GeneratorRegistry.points(p.getWorld(), GeneratorRegistry.BED);
+        for (Location b : beds) {
+            if (b.getWorld() != brokeAt.getWorld()) continue;
+            if (b.distance(brokeAt) > 4.5) continue;
+            // the bed he is standing at: if it is the one he keeps returning to, this is his own defence, not a dig
+            String bedIsland = GeneratorRegistry.islandName(p.getWorld(),
+                    GeneratorRegistry.islandIndex(p.getWorld(), b));
+            if (own != null && own.equals(bedIsland)) return false;
+            return true;
+        }
+        return false;
     }
 
     /** The island whose distance to the player is shrinking fastest right now (name, or null). */
@@ -605,6 +675,14 @@ public final class ClassicalChecks {
             case QuestionBook.SHOPPING: return "shop";
             case QuestionBook.HEALING: return "heal";
             case QuestionBook.BACKING_OFF: return "off";
+            case QuestionBook.DIGGING_BED: return "dig";
+            case QuestionBook.HAS_PEARL: return "pearl";
+            case QuestionBook.HAS_BOW: return "bow";
+            case QuestionBook.TOOL_IN_HAND: return "tool";
+            case QuestionBook.FULL_HP: return "full";
+            case QuestionBook.AT_MID: return "mid2";
+            case QuestionBook.STACKED: return "stk";
+            case QuestionBook.INVISIBLE: return "inv";
             default: return "f" + f;
         }
     }

@@ -22,6 +22,9 @@ public final class PlayerStats {
         int pickups;
         String lastPickupType, lastEatType;
         final ArrayDeque<Long> hitDealt = new ArrayDeque<>();
+        final ArrayDeque<Long> broken = new ArrayDeque<>();
+        org.bukkit.Location lastBreak;
+        long lastBreakAt = -1;
         double maxReachRecent;
         long reachTick;
         long lastFlagTick = -100000;
@@ -166,6 +169,36 @@ public final class PlayerStats {
     }
 
     /** Damage dealt or taken in the last ~3 seconds. */
+    /** A block was broken at a known position. */
+    public static void broke(Player p, org.bukkit.Location at) {
+        if (p == null) return;
+        Rec r = rec(p);
+        r.broken.addLast(SoundBus.now());
+        while (!r.broken.isEmpty() && SoundBus.now() - r.broken.peekFirst() > 60) r.broken.pollFirst();
+        if (at != null) { r.lastBreak = at.clone(); r.lastBreakAt = SoundBus.now(); }
+    }
+
+    /** Blocks broken in the last ~3 seconds. */
+    public static int recentBreaks(Player p) {
+        Rec r = RECS.get(p.getUniqueId());
+        if (r == null) return 0;
+        long now = SoundBus.now();
+        int n = 0;
+        for (Long t : r.broken) if (now - t <= 60) n++;
+        return n;
+    }
+
+    /** Where and when the last block was broken (null / -1 when never). */
+    public static org.bukkit.Location lastBreak(Player p) {
+        Rec r = RECS.get(p.getUniqueId());
+        return r == null ? null : r.lastBreak;
+    }
+
+    public static long lastBreakTick(Player p) {
+        Rec r = RECS.get(p.getUniqueId());
+        return r == null ? -1 : r.lastBreakAt;
+    }
+
     public static int recentHits(Player p) {
         Rec r = RECS.get(p.getUniqueId());
         if (r == null) return 0;

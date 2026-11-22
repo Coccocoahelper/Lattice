@@ -204,6 +204,8 @@ final class AIListener implements Listener {
     public void onBreak(BlockBreakEvent e) {
         Player breaker = e.getPlayer();
         SoundBus.emit(SoundBus.Kind.BREAK, e.getBlock().getLocation().add(0.5, 0.5, 0.5), breaker);
+        // where and when: a break beside a bed is a bed being dug out, which is the whole point of the RUSHING fact
+        net.h2020.bots.ai.perception.PlayerStats.broke(breaker, e.getBlock().getLocation());
         // the refusal is charged to whoever placed the block (recorded at placement time), never to the breaker
         net.h2020.bots.ai.ml.PlacementPolicy.noteBroken(e.getBlock().getX(), e.getBlock().getY(),
                 e.getBlock().getZ(), System.currentTimeMillis());

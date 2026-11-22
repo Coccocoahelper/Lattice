@@ -969,6 +969,22 @@ public final class BedwarsBrain extends GameBrain {
             if (firstRushTeam == null) firstRushTeam = target;
         }
         if (firstRushTeam != null && !view.bedAlive(firstRushTeam)) firstRushTeam = null;   // that base is done
+        // somebody on the team is already digging a bed: that is the bed to be at, no matter what the distances say.
+        // The information was being collected and never used.
+        if (firstRushTeam == null) {
+            for (GameTeam t : game.teams()) {
+                if (t.color() == color || !t.alive() || !view.bedAlive(t.color())) continue;
+                for (Player m : t.members()) {
+                    if (m != null && net.h2020.bots.ai.ml.QuestionBook.belief(m,
+                            net.h2020.bots.ai.ml.QuestionBook.DIGGING_BED) > 0.7) {
+                        firstRushTeam = t.color();
+                        net.h2020.api.stats.CombatStats.inc("rush.followed.dig");
+                        break;
+                    }
+                }
+                if (firstRushTeam != null) break;
+            }
+        }
         // what the team has been told about them: somebody who is low or stuck in a generator is an opportunity
         if (target != null) {
             for (Player e : enemyTeamMembers(target)) {
@@ -1274,6 +1290,26 @@ public final class BedwarsBrain extends GameBrain {
         if (threat != null && gearEdge(threat) <= -5 && ctx.health() < 12) {
             net.h2020.api.stats.CombatStats.inc("fight.declined.gear");
             return true;
+        }
+        // a pearl is a fight that is not a fight: he closes or leaves at will, so an even trade is not even. The gear
+        // comparison cannot see it, and neither can health.
+        if (threat != null && net.h2020.bots.ai.ml.QuestionBook.belief(threat,
+                net.h2020.bots.ai.ml.QuestionBook.HAS_PEARL) > 0.6 && ctx.health() < 16) {
+            net.h2020.api.stats.CombatStats.inc("fight.declined.pearl");
+            return true;
+        }
+        // invisible: you cannot see him coming and he sees you. Do not start that fight on his terms.
+        if (threat != null && net.h2020.bots.ai.ml.QuestionBook.belief(threat,
+                net.h2020.bots.ai.ml.QuestionBook.INVISIBLE) > 0.6) {
+            net.h2020.api.stats.CombatStats.inc("fight.declined.invis");
+            return true;
+        }
+        // a tool in his hand means he is digging, not trading. That is the best moment to take the fight, so a
+        // marginal decline flips to a commit rather than the other way round.
+        if (threat != null && net.h2020.bots.ai.ml.QuestionBook.belief(threat,
+                net.h2020.bots.ai.ml.QuestionBook.TOOL_IN_HAND) > 0.6) {
+            net.h2020.api.stats.CombatStats.inc("fight.accepted.digging");
+            return false;
         }
         boolean bad = net.h2020.bots.ai.combat.PositionSense.badPosition(ctx, me, best.player, 0.4);
         if (bad) {
