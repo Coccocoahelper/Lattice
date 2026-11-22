@@ -160,7 +160,10 @@ public final class ServerQuestions {
     private static void tick() {
         // classical-only: the bots must not ask anybody anything. This is the live ask path - BedwarsBrain.askHumans
         // was retired when questions moved here - so the gate has to be in this loop or the switch does nothing.
-        if (MlSettings.classicalOnly()) return;
+        if (MlSettings.classicalOnly()) {
+            net.h2020.api.stats.CombatStats.inc("ask.gated");
+            return;
+        }
         long now = System.currentTimeMillis();
         for (Player p : Bukkit.getOnlinePlayers()) {
             if (p == null || !p.isOnline() || p.isDead()) continue;
