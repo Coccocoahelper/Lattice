@@ -297,6 +297,15 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                         sender.sendMessage(on ? net.h2020.api.core.Messages.get("bots.command.training-on") : net.h2020.api.core.Messages.get("bots.command.training-off"));
                         break;
                     }
+                    if (a.equals("probe")) {
+                        // run the classical checks against a named player and report what happened. On a server with
+                        // no humans there is no other way to see whether the checks work at all.
+                        if (args.length < 3) { sender.sendMessage("§cusage: /bot ml probe <player>"); return true; }
+                        org.bukkit.entity.Player t = org.bukkit.Bukkit.getPlayerExact(args[2]);
+                        if (t == null) { sender.sendMessage("§cno player named §f" + args[2]); return true; }
+                        for (String l : net.h2020.bots.ai.ml.ClassicalChecks.selftest(t)) sender.sendMessage(l);
+                        return true;
+                    }
                     if (a.equals("classical")) {
                         // "classical on" - the bots stop asking and decide everything from ClassicalChecks. Bare
                         // "classical" reports the current mode, so a toggle is never ambiguous.

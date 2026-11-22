@@ -92,6 +92,24 @@ public final class ShopWatch {
         }
     }
 
+    /**
+     * Is this player looking at one of our menus right now?
+     *
+     * <p>The check lives here because the state does: a player standing at the shop NPC with the menu open has not
+     * moved, so the positional test alone cannot see him and the menu is the better evidence. Public so
+     * {@link ClassicalChecks} can decide SHOPPING from it.
+     */
+    public static boolean inMenu(Player p) {
+        if (p == null) return false;
+        try {
+            return p.getOpenInventory() != null
+                    && p.getOpenInventory().getTopInventory() != null
+                    && p.getOpenInventory().getTopInventory().getHolder() instanceof net.h2020.api.gui.Menu;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
     /** Compare the bag with the snapshot taken when the menu opened and label the model with the change. */
     private static void settle(Player p) {
         Object[] o = OPEN.remove(p.getUniqueId());
