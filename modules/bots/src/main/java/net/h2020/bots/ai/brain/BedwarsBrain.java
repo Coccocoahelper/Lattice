@@ -410,7 +410,7 @@ public final class BedwarsBrain extends GameBrain {
         if (ctx.tick % 20 == 0) scout();
         if (ctx.tick % 20 == 0) scoutOpponents();
         if (ctx.tick % 40 == 0) registerGenerators();
-        // (questions come from the server now, see ServerQuestions)
+        // asking happens in ServerQuestions (its timer), not here: the bots' own question lines were retired
 
         // the fight is lost and it knows it: get the valuables out before the hit lands
         boolean locked = task != null && !task.interruptible();
@@ -752,26 +752,6 @@ public final class BedwarsBrain extends GameBrain {
             if (sp != null) { islands.add(sp); islandNames.add(t.color().name()); }
         }
         net.h2020.api.game.GeneratorRegistry.setIslands(game.world(), islands, islandNames);
-    }
-
-    /**
-     * Occasionally ask a real player what he is doing, when the behaviour model cannot tell: one yes/no question,
-     * rate-limited per player. The answer is a label the bot could not have observed.
-     */
-    private void askHumans() {
-        if (ctx.tick < 400) return;
-        for (Player p : game.players()) {
-            if (p == null || p.isDead() || p.getWorld() != ctx.player.getWorld()) continue;
-            if (net.h2020.bots.ai.BotAI.isBotPlayer(p)) continue;
-            if (ctx.pos().distance(p.getLocation()) > 28) continue;
-            // alternate: the hidden facts (in a generator? low? where are you bridging to?) and the activity
-            String q = (ctx.tick / 60) % 2 == 0
-                    ? net.h2020.bots.ai.ml.QuestionBook.questionFor(p)
-                    : net.h2020.bots.ai.ml.BehaviourModel.questionFor(p, ctx.tick);
-            if (q == null) q = net.h2020.bots.ai.ml.BehaviourModel.questionFor(p, ctx.tick);
-            if (q == null) continue;
-            ctx.chat.say(q, 4);
-        }
     }
 
     /** Fold what we can see of the other teams into the scout model (skill, gear, resources in hand). */

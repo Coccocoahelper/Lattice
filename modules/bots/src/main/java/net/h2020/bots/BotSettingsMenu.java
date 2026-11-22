@@ -24,6 +24,7 @@ final class BotSettingsMenu {
     private static final int SLOT_DIAG = 27;
     private static final int SLOT_RESET = 40;
     private static final int SLOT_ML = 31;
+    private static final int SLOT_CLASSICAL = 33;
     private static final int SLOT_CLOSE = 36;
 
     private final BotSettings settings;
@@ -128,6 +129,26 @@ final class BotSettingsMenu {
                 net.h2020.bots.ai.ml.MlSettings.setTrainFromBots(!botsTrain);
                 p.sendMessage(net.h2020.api.core.Messages.get("bots.menu.training-from-bots", "state",
                         net.h2020.bots.ai.ml.MlSettings.trainFromBots() ? net.h2020.api.core.Messages.raw("bots.state.enabled") : net.h2020.api.core.Messages.raw("bots.state.disabled")));
+                render();
+            }
+        });
+        // the source switch: ask a teammate, or decide from what anyone can see
+        final boolean classicalOnly = net.h2020.bots.ai.ml.MlSettings.classicalOnly();
+        menu.set(SLOT_CLASSICAL, toggle("Classical checks only", classicalOnly, Material.WATCH,
+                "On: the bots never ask a player anything.",
+                "Every belief comes from what is visible -",
+                "standing in a generator, holding a sword,",
+                "the block that just went down by a bed.",
+                "",
+                "Off: they ask when unsure, and learn the",
+                "answer as a label they could not observe.",
+                "",
+                "On is the honest test of the checks, and",
+                "what an empty server has to run on."), new Menu.Click() {
+            @Override public void click(Player p, ClickType type) {
+                net.h2020.bots.ai.ml.MlSettings.setClassicalOnly(!classicalOnly);
+                p.sendMessage("§6[ml] §eclassical checks only: §f"
+                        + (net.h2020.bots.ai.ml.MlSettings.classicalOnly() ? "on" : "off"));
                 render();
             }
         });

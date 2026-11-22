@@ -36,6 +36,19 @@ public final class ClassicalChecks {
     private static final java.util.Map<java.util.UUID, double[]> LAST_DIST = new java.util.HashMap<java.util.UUID, double[]>();
     private static final java.util.Map<java.util.UUID, Long> LAST_DIST_AT = new java.util.HashMap<java.util.UUID, Long>();
 
+    /**
+     * What the last check decided for a (player, fact), and when.
+     *
+     * <p>Only kept so the check can be scored: a question that a human answers a moment later is a free label for the
+     * check that made the same call. Without this the checks have a confidence argument in the source and no measured
+     * accuracy, and there is no way to know which of them to trust when the switch is on.
+     */
+    private static final java.util.Map<java.util.UUID, boolean[]> LAST_DECISION = new java.util.HashMap<java.util.UUID, boolean[]>();
+    private static final java.util.Map<java.util.UUID, long[]> DECIDED_AT = new java.util.HashMap<java.util.UUID, long[]>();
+    /** Per fact: how often a human answer agreed / disagreed with the check that had just run. */
+    private static final long[] HIT = new long[QuestionBook.FACTS];
+    private static final long[] MISS = new long[QuestionBook.FACTS];
+
     private ClassicalChecks() {}
 
     public static void install(JavaPlugin p) {
@@ -129,6 +142,13 @@ public final class ClassicalChecks {
         if (!hit) fact(p, QuestionBook.RUNNING, ate, 0.4);        // eating out of a fight is only a weak sign
         if (placing) {
             fact(p, QuestionBook.BRIDGING_TO_MID, overVoid && headingTo(p, GeneratorRegistry.EMERALD_GEN), 0.7);
+        }
+        // bridging BACK: over void while closing on your own island - the mirror of BRIDGING_TO_ENEMY, and the one
+        // fact of the fifteen that nothing ever decided.
+        if (placing && overVoid) {
+            String own = ownIsland(p);
+            boolean back = own != null && (own.equals(closing) || own.equals(looking));
+            fact(p, QuestionBook.BRIDGING_TO_BASE, back, back ? 0.7 : 0.6);
         }
 
         // --- and keep the activity model's own read in step with the obvious cases
@@ -269,6 +289,25 @@ public final class ClassicalChecks {
         return dot < -0.25 && speed > 0.05;
     }
 
+    /**
+     * The island this player belongs to, as far as anyone can see: the team generator he is closest to.
+     *
+     * <p>A bot knows its own team; a human's cannot be read from the world, and a teammate standing nearer the wrong
+     * base would be misread. So this is the nearest generator, which is right whenever he is actually on his island -
+     * the only time the "bridging back" question is asked - and degrades to "wherever he is standing" otherwise.
+     */
+    private static String ownIsland(Player p) {
+        String best = null;
+        double bd = Double.MAX_VALUE;
+        for (int i = 0; i < GeneratorRegistry.islands(p.getWorld()).size(); i++) {
+            Location l = GeneratorRegistry.islands(p.getWorld()).get(i);
+            if (l.getWorld() != p.getWorld()) continue;
+            double d = l.distanceSquared(p.getLocation());
+            if (d < bd) { bd = d; best = GeneratorRegistry.islandName(p.getWorld(), i); }
+        }
+        return bd < 24 * 24 ? best : null;        // a base is only "his" if he is near it
+    }
+
     private static boolean overVoid(Player p) {
         Location l = p.getLocation();
         for (int dy = 1; dy <= 20; dy++) {
@@ -279,16 +318,84 @@ public final class ClassicalChecks {
 
     private static void fact(Player p, int fact, boolean value, double confidence) {
         QuestionBook.setObserved(p, fact, value, confidence);
+        remember(p, fact, value);
         resolved++;
         net.h2020.api.stats.CombatStats.inc("check.fact");
+    }
+
+    private static void remember(Player p, int fact, boolean value) {
+        boolean[] d = LAST_DECISION.get(p.getUniqueId());
+        if (d == null) { d = new boolean[QuestionBook.FACTS]; LAST_DECISION.put(p.getUniqueId(), d); }
+        long[] t = DECIDED_AT.get(p.getUniqueId());
+        if (t == null) { t = new long[QuestionBook.FACTS]; DECIDED_AT.put(p.getUniqueId(), t); }
+        d[fact] = value;
+        t[fact] = System.currentTimeMillis();
+    }
+
+    /**
+     * A human just answered {@code fact}. If a check decided the same thing within the last few seconds, score the
+     * check against him - the answer is ground truth for exactly the question the check was answering.
+     *
+     * <p>Called from {@link QuestionBook#answer}. Only recent decisions count: a check from ten seconds ago was looking
+     * at a different moment, and scoring it would blame the check for the player having moved.
+     */
+    public static void scoreAgainstAnswer(Player p, int fact, boolean yes) {
+        if (p == null || fact < 0 || fact >= QuestionBook.FACTS) return;
+        boolean[] d = LAST_DECISION.get(p.getUniqueId());
+        long[] t = DECIDED_AT.get(p.getUniqueId());
+        if (d == null || t == null || t[fact] <= 0) return;
+        if (System.currentTimeMillis() - t[fact] > 4000) return;      // too old to be about the same moment
+        if (d[fact] == yes) { HIT[fact]++; net.h2020.api.stats.CombatStats.inc("check.agree"); }
+        else { MISS[fact]++; net.h2020.api.stats.CombatStats.inc("check.disagree"); }
+        t[fact] = 0;                                                  // one score per decision
     }
 
     public static List<String> report() {
         List<String> out = new ArrayList<String>();
         out.add(String.format("§6[ml] §eclassical checks: §f%d§7 facts decided without asking (%d player-checks)",
                 resolved, checked));
+        long scored = 0, right = 0;
+        for (int f = 0; f < QuestionBook.FACTS; f++) { scored += HIT[f] + MISS[f]; right += HIT[f]; }
+        if (scored > 0) {
+            out.add(String.format("§6[ml] §eaccuracy: §f%.0f%%§7 of §f%d§7 checks agreed with the player "
+                    + "(§f%d§7 were wrong)", 100.0 * right / scored, scored, scored - right));
+        } else {
+            out.add("§6[ml] §eaccuracy: §7not scored yet - a check is scored when a player answers the same "
+                    + "question within a few seconds of it");
+        }
+        // per-fact: the ones worth trusting with the switch on, and the ones that should stay a question
+        StringBuilder line = new StringBuilder("§7by fact:");
+        boolean any = false;
+        for (int f = 0; f < QuestionBook.FACTS; f++) {
+            long n = HIT[f] + MISS[f];
+            if (n < 3) continue;
+            line.append(' ').append(QuestionBook.name(f)).append('=')
+                .append((int) (100.0 * HIT[f] / n)).append('%');
+            any = true;
+        }
+        if (any) out.add(line.toString());
+        // the fails: what the checks were most often wrong about. Worth naming, because a check that is wrong more
+        // often than it is right should not be deciding anything when asking is switched off.
+        int worst = -1; double worstRate = 0.55;
+        for (int f = 0; f < QuestionBook.FACTS; f++) {
+            long n = HIT[f] + MISS[f];
+            if (n < 5) continue;
+            double rate = MISS[f] / (double) n;
+            if (rate > worstRate) { worstRate = rate; worst = f; }
+        }
+        if (worst >= 0) {
+            out.add(String.format("§c[ml] §eworst check: §f%s§7 is wrong §f%.0f%%§7 of the time (§d%d§7 of §f%d§7) - "
+                    + "keep it a question", QuestionBook.name(worst), worstRate * 100, MISS[worst],
+                    HIT[worst] + MISS[worst]));
+        }
         return out;
     }
 
-    public static void reset() { resolved = 0; checked = 0; }
+    public static void reset() {
+        resolved = 0;
+        checked = 0;
+        LAST_DECISION.clear();
+        DECIDED_AT.clear();
+        for (int f = 0; f < QuestionBook.FACTS; f++) { HIT[f] = 0; MISS[f] = 0; }
+    }
 }

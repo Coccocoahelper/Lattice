@@ -319,6 +319,10 @@ public final class BehaviourModel {
      * the player has not been asked recently.
      */
     public static String questionFor(Player p, long tick) {
+        if (MlSettings.classicalOnly()) {                 // see QuestionBook.questionFor
+            net.h2020.api.stats.CombatStats.inc("ask.blocked");
+            return null;
+        }
         double[] p2 = LAST_P.get(p.getUniqueId());
         if (p2 == null) return null;
         // one open question at a time (a second one would have nothing to attach the answer to), but no rate limit

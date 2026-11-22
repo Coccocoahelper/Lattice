@@ -15,6 +15,14 @@ import java.util.List;
  */
 public final class MlSettings {
     private static boolean trainFromBots;          // default off: bot data poisons the human priors
+    /**
+     * Answer every question with a rule instead of asking a human.
+     *
+     * <p>Off by default. On, the bots never type a question: everything they believe about a player comes out of
+     * {@link ClassicalChecks} - what is visible of him - and nothing comes from a teammate telling them. That is the
+     * honest test of how much the checks are worth, and it is what a server with no humans in it has to run on anyway.
+     */
+    private static boolean classicalOnly;
     private static File file;
 
     private MlSettings() {}
@@ -27,11 +35,20 @@ public final class MlSettings {
                 org.bukkit.configuration.file.YamlConfiguration y =
                         org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(file);
                 trainFromBots = y.getBoolean("train-from-bots", false);
+                classicalOnly = y.getBoolean("classical-only", false);
             } catch (Throwable ignored) { }
         }
     }
 
     public static boolean trainFromBots() { return trainFromBots; }
+
+    /** True when the bots must decide everything from what is visible and never ask. */
+    public static boolean classicalOnly() { return classicalOnly; }
+
+    public static void setClassicalOnly(boolean v) {
+        classicalOnly = v;
+        save();
+    }
 
     public static void setTrainFromBots(boolean v) {
         trainFromBots = v;
@@ -42,6 +59,9 @@ public final class MlSettings {
         List<String> out = new ArrayList<String>();
         out.add("§6[ml] §esources: §fplayers always, bots " + (trainFromBots ? "§aon§7 (bot labels enabled)"
                 : "§coff§7 (/bot ml bots on to enable)"));
+        out.add("§6[ml] §eanswers: " + (classicalOnly
+                ? "§aclassical only§7 - the bots never ask, every fact comes from ClassicalChecks"
+                : "§fask when unsure§7 (/bot ml classical on to run without asking)"));
         return out;
     }
 
@@ -50,6 +70,7 @@ public final class MlSettings {
         try {
             org.bukkit.configuration.file.YamlConfiguration y = new org.bukkit.configuration.file.YamlConfiguration();
             y.set("train-from-bots", trainFromBots);
+            y.set("classical-only", classicalOnly);
             if (!file.getParentFile().exists()) file.getParentFile().mkdirs();
             net.h2020.bots.ai.ml.ModelFile.save(y, file);
         } catch (Throwable ignored) { }

@@ -297,6 +297,26 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                         sender.sendMessage(on ? net.h2020.api.core.Messages.get("bots.command.training-on") : net.h2020.api.core.Messages.get("bots.command.training-off"));
                         break;
                     }
+                    if (a.equals("classical")) {
+                        // "classical on" - the bots stop asking and decide everything from ClassicalChecks. Bare
+                        // "classical" reports the current mode, so a toggle is never ambiguous.
+                        if (args.length < 3) {
+                            boolean now = net.h2020.bots.ai.ml.MlSettings.classicalOnly();
+                            sender.sendMessage("§6[ml] §eclassical checks only: "
+                                    + (now ? "§aon§7 - the bots will not ask" : "§coff§7 - the bots ask when unsure"));
+                            for (String l : net.h2020.bots.ai.ml.MlSettings.report()) sender.sendMessage(l);
+                            for (String l : net.h2020.bots.ai.ml.ClassicalChecks.report()) sender.sendMessage(l);
+                            return true;
+                        }
+                        String v = args[2].toLowerCase(Locale.ROOT);
+                        if (!v.equals("on") && !v.equals("off")) {
+                            sender.sendMessage("§cusage: /bot ml classical <on|off>");
+                            return true;
+                        }
+                        net.h2020.bots.ai.ml.MlSettings.setClassicalOnly(v.equals("on"));
+                        sender.sendMessage("§6[ml] §eclassical checks only: §f" + (v.equals("on") ? "on" : "off"));
+                        break;
+                    }
                     if (a.equals("reset")) {
                         net.h2020.bots.ai.ml.FightModel.reset();
                         net.h2020.bots.ai.ml.PlacementPolicy.reset();

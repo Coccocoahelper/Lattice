@@ -94,6 +94,12 @@ public final class QuestionBook {
      */
     public static String questionFor(Player p) {
         if (p == null) return null;
+        // never hand out a question when the bots are meant to be deciding from what they can see: a caller that
+        // forgot to check the setting would otherwise quietly reintroduce asking.
+        if (MlSettings.classicalOnly()) {
+            net.h2020.api.stats.CombatStats.inc("ask.blocked");
+            return null;
+        }
         Object[] open = PENDING.get(p.getUniqueId());
         if (open != null && (Long) open[1] > System.currentTimeMillis()) return null;
         double[] belief = BELIEF.get(p.getUniqueId());
@@ -130,6 +136,8 @@ public final class QuestionBook {
         belief[fact] = belief[fact] * 0.25 + (yes ? 1 : 0) * 0.75;
         at[fact] = System.currentTimeMillis();
         ANSWERED.put(p.getUniqueId(), at);
+        // the human just answered, so any check that decided the same thing a moment ago can be scored against him
+        ClassicalChecks.scoreAgainstAnswer(p, fact, yes);
 
         // and train the predictor so the bot can infer it next time without asking
         double[] x = BehaviourModel.featuresBefore(p, 1000);
@@ -146,6 +154,7 @@ public final class QuestionBook {
         belief[fact] = belief[fact] * 0.2 + (value ? 1 : 0) * 0.8;
         at[fact] = System.currentTimeMillis();
         ANSWERED.put(p.getUniqueId(), at);
+        ClassicalChecks.scoreAgainstAnswer(p, fact, value);
         double[] x = BehaviourModel.featuresBefore(p, 1000);
         if (x != null) learn(fact, x, value);
     }
