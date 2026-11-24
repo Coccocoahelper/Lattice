@@ -391,11 +391,21 @@ public final class Perception {
         Location me = ctx.pos();
         for (Sighting s : mem.values()) {
             if (!s.known || s.ally || s.lastPos == null || s.lastPos.getWorld() != me.getWorld()) continue;
+            // somebody he saw a while ago is not a defender now. Without this, a player who walked past the bed two
+            // minutes ago still counted, and the bot would refuse a bed that was standing empty. A live sighting or a
+            // recent sound counts; a memory decaying past the floor does not.
+            if (!s.visible && s.confidence(ctx.tick) < STALE_FLOOR) {
+                net.h2020.api.stats.CombatStats.inc("perception.stale.skipped");
+                continue;
+            }
             double d = s.estimate(ctx.tick).distance(me);
             if (d < bd) { bd = d; best = s; }
         }
         return best;
     }
+
+    /** How much of a memory is still worth acting on: e^-1 of a 7-second half-life is about five seconds. */
+    private static final double STALE_FLOOR = 0.35;
 
     public List<Sighting> visibleEnemies() {
         List<Sighting> out = new ArrayList<>();

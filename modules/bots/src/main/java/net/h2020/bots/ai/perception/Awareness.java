@@ -55,6 +55,10 @@ public final class Awareness {
             if (at == null || at.getWorld() != me.getWorld()) continue;
             double d = me.distance(at);
             if (d > 30) continue;
+            // only somebody he can actually see counts toward "the fight is about to become a third party's".
+            // Perception already did the view-cone and line-of-sight work; counting :all() here threw it away and made a
+            // bot flee a winning duel because of an enemy standing behind a wall.
+            if (!s.visible) { net.h2020.api.stats.CombatStats.inc("aware.unseen.skipped"); continue; }
             visible++;
             if (d < nearestDist) { nearestDist = d; nearest = p; }
             double dx = at.getX() - me.getX(), dz = at.getZ() - me.getZ();
