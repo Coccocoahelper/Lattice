@@ -477,8 +477,32 @@ public final class Combat {
             if (mlBlock != null) baseBlock = mlBlock;
             if (baseBlock) blockHitTicks = AIMath.range(ctx.rng, 2, 4);
         }
-        // hit and run against someone with better gear: the base rule, overridden by the arbiter when it is confident
-        boolean baseRun = CombatStats.v2 && style.hitAndRun && gearDiff > 3 && ctx.rng.nextDouble() < 0.55;
+        // Hit and run against someone with better gear - but only where running is a real option.
+        //
+        // This used to fire on gearDiff > 3 alone, at a flat 55%, no matter where the two players were standing. Up
+        // close, that reads as a bot that turns its back the moment it is hit: you land one hit on a better-geared bot
+        // and it walks away from a fight it was already in, which is both wrong and the most obvious tell there is. A
+        // real player trades when the other man is inside his reach, whatever the armour says - the gear deficit is a
+        // reason to avoid STARTING the fight, not to leave one you are winning the exchange in.
+        //
+        // So: no running from inside hit range (unless badly hurt, which the retreat rule already owns), and the shorter
+        // the gap the less likely the bolt. A player only disengages on gear at range, where he can actually get away.
+        // gearDiff is a FIELD that is only assigned in the fight loop (line ~874), so reading it here always saw whatever
+        // the last tick of the fight loop left - which for a hit that lands before the loop runs is 0. The old rule
+        // "gearDiff > 3 -> run" therefore almost never fired at all. Compute it for this hit.
+        double gearDiff = gearDiffVs(target);
+        double gapNow = target == null ? 99 : ctx.pos().distance(target.getLocation());
+        boolean runnable = gapNow > 3.2;                       // outside sword reach: leaving is possible
+        boolean poorTrade = ctx.health() <= 12 || hitsTaken > comboCount + 2;   // losing the exchange, not the gear
+        boolean baseRun = CombatStats.v2 && style.hitAndRun && gearDiff > 3 && runnable
+                && (poorTrade || ctx.rng.nextDouble() < 0.55);
+        // measured, because "trades instead of turning away" is a claim about a ratio and a silent rule cannot show it
+        if (CombatStats.v2 && style.hitAndRun && gearDiff > 3) {
+            if (!runnable) CombatStats.inc("hitrun.kept.close");         // would have fled before the change
+            else if (poorTrade) CombatStats.inc("hitrun.ran.losing");
+            else if (baseRun) CombatStats.inc("hitrun.ran.gear");
+            else CombatStats.inc("hitrun.kept.gear");
+        }
         Boolean mlRun = net.h2020.bots.ai.ml.CombatArbiter.decide(net.h2020.bots.ai.ml.CombatArbiter.HITRUN, ctx,
                 arbFeatures(3.0), baseRun);
         if (mlRun != null) { markArbiterWindow(); baseRun = mlRun; }

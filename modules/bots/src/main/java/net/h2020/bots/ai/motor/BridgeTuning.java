@@ -8,6 +8,15 @@ package net.h2020.bots.ai.motor;
  * proven diagonal handling is what the bots use until this is turned on.
  */
 public final class BridgeTuning {
+
+    /**
+     * A/B knob: set false to make every technique walk its bridge, for measuring the cost of the sprint-jump.
+     *
+     * <p>Off is the pre-change behaviour. A sprint-jump bridge is faster and looks like a real player, but it is also
+     * strictly harder - a click landed mid-arc goes into the wrong cell - so the fall rate has to be measured with it on
+     * and off rather than assumed to be acceptable.
+     */
+    public static boolean sprintJump = true;
     private BridgeTuning() {}
 
     public static volatile boolean diagonalStance = false;

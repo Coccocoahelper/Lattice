@@ -224,6 +224,17 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                     }
                     break;
                 }
+                case "sprintjump": {
+                    // live A/B for sprint-jumping a bridge: on is the behaviour, off is the old walk-every-block
+                    if (args.length > 1) {
+                        net.h2020.bots.ai.motor.BridgeTuning.sprintJump =
+                                args[1].equalsIgnoreCase("on") || args[1].equalsIgnoreCase("true");
+                    }
+                    sender.sendMessage("§6[bridge] §esprint-jump on bridges: §f"
+                            + (net.h2020.bots.ai.motor.BridgeTuning.sprintJump ? "on" : "off")
+                            + " §7(/bot sprintjump on|off)");
+                    return true;
+                }
                 case "diag": {
                     // live switch for the dedicated diagonal stance; saved with the rest of the bot settings
                     if (args.length > 1) {

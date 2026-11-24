@@ -183,6 +183,24 @@ public abstract class BridgeMethod {
     /** May the click go out this tick, given where the body and the head are? */
     public boolean placementAllowed(Bridger b, double h, double lat, int nx, int nz) { return true; }
 
+    /**
+     * Does this technique carry the body at a sprint-jump rather than a walk?
+     *
+     * <p>Sprint-jumping a bridge is what a confident player does on open ground: it is roughly twice as fast, and on a
+     * diagonal it is the technique (the body lands one block further along both axes, which is the whole point of a
+     * diagonal bridge). It is also strictly harder - a misplaced click is a fall, not a stumble - so it is gated on the
+     * persona's confidence and never used by a beginner method.
+     *
+     * <p>Opt-in per technique rather than global: noob and shift bridges are beginner methods and a beginner does not
+     * hop his bridge.
+     */
+    public boolean sprintJumps(Bridger b) {
+        return BridgeTuning.sprintJump && techniqueAllowsSprintJump(b);
+    }
+
+    /** Whether this technique is one a confident player hops, before the A/B knob is applied. */
+    protected boolean techniqueAllowsSprintJump(Bridger b) { return false; }
+
     /** The engine has advanced onto a new block: the click that did it has just landed. */
     public void afterPlacement(Bridger b, boolean wasSneaking) { }
 

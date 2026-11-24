@@ -86,6 +86,8 @@ public final class Bridger {
     /** Tick the crouch comes up after a tap click; set from skill at each placement. */
     private long unsneakAt = -100;
     private int clickCooldown, clickWait;
+    /** Ticks until the next hop while sprint-jumping a bridge. */
+    private int sprintJumpCooldown;
     /** Tick the last block landed, so a block's cost is measurable rather than assumed. */
     private long blockStartTick;
     private boolean rayWasOn;
@@ -192,6 +194,7 @@ public final class Bridger {
         this.travelYaw = AIMath.yawOf(vx, vz);
         this.phase = Phase.TURN; this.phaseTicks = 0; this.ticks = 0; this.ticksOnBlock = 0;
         this.unsneakDelay = 0; this.clickCooldown = 0; this.clickWait = 0; this.rayWasOn = false;
+        this.sprintJumpCooldown = 0;
         this.offsetSign = ctx.rng.nextBoolean() ? 1 : -1;
         double o = ctx.persona.skill.overall;
         this.sloppy = 0.03 + 0.2 * (1 - o) + (pressured ? 0.08 : 0);
@@ -599,6 +602,42 @@ public final class Bridger {
             // the mouse is somewhere else (flicked to a hit, looking at someone): don't walk blind over the void
             ctx.motor.move(0, 0);
             return Result.RUNNING;
+        }
+        // Sprint on the open stretch, and hop it if this technique carries one. Both are what a confident player does
+        // and neither existed here: no sprint() call anywhere in this class, so every method was walked at 4.3 b/s.
+        // The crouch policy above still owns the crouch: a sprint is only useful where crouch is not held.
+        // `h` is how far the body centre is PAST the support's edge, so the approach is h < 0 and the lip is h ~ 0.
+        // A sprint-jump belongs on the approach - you run up to the edge and hop over it, placing the block while
+        // airborne - which is the opposite window to where this first looked. Measured with the window the wrong way
+        // round: bsj.ok 0, bsj.no.faredge 1421 and bsj.no.sneak 1374, i.e. every single opportunity fell in the
+        // approach (where the sprint was disallowed) or at the lip (where the crouch is already held, and a sneaking
+        // client cannot sprint - that part is correct physics).
+        // Ask the crouch POLICY, not motor.sneaking(): sneak() was already called above for this tick, so the flag is
+        // set and reading it here reported "sneaking" on every tick regardless of the policy (bsj.no.sneak 3170, bsj.ok 0).
+        //
+        // `sy` is the SUPPORT block's y (startY - 1), not a direction, so the earlier `sy < 0` test was measuring
+        // nothing at all - it is true for every bridge that is not under the world. Dropped.
+        boolean wantSneak = h > -0.12 || crouch == BridgeMethod.Crouch.HOLD;
+        boolean sjAllowed = method.sprintJumps(this);
+        boolean canSprint = sjAllowed && !wantSneak;
+        if (!sjAllowed) net.h2020.api.stats.CombatStats.inc("bsj.no.persona");
+        else if (crouch == BridgeMethod.Crouch.HOLD) net.h2020.api.stats.CombatStats.inc("bsj.no.holdcrouch");
+        else if (wantSneak) net.h2020.api.stats.CombatStats.inc("bsj.no.sneak");
+        else net.h2020.api.stats.CombatStats.inc("bsj.ok");
+        ctx.motor.sprint(canSprint);
+        if (sprintJumpCooldown > 0) sprintJumpCooldown--;
+        // hop on the last stretch of the approach: the arc then carries the body over the lip, which is where the click
+        // has to land. Late enough not to waste the jump on the middle of the block, early enough that the feet are
+        // still behind the edge when it starts.
+        // only on a bridge with room to recover: a two-block crossing is where a missed hop is unrecoverable, and those
+        // are common (a gap, a hop-up, a corner) while long open bridges are where the speed actually matters.
+        int remaining = needed - placed;
+        if (canSprint && ctx.c.onGround() && sprintJumpCooldown <= 0 && h > -1.45 && h < -0.22
+                && remaining > 6
+                && Math.abs(AIMath.angleDiff(ctx.c.yaw(), lookYaw())) < 25) {
+            ctx.motor.jump(true);
+            sprintJumpCooldown = AIMath.range(ctx.rng, 9, 13);
+            net.h2020.api.stats.CombatStats.inc(diag ? "bridge.sprintjump.diag" : "bridge.sprintjump");
         }
         boolean clicked = false;
         // place when the client's ray is on the support's travel-side face
