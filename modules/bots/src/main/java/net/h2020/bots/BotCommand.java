@@ -297,6 +297,26 @@ final class BotCommand implements CommandExecutor, TabCompleter {
                         sender.sendMessage(on ? net.h2020.api.core.Messages.get("bots.command.training-on") : net.h2020.api.core.Messages.get("bots.command.training-off"));
                         break;
                     }
+                    if (a.equals("checkpoint") || a.equals("checkpoints")) {
+                        String cps = args.length > 2 ? args[2].toLowerCase(Locale.ROOT) : "list";
+                        if (cps.equals("save") || cps.equals("capture")) {
+                            if (args.length < 4) { sender.sendMessage("§cusage: /bot ml checkpoint save <name>"); return true; }
+                            sender.sendMessage(net.h2020.bots.ai.ml.Checkpoints.capture(args[3]));
+                            return true;
+                        }
+                        if (cps.equals("load") || cps.equals("restore")) {
+                            if (args.length < 4) { sender.sendMessage("§cusage: /bot ml checkpoint load <name>"); return true; }
+                            sender.sendMessage(net.h2020.bots.ai.ml.Checkpoints.restore(args[3]));
+                            return true;
+                        }
+                        if (cps.equals("delete") || cps.equals("rm")) {
+                            if (args.length < 4) { sender.sendMessage("§cusage: /bot ml checkpoint delete <name>"); return true; }
+                            sender.sendMessage(net.h2020.bots.ai.ml.Checkpoints.delete(args[3]));
+                            return true;
+                        }
+                        for (String l : net.h2020.bots.ai.ml.Checkpoints.list()) sender.sendMessage(l);
+                        return true;
+                    }
                     if (a.equals("probe")) {
                         // run the classical checks against a named player and report what happened. On a server with
                         // no humans there is no other way to see whether the checks work at all.

@@ -66,6 +66,7 @@ public final class BotAI {
         net.h2020.bots.ai.ml.IntentModel.install(p);
         net.h2020.bots.ai.ml.ClassicalChecks.install(p);
         net.h2020.bots.ai.ml.MlSettings.install(p);
+        net.h2020.bots.ai.ml.Checkpoints.install(p.getDataFolder());
         net.h2020.api.train.Replay.install(p);
         // models keep their own slower timers; this one is the guarantee that a crash costs seconds, not a session
         net.h2020.bots.ai.ml.HumanPlacements.install(p);

@@ -173,6 +173,15 @@ public final class FightFlow {
 
     private static double clamp(double v, double lo, double hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
+    /**
+     * Read this model's file back from disk, replacing what is in memory.
+     *
+     * <p>Used by {@link Checkpoints} to put a saved state back without a restart. Only valid for a checkpoint
+     * written by the same model version: a file whose shape does not match is refused by {@code load()}
+     * itself, which returns without touching the weights.
+     */
+    public static void reload() { load(); }
+
     private static void load() {
         if (file == null || !file.exists()) return;
         try {

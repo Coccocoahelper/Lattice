@@ -147,6 +147,15 @@ public final class FightModel {
         }, 1200L, 1200L);
     }
 
+    /**
+     * Read this model's file back from disk, replacing what is in memory.
+     *
+     * <p>Used by {@link Checkpoints} to put a saved state back without a restart. Only valid for a checkpoint
+     * written by the same model version: a file whose shape does not match is refused by {@code load()}
+     * itself, which returns without touching the weights.
+     */
+    public static void reload() { load(); }
+
     private static void load() {
         if (file == null || !file.exists()) return;
         try {
@@ -180,6 +189,9 @@ public final class FightModel {
             accuracy = y.getDouble("accuracy", 0.5);
             lossEma = y.getDouble("loss", 0.693);
             lossN = y.getLong("lossN", 0);
+            accuracyHits = y.getLong("accuracyHits", 0);
+            accuracyN = y.getLong("accuracyN", 0);
+            if (accuracyN > 0) accuracy = accuracyHits / (double) accuracyN;
         } catch (Throwable t) { net.h2020.bots.ai.ml.ModelFile.warnOnce("FightModel", file, t); }
     }
 
@@ -208,6 +220,8 @@ public final class FightModel {
             y.set("accuracy", accuracy);
             y.set("loss", lossEma);
             y.set("lossN", lossN);
+            y.set("accuracyHits", accuracyHits);
+            y.set("accuracyN", accuracyN);
             if (!file.getParentFile().exists()) file.getParentFile().mkdirs();
             net.h2020.bots.ai.ml.ModelFile.save(y, file);
             dirty = false;
