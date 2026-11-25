@@ -353,6 +353,20 @@ public final class BedwarsBrain extends GameBrain {
 
     /** Below this there is no fight worth finishing unless it is already won. */
     private static final double RETREAT_HP = 7.0;
+
+    /**
+     * Is there a team upgrade the team can afford right now?
+     *
+     * <p>Distinct from "is there one unbought": the job board re-makes every 1.2 seconds, so a job handed out for an
+     * upgrade nobody can pay for is a body doing nothing. The affordability lives here because the board cannot read
+     * the wallet cheaply for every bot every remake.
+     */
+    public boolean needsUpgradeJob() {
+        if (!bedAliveNow() || color == null) return false;
+        if (!ShopPlanner.wantsUpgrade(this, gameSeconds())) return false;
+        int have = ShopPlanner.diamonds(ctx.player) + ShopPlanner.chestDiamonds(this);
+        return have >= 2;          // the cheapest tier that matters
+    }
     private long denyFinalCooldown;
 
     /**
@@ -928,7 +942,15 @@ public final class BedwarsBrain extends GameBrain {
         // the diamonds are reachable - in the bag OR in the chest.
         boolean upgradeWanted = ShopPlanner.wantsUpgrade(this, gsec);
         int upgradeDia = dia + (ShopPlanner.chestDiamonds(this));
-        double sUpg = (upgradeWanted && upgradeDia >= 2 && (nearBase || dia >= 2)) ? 0.9 : 0;
+        // Only worth a trip when the bot could actually complete it: a bot sent to the upgrade NPC holding one diamond
+        // walks there, fails, and walks back - 223 of 1043 decisions went to upgrades while diamond runs went to zero,
+        // which is the errand eating the errand's own funding.
+        double sUpg = 0;
+        if (upgradeWanted && upgradeDia >= 2) {
+            // in hand or banked at the base we are standing at: either way the purchase completes this trip
+            if (dia >= 2) sUpg = 0.9;
+            else if (nearBase) sUpg = 0.75;
+        }
         double sIron = 0;
         // opening: grab just enough for the first wool (2020 players were at the shop within ~10 s), not a pile
         int openingIron = role == Role.RUSHER ? 12 : 8;

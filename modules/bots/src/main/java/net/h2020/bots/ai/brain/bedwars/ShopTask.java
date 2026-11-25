@@ -123,7 +123,9 @@ public final class ShopTask extends BwTask {
                 brain.finalLife(), brain.needsBedTools(), mlPick, shell == 0, shell == 2);
         for (BedwarsShopItem it : plan) {
             if (!view.canAfford(p, it)) continue;
-            if (view.purchase(p, it)) {
+            boolean boughtIt = view.purchase(p, it);
+            net.h2020.api.stats.CombatStats.inc(boughtIt ? "shop.buy." + it.name() : "shop.buyfail." + it.name());
+            if (boughtIt) {
                 if (lastItem != null && category(lastItem) != category(it)) wait += AIMath.range(ctx.rng, 3, 9);
                 lastItem = it;
                 return true;

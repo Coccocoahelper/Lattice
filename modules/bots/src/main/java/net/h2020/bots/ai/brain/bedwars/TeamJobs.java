@@ -129,7 +129,10 @@ public final class TeamJobs {
         // already has some, or who can fetch them from the team chest. It is worth a dedicated body because Protection
         // and Sharpness apply to every teammate for the rest of the game: one bot spending twenty seconds there is
         // worth more than the same bot mining.
-        if (!hasUpgrader && n >= 2 && b.bedAliveNow()) {
+        // only when there is actually a purchase to make, and never repeatedly: the board re-makes every 1.2 s and an
+        // unconditional UPGRADE job held 21% of all decisions and starved the diamond runs that fund it.
+        boolean upgradeWorthIt = b.needsUpgradeJob();
+        if (!hasUpgrader && upgradeWorthIt && n >= 2 && b.bedAliveNow()) {
             // whoever is holding the most diamonds, even if they already hold a job: the job is not a leftover, it is
             // what the diamonds are for. Ties go to the weakest, who loses least by stepping off their job.
             BedwarsBrain pick = null;
