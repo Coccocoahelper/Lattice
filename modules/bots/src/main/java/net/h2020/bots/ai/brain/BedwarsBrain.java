@@ -710,7 +710,12 @@ public final class BedwarsBrain extends GameBrain {
         int idx = bots.indexOf(ctx.player);
         int n = bots.size();
         boolean humansOnTeam = mates.size() > n;
+        // A dedicated defender is a luxury of a big team. On a duo the only body assigned to defence spends most of the
+        // game guarding a bed nobody is attacking, while its partner is alone on every rush: measured guard 15.2% of all
+        // decisions and iron 32.2%, with rush at 1.9%. Two players cover defence between them - the one who is at base
+        // defends, and that is decided by the job board's DEFEND job, which already exists and is re-made every second.
         if (n <= 1) role = humansOnTeam ? (a > 0.5 ? Role.RUSHER : Role.DEFENDER) : (a > 0.62 ? Role.RUSHER : Role.FARMER);
+        else if (n == 2) role = idx == 0 ? Role.RUSHER : Role.FARMER;      // no dedicated defender on a duo
         else if (idx == 0) role = Role.RUSHER;
         else if (idx == n - 1) role = Role.DEFENDER;
         else role = Role.FARMER;
@@ -1071,7 +1076,14 @@ public final class BedwarsBrain extends GameBrain {
             else if (role == Role.RUSHER && gsec > 240 && integrity >= 0.9) sEm = 0.5;
             else if (gsec > 300) sEm = 0.4;
         }
-        double sGuard = bedAlive ? (role == Role.DEFENDER ? 0.55 : 0.12) : 0;
+        // A guard is a body doing nothing. It is the right choice only for a designated defender, and only while the
+        // bed is actually at risk or there is nothing better to do: a farmer standing at base is a farmer not farming.
+        double sGuard = 0;
+        if (bedAlive) {
+            if (role == Role.DEFENDER) sGuard = 0.55;
+            else if (def != null && integrity < 0.75) sGuard = 0.25;      // hurt bed: worth watching, not idling
+            else sGuard = 0.06;
+        }
         double sShare = 0;
         Player needy = null;
         if (teamMode() && iron >= 32 && ctx.tick - lastShare > 1200) {
