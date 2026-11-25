@@ -147,8 +147,11 @@ def teams_of(parts, family):
             return 2
     if family == "skywars":
         if "mega" in joined:
-            return 12
-        return 12          # standard/mini/ranked are all one-island-per-player layouts
+            return 12       # 4 per team x 3 teams? no: Mega is 100 players; Lattice caps at 12 islands
+        # SkyWars Standard serves BOTH queues from one pool - Solo (12 islands) and Teams (8 islands) - so the count is a
+        # property of the QUEUE, not the world. The archive does not split them, so island count has to be read from the
+        # world itself; 12 is the Solo default and the game re-reads cages from map.yml when they are authored.
+        return 12
     if family == "duels":
         return 2
     return 2
