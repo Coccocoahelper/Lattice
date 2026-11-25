@@ -21,3 +21,6 @@ maps-import/
 # A local Gradle home (GRADLE_USER_HOME=.gradle-user-home) and classpath scratch; neither is source.
 .gradle-user-home/
 tools_classpath_tmp.txt
+
+# raw archive downloads: 910 MB of zips, reproducible from tools/mega_get.py
+maps-incoming/
