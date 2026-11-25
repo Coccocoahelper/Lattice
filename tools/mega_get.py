@@ -48,6 +48,14 @@ def decrypt_key(k, parent=None):
     return bytes(raw[:16])
 
 
+def _fold(raw):
+    """XOR the two 16-byte halves of a 32-byte key, which is how MEGA derives an AES key from a link key."""
+    if len(raw) < 32:
+        return b""
+    w = struct.unpack(">IIIIIIII", raw[:32])
+    return struct.pack(">IIII", w[0] ^ w[4], w[1] ^ w[5], w[2] ^ w[6], w[3] ^ w[7])
+
+
 def _unwrap(raw, parent):
     """AES-CBC unwrap, keeping every byte: for a file the upper 16 bytes are the CTR nonce."""
     out = b""
@@ -91,28 +99,33 @@ def listing(handle, key):
     raw = {}
     for child in node.get("f", []):
         ck = child.get("k", "")
+        # `k` can carry SEVERAL "key-id:base64key" pairs. The right one is whichever unwraps with a key we hold AND
+        # yields valid attribute JSON - every pair "decrypts" to something, so taking the first silently produced a
+        # handle where a name should be and a ciphertext file on disk (measured: 52 files saved as noise).
+        # Trying each and keeping the one that parses is self-checking and needs no guess about ordering.
         node_key = None
-        if ck:
-            pairs = [p for p in ck.split("/") if ":" in p]
-            for pair in pairs:
-                try:
-                    node_key = decrypt_key(b64d(pair.partition(":")[2]), aes_key)
-                    break
-                except Exception:
-                    continue
-        if node_key is None:
-            node_key = aes_key
-        # the node key may be 32 bytes for a FILE: keep the whole thing, the CTR nonce lives in the upper half
         file_key = None
         if ck:
-            pairs = [p for p in ck.split("/") if ":" in p]
-            for pair in pairs:
+            for pair in [p for p in ck.split("/") if ":" in p]:
                 try:
-                    unwrapped = _unwrap(b64d(pair.partition(":")[2]), aes_key)
-                    file_key = unwrapped
-                    break
+                    cand = _unwrap(b64d(pair.partition(":")[2]), aes_key)
                 except Exception:
                     continue
+                looks_ok = False
+                for cand_aes in (cand[:16], _fold(cand)):
+                    if not cand_aes or len(cand_aes) != 16:
+                        continue
+                    probe = dec_attrs(cand_aes, child.get("a", ""))
+                    if probe.get("n"):
+                        node_key = cand_aes
+                        file_key = cand
+                        looks_ok = True
+                        break
+                if looks_ok:
+                    break
+        if node_key is None:
+            node_key = aes_key
+            file_key = file_key or aes_key
         attrs = dec_attrs(node_key, child.get("a", ""))
         raw[child.get("h")] = {
             "name": attrs.get("n", child.get("h")),

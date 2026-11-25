@@ -105,24 +105,18 @@ def walk(handle, key):
         # THE NODE NAMED BY ITS ID. For a node under the public link that id is the link's own handle, so the segment
         # whose id matches is the one to unwrap with the key we already hold.
         ck = child.get("k", "")
+        # Several "key-id:base64key" pairs can be present and every one of them "decrypts" to something; the right one
+        # is whichever yields valid attribute JSON. Taking the first silently produced handles instead of names.
         node_key = None
-        if ck and aes_key is not None:
-            pairs = [p for p in ck.split("/") if ":" in p]
-            for pair in pairs:
-                kid, _, seg = pair.partition(":")
-                if kid not in (parent_handle, "__all__"):
-                    continue
+        if ck:
+            for pair in [p for p in ck.split("/") if ":" in p]:
                 try:
-                    node_key = decrypt_key(b64d(seg), aes_key)
+                    cand = decrypt_key(b64d(pair.partition(":")[2]), aes_key)
+                except Exception:
+                    continue
+                if dec_attrs(cand, child.get("a", "")).get("n"):
+                    node_key = cand
                     break
-                except Exception:
-                    continue
-            if node_key is None and len(pairs) == 1:
-                # a single pair always names the link's key id in practice
-                try:
-                    node_key = decrypt_key(b64d(pairs[0].partition(":")[2]), aes_key)
-                except Exception:
-                    node_key = None
         if node_key is None:
             node_key = aes_key
         try:
