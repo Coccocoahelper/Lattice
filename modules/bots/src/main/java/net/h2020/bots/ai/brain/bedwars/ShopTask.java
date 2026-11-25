@@ -139,7 +139,9 @@ public final class ShopTask extends BwTask {
         List<String> ups = ShopPlanner.upgrades(brain.role(), game().type().teamSize() > 1, bedThreatened);
         while (upgradeIdx < ups.size()) {
             String id = ups.get(upgradeIdx);
-            if (view.purchaseUpgrade(ctx.player, id)) {
+            boolean ok = view.purchaseUpgrade(ctx.player, id);
+            net.h2020.api.stats.CombatStats.inc(ok ? "shop.upg.ok." + id : "shop.upg.no." + id);
+            if (ok) {
                 if (brain.teamMode()) ctx.chat.callout(calloutFor(id), 0.35);
                 return true;
             }

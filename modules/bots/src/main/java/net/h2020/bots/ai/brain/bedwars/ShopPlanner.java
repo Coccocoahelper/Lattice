@@ -274,6 +274,54 @@ public final class ShopPlanner {
         return out;
     }
 
+    /**
+     * Is there still a team upgrade worth buying?
+     *
+     * <p>The score that sends a bot to the upgrades NPC used to test diamonds-in-bag at base, which is the one moment
+     * the bag is usually empty because the diamonds were just banked. This asks the question that actually matters: is
+     * anything on the list still unbought, and is it early enough in the game for it to pay off. Protection and
+     * Sharpness apply to the whole team for the rest of the game, so they are worth buying at almost any time, but a
+     * Forge tier at 40 seconds is not.
+     */
+    public static boolean wantsUpgrade(net.h2020.bots.ai.brain.BedwarsBrain brain, int gameSeconds) {
+        try {
+            if (brain == null || brain.view() == null || brain.color() == null) return false;
+            if (!(brain.view() instanceof net.h2020.api.game.BedwarsView)) return false;
+            net.h2020.api.game.BedwarsView v = (net.h2020.api.game.BedwarsView) brain.view();
+            // any tier of the three that matter, unbought
+            String[] core = { "protection", "sharpness", "haste" };
+            for (String id : core) {
+                if (v.upgradeLevel(brain.color(), id) < 4) return true;
+            }
+            return gameSeconds > 180 && v.upgradeLevel(brain.color(), "forge") < 2;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    /**
+     * Diamonds sitting in the team chest near spawn.
+     *
+     * <p>A bot that banked its diamonds has none in the bag, and the upgrade is paid from the bag - so the score has to
+     * count both, or it reads zero at exactly the moment the team is richest. Counts the nearest chest within reach of
+     * the team spawn, which is where {@code DepositTask} puts them.
+     */
+    public static int chestDiamonds(net.h2020.bots.ai.brain.BedwarsBrain brain) {
+        try {
+            org.bukkit.block.Block chest =
+                    net.h2020.bots.ai.brain.bedwars.WithdrawTask.chestWithDiamonds(brain);
+            if (chest == null) return 0;
+            org.bukkit.block.Chest c = (org.bukkit.block.Chest) chest.getState();
+            int n = 0;
+            for (org.bukkit.inventory.ItemStack i : c.getBlockInventory().getContents()) {
+                if (i != null && i.getType() == org.bukkit.Material.DIAMOND) n += i.getAmount();
+            }
+            return n;
+        } catch (Throwable t) {
+            return 0;
+        }
+    }
+
     /** Backwards-compatible overload: assume the bed is not under threat. */
     public static List<String> upgrades(Role role, boolean teams) {
         return upgrades(role, teams, false);

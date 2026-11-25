@@ -26,7 +26,8 @@ import java.util.Map;
  * a bridge because the board shuffled; a dead or cornered owner frees the job immediately.
  */
 public final class TeamJobs {
-    public static final int NONE = -1, DEFEND = 0, DIAMONDS = 1, EMERALDS = 2, RUSH = 3, IRON = 4, SHOP = 5;
+    public static final int NONE = -1, DEFEND = 0, DIAMONDS = 1, EMERALDS = 2, RUSH = 3, IRON = 4, SHOP = 5,
+            UPGRADE = 6;
 
     /** world|team -> player uuid -> job. */
     private static final Map<String, Map<java.util.UUID, Integer>> BOARD = new HashMap<String, Map<java.util.UUID, Integer>>();
@@ -56,6 +57,7 @@ public final class TeamJobs {
             case RUSH: return 4;
             case IRON: return 2;
             case SHOP: return 0;
+            case UPGRADE: return 1;
             default: return -1;
         }
     }
@@ -112,11 +114,39 @@ public final class TeamJobs {
         boolean hasDiamonds = board.containsValue(DIAMONDS);
         boolean hasEmeralds = board.containsValue(EMERALDS);
         boolean hasRusher = board.containsValue(RUSH);
+        boolean hasUpgrader = board.containsValue(UPGRADE);
 
         // 1. somebody must hold the bed while it is still standing and the team is more than two
         if (bedAlive && !hasDefender && n >= 2) {
             BedwarsBrain pick = weakestFree(crew, board);
             if (pick != null) board.put(pick.context().player.getUniqueId(), DEFEND);
+        }
+        // 2b. somebody should be turning diamonds into the team's permanent advantage. Without an owner this never
+        // happens: the action existed, but it depended on one bot's own score, which needs diamonds in hand at a moment
+        // they have usually already been banked - measured 5 upgrade visits in 844 tasks and zero purchases.
+        //
+        // Upgrades are paid from the bag (UpgradeShop.pay counts the player's diamonds), so the owner is somebody who
+        // already has some, or who can fetch them from the team chest. It is worth a dedicated body because Protection
+        // and Sharpness apply to every teammate for the rest of the game: one bot spending twenty seconds there is
+        // worth more than the same bot mining.
+        if (!hasUpgrader && n >= 2 && b.bedAliveNow()) {
+            // whoever is holding the most diamonds, even if they already hold a job: the job is not a leftover, it is
+            // what the diamonds are for. Ties go to the weakest, who loses least by stepping off their job.
+            BedwarsBrain pick = null;
+            double bestHold = -1;
+            for (BedwarsBrain m : crew) {
+                double held = net.h2020.bots.ai.brain.bedwars.ShopPlanner.diamonds(m.context().player);
+                if (held > bestHold || (held == bestHold && pick != null
+                        && m.context().persona.skill.overall < pick.context().persona.skill.overall)) {
+                    bestHold = held;
+                    pick = m;
+                }
+            }
+            if (pick != null) {
+                board.put(pick.context().player.getUniqueId(), UPGRADE);
+                hasUpgrader = true;
+                net.h2020.api.stats.CombatStats.inc("jobs.upgrade");
+            }
         }
         // 2. one diamond runner and, when there are enough bots, one emerald runner (emeralds need confidence)
         if (n >= 2 && !hasDiamonds) {

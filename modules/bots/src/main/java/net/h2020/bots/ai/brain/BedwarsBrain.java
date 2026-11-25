@@ -922,7 +922,13 @@ public final class BedwarsBrain extends GameBrain {
 
         double sShop = canShop ? (blocks < 16 ? 1.2 : 0.75) * (nearBase ? 1 : 0.35) : 0;
         if (justRespawned && canShop) sShop += 0.7;
-        double sUpg = (dia >= 2 && nearBase && (role == Role.FARMER || dia >= 4 || gsec > 300)) ? 0.85 : 0;
+        // Team upgrades were scored on diamonds IN THE BAG at a moment the team is near its own base - but diamonds get
+        // banked in the team chest, so the bag is usually empty exactly when the bot is at base. Measured: 5 upgrade
+        // visits in 844 tasks and zero purchases. What matters is whether there is an upgrade left to buy and whether
+        // the diamonds are reachable - in the bag OR in the chest.
+        boolean upgradeWanted = ShopPlanner.wantsUpgrade(this, gsec);
+        int upgradeDia = dia + (ShopPlanner.chestDiamonds(this));
+        double sUpg = (upgradeWanted && upgradeDia >= 2 && (nearBase || dia >= 2)) ? 0.9 : 0;
         double sIron = 0;
         // opening: grab just enough for the first wool (2020 players were at the shop within ~10 s), not a pile
         int openingIron = role == Role.RUSHER ? 12 : 8;
@@ -1118,7 +1124,11 @@ public final class BedwarsBrain extends GameBrain {
         // one, and nobody is left without a job
         int teamJob = TeamJobs.jobOf(this);
         int jobIdx = TeamJobs.scoreIndex(teamJob);
-        if (jobIdx >= 0 && sc[jobIdx] > 0.02) sc[jobIdx] += 0.55;
+        // The team's job ENSTABLISHES a score, it does not merely reinforce one. Requiring sc[jobIdx] > 0.02 first meant a
+        // job whose own score happened to be zero got no boost at all, and the bot ignored the job it had been given -
+        // measured jobs.upgrade 8 with brain.task.upgrades 0. A body assigned to a job is the team saying "this needs
+        // doing", which is exactly the case where the individual score has not noticed.
+        if (jobIdx >= 0) sc[jobIdx] = Math.max(sc[jobIdx], 0.2) + 0.55;
         lastJob = TeamJobs.name(teamJob);
         lastScores = sc;
         lastCanShop = canShop;
@@ -1140,9 +1150,16 @@ public final class BedwarsBrain extends GameBrain {
         switch (best) {
             case 0: return new ShopTask(this, false);
             case 1: {
-                // team upgrades are paid with the diamonds in the team chest: fetch them first when we are short
-                if (ShopPlanner.diamonds(ctx.player) < 2 && WithdrawTask.chestWithDiamonds(this) != null) {
-                    return new WithdrawTask(this);
+                // Team upgrades are paid from the bag, and diamonds get banked in the team chest - so the errand is
+                // usually fetch-then-buy. Measured before this: shop.nothing 136, shop.upgrade 0, withdraw 0 - the bot
+                // walked to the upgrades NPC, could not afford anything, and closed the window. It now fetches first,
+                // and if the chest is empty it goes and mines instead of standing at a shop it cannot use.
+                if (ShopPlanner.diamonds(ctx.player) < 2) {
+                    if (WithdrawTask.chestWithDiamonds(this) != null) return new WithdrawTask(this);
+                    // no diamonds banked either: the honest job is to go get some, not to re-visit the NPC
+                    org.bukkit.Location dgen = diamondOnOurSide(view.diamondGenerators());
+                    if (dgen != null) return new CollectTask(this, dgen, CollectTask.Kind.DIAMOND,
+                            ShopPlanner.diamonds(ctx.player) + 2, 20 * 40);
                 }
                 return new ShopTask(this, true);
             }
