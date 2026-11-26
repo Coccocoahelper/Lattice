@@ -68,6 +68,20 @@ public final class MapEditService implements Listener {
         /** Fast setup: the point keys still to set. Empty means the wizard is not running. */
         List<String> queue = new ArrayList<String>();
         String queueTeam;
+        /**
+         * True while the ARENA wizard is running: every team, then diamonds, emeralds, lobby, mid, spectator, heights.
+         *
+         * <p>Different from a per-team fast setup in one way that matters: the wizard decides what comes next from what
+         * is still missing, so it can be started on a half-finished map and will only ask for the gaps.
+         */
+        boolean arenaWizard;
+        /** Which team the arena wizard is on, and which of its five points is next (0..4). */
+        int arenaTeamIdx;
+        int arenaStep;
+        /** The arena wizard's tail: the keys after every team is done. */
+        List<String> arenaTail = new ArrayList<String>();
+        /** Asking for the two build heights, which are typed numbers rather than blocks. */
+        boolean awaitHeights;
         boolean holograms = true;
 
         Session(UUID player, String map, File dir, World world, String worldName) {
@@ -288,6 +302,9 @@ public final class MapEditService implements Listener {
             if (!s.queue.isEmpty() && c.equals(s.queueTeam)) fast = glow(fast);
             inv.setItem(20, fast);
             act.put(20, "fastsetup");
+            // the arena-wide wizard, next to the per-team one: the per-team button is for fixing one base, this one
+            // walks the whole map
+            act.put(19, "fastall");
             inv.setItem(22, item(Material.ARROW, ChatColor.GRAY + "Back"));
             act.put(22, "page:1");
             inv.setItem(26, item(Material.COMPASS, ChatColor.RED + "Leave the editor"));
@@ -431,6 +448,10 @@ public final class MapEditService implements Listener {
         if (a == null) return;
 
         if (a.equals("exit")) { p.closeInventory(); close(s, true); return; }
+        if (a.equals("fastall")) {
+            startArenaWizard(p, s);
+            return;
+        }
         if (a.equals("fastsetup")) {
             String c = s.team;
             s.queue.clear();
@@ -515,6 +536,76 @@ public final class MapEditService implements Listener {
         if (e.getInventory().getHolder() instanceof Holder) e.setCancelled(true);
     }
 
+    /**
+     * The heights step is typed rather than clicked, so the wizard listens for the next chat line.
+     *
+     * <p>Two numbers, or the word "auto". "auto" takes them from the map's own geometry, which is what an unsourced map
+     * needs: the floor is the lowest block any team stands on, the ceiling the tallest. That is a *suggestion* and the
+     * reply says so - a wiki figure is better when it exists, and the wizard tells you which it used.
+     */
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onHeightsChat(org.bukkit.event.player.AsyncPlayerChatEvent e) {
+        Session s = sessions.get(e.getPlayer().getUniqueId());
+        if (s == null || !s.awaitHeights) return;
+        String msg = e.getMessage().trim();
+        e.setCancelled(true);
+        if (msg.equalsIgnoreCase("cancel")) {
+            s.awaitHeights = false;
+            e.getPlayer().sendMessage(org.bukkit.ChatColor.GRAY + "Arena setup cancelled.");
+            return;
+        }
+        Integer min = null, max = null;
+        if (msg.equalsIgnoreCase("auto")) {
+            int[] got = autoHeights(s);
+            min = got[0];
+            max = got[1];
+        } else {
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("^(-?\\d+)\\s+(-?\\d+)$").matcher(msg);
+            if (!m.matches()) {
+                e.getPlayer().sendMessage(org.bukkit.ChatColor.RED
+                        + "Type two numbers (minimum then maximum), or 'auto', or 'cancel'.");
+                return;
+            }
+            min = Integer.parseInt(m.group(1));
+            max = Integer.parseInt(m.group(2));
+        }
+        if (max <= min) {
+            e.getPlayer().sendMessage(org.bukkit.ChatColor.RED + "The maximum must be above the minimum.");
+            return;
+        }
+        s.awaitHeights = false;
+        boolean a = MapEditor.setScalar(s.dir, "build-floor", String.valueOf(min));
+        boolean b = MapEditor.setScalar(s.dir, "build-limit", String.valueOf(max));
+        if (a && b) {
+            service.reload();
+            e.getPlayer().sendMessage(org.bukkit.ChatColor.GREEN + "Arena setup complete: build floor " + min
+                    + ", ceiling " + max + ".");
+        } else {
+            e.getPlayer().sendMessage(org.bukkit.ChatColor.RED + "Could not write the heights into map.yml.");
+        }
+    }
+
+    /** Suggested heights from the world: the lowest team point's base and the tallest block over the beds. */
+    private int[] autoHeights(Session s) {
+        MapTemplate t = template(s);
+        int lowest = Integer.MAX_VALUE, highest = Integer.MIN_VALUE;
+        if (t != null) {
+            for (net.h2020.api.game.TeamColor c : net.h2020.api.game.TeamColor.values()) {
+                String id = c.name().toLowerCase(java.util.Locale.ROOT);
+                for (String key : new String[]{"team." + id + ".spawn", "team." + id + ".bed",
+                        net.h2020.api.map.MapKeys.MID, net.h2020.api.map.MapKeys.WAITING_LOBBY}) {
+                    for (org.bukkit.util.Vector v : t.points(key)) {
+                        lowest = Math.min(lowest, v.getBlockY());
+                        highest = Math.max(highest, v.getBlockY());
+                    }
+                }
+            }
+        }
+        if (lowest == Integer.MAX_VALUE) return new int[]{0, 255};
+        // a little headroom below the lowest walking surface, and room to build above the highest point
+        return new int[]{Math.max(0, lowest - 8), Math.min(255, highest + 40)};
+    }
+
     @EventHandler
     public void onQuit(PlayerQuitEvent e) {
         Session s = sessions.get(e.getPlayer().getUniqueId());
@@ -545,7 +636,11 @@ public final class MapEditService implements Listener {
         s.armedIndex = -1;
         if (ok && queued) {
             s.queue.remove(0);
-            if (!s.queue.isEmpty()) {
+            if (s.arenaWizard) {
+                // the arena wizard owns the order: one more point of this team, then the next team, then the tail
+                s.arenaStep++;
+                advanceTeam(p, s, teamsOf(s));
+            } else if (!s.queue.isEmpty()) {
                 String next = s.queue.get(0);
                 int step = 6 - s.queue.size();
                 p.sendMessage(ChatColor.AQUA + "Fast setup for " + capitalise(s.queueTeam == null ? s.team : s.queueTeam)
@@ -555,6 +650,122 @@ public final class MapEditService implements Listener {
             }
         }
         return ok;
+    }
+
+    /**
+     * Start the arena wizard: every team in the map, then the shared points, then the build heights.
+     *
+     * <p>This is the "set up a whole arena" flow rather than "set up one team". The order is the order a map is actually
+     * built in - the eight team bases first because they are the tedious part and the one where walking the arena
+     * matters, then the points shared by every team (diamonds, emeralds, waiting lobby, mid, spectator), and finally the
+     * two build heights, which are typed numbers rather than block clicks because they are not locations.
+     *
+     * <p>Only what is MISSING is asked for, so a half-authored map is not re-walked from the start.
+     */
+    private void startArenaWizard(Player p, Session s) {
+        p.closeInventory();
+        List<String> teams = teamsOf(s);
+        if (teams.isEmpty()) {
+            p.sendMessage(ChatColor.RED + "This map declares no teams - set teams: [..] in map.yml first.");
+            return;
+        }
+        s.arenaWizard = true;
+        s.arenaTeamIdx = 0;
+        s.arenaStep = 0;
+        s.arenaTail.clear();
+        s.awaitHeights = false;
+        // the shared points come after the teams; queue them only if they are missing, so a re-run fills gaps
+        MapTemplate t = template(s);
+        for (String[] pair : new String[][]{
+                {net.h2020.api.map.MapKeys.DIAMOND_GEN, "diamond generator"},
+                {net.h2020.api.map.MapKeys.EMERALD_GEN, "emerald generator"},
+                {net.h2020.api.map.MapKeys.WAITING_LOBBY, "waiting lobby"},
+                {net.h2020.api.map.MapKeys.MID, "mid point"},
+                {net.h2020.api.map.MapKeys.SPECTATOR, "spectator point"}}) {
+            if (t == null || t.points(pair[0]).isEmpty()) s.arenaTail.add(pair[0]);
+        }
+        advanceTeam(p, s, teams);
+    }
+
+    /** Point the wizard at the next team that still needs a point, or finish into the shared tail. */
+    private void advanceTeam(Player p, Session s, List<String> teams) {
+        String[] steps = {"spawn", "bed", "shop", "upgrades", "generator"};
+        while (s.arenaTeamIdx < teams.size()) {
+            String c = teams.get(s.arenaTeamIdx);
+            while (s.arenaStep < steps.length) {
+                String key = "team." + c + "." + steps[s.arenaStep];
+                s.queue.clear();
+                s.queueTeam = c;
+                s.armed = key;
+                s.armedBed = steps[s.arenaStep].equals("bed");
+                s.armedIndex = -1;
+                s.queue.add(key);
+                int n = s.arenaTeamIdx + 1, total = teams.size();
+                p.sendMessage(ChatColor.AQUA + "" + ChatColor.BOLD + "Arena setup "
+                        + ChatColor.GRAY + "team " + n + "/" + total + " " + capitalise(c)
+                        + " - step " + (s.arenaStep + 1) + "/" + steps.length + ": "
+                        + ChatColor.WHITE + stepName(key));
+                p.sendMessage(ChatColor.GRAY + "Left-click that block with the wand. "
+                        + ChatColor.DARK_GRAY + "(/h2020 edit skip to skip, cancel to stop)");
+                return;
+            }
+            s.arenaStep = 0;
+            s.arenaTeamIdx++;
+        }
+        // every team is done - the shared points
+        s.queueTeam = null;
+        if (!s.arenaTail.isEmpty()) {
+            String key = s.arenaTail.remove(0);
+            s.queue.clear();
+            s.queue.add(key);
+            s.armed = key;
+            s.armedBed = false;
+            s.armedIndex = -1;
+            p.sendMessage(ChatColor.AQUA + "" + ChatColor.BOLD + "Arena setup "
+                    + ChatColor.GRAY + "shared: " + ChatColor.WHITE + stepName(key));
+            return;
+        }
+        // and finally the heights, which are typed
+        s.arenaWizard = false;
+        s.awaitHeights = true;
+        s.armed = null;
+        p.sendMessage(ChatColor.AQUA + "" + ChatColor.BOLD + "Arena setup " + ChatColor.GRAY + "last step: heights");
+        p.sendMessage(ChatColor.WHITE + "Type the minimum and maximum build heights, e.g. "
+                + ChatColor.GREEN + "60 120");
+        p.sendMessage(ChatColor.DARK_GRAY + "Or type " + ChatColor.GRAY + "auto" + ChatColor.DARK_GRAY
+                + " to take them from the world's own geometry.");
+    }
+
+    /**
+     * The team colours this map uses.
+     *
+     * <p>There is no key-list on a template, so this asks the map what it already has: a team is "in use" if any of its
+     * five points exist. That is right for a half-authored map and costs one lookup per colour. When nothing has been
+     * set yet it falls back to the declared team COUNT and the standard colour order, which is the order the map.yml
+     * generator writes and the order Hypixel names them in.
+     */
+    private List<String> teamsOf(Session s) {
+        List<String> used = new ArrayList<String>();
+        MapTemplate t = template(s);
+        String[] steps = {"spawn", "bed", "shop", "upgrades", "generator"};
+        for (net.h2020.api.game.TeamColor c : net.h2020.api.game.TeamColor.values()) {
+            String id = c.name().toLowerCase(java.util.Locale.ROOT);
+            if (t == null) continue;
+            for (String step : steps) {
+                if (!t.points("team." + id + "." + step).isEmpty()) { used.add(id); break; }
+            }
+        }
+        if (!used.isEmpty()) return used;
+        int count = 8;
+        try {
+            List<Integer> declared = t == null ? null : t.supportedTeamCounts();
+            if (declared != null && !declared.isEmpty()) count = declared.get(0);
+        } catch (Throwable ignored) { }
+        for (net.h2020.api.game.TeamColor c : net.h2020.api.game.TeamColor.values()) {
+            if (used.size() >= count) break;
+            used.add(c.name().toLowerCase(java.util.Locale.ROOT));
+        }
+        return used;
     }
 
     /** The wizard's five points are in: derive and write the team's base box, then announce the result. */
@@ -596,7 +807,7 @@ public final class MapEditService implements Listener {
         } else {
             p.sendMessage(net.h2020.api.core.Messages.get("core.mapeditservice.fast-setup-for-could","p1",capitalise(c)));
         }
-        s.queueTeam = null;
+        if (!s.arenaWizard) s.queueTeam = null;
     }
 
     private static void addPoint(List<Vector> out, MapTemplate t, String key) {

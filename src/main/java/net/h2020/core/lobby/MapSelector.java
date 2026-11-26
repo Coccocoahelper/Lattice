@@ -136,6 +136,11 @@ public final class MapSelector {
             ItemBuilder b = new ItemBuilder(ok ? Material.PAPER : Material.PAPER)
                     .name((chosen ? ChatColor.GREEN + "" + ChatColor.BOLD : ChatColor.WHITE + "") + t.name())
                     .lore(ChatColor.GRAY + s.mode.displayName + ChatColor.DARK_GRAY + " - " + s.mode.teams() + " teams");
+            String added = t.addedDate();
+            if (added != null && !added.isEmpty()) b.lore(ChatColor.DARK_GRAY + "Added " + added);
+            if (t.buildFloorY() >= 0) {
+                b.lore(ChatColor.DARK_GRAY + "Build " + t.buildFloorY() + " to " + t.buildLimitY());
+            }
             if (!ok) {
                 b.lore(ChatColor.RED + "Not playable yet: no arena points");
             } else if (chosen) {

@@ -1426,6 +1426,10 @@ public final class BedwarsGame implements BedwarsView {
 
     public String placeDenial(Block b) {
         if (b.getY() > map.buildLimitY()) return ChatColor.RED + "Build height limit reached!";
+        // the floor is the other half of the same rule: below the arena is still "inside the world", and placing there
+        // is how a player reaches under a map. -1 means the map never set one, and 0 is the old implicit floor.
+        int floor = map.buildFloorY() >= 0 ? map.buildFloorY() : 0;
+        if (b.getY() < floor) return ChatColor.RED + "Too low to build here!";
         Vector min = map.boundsMin(), max = map.boundsMax();
         if (min != null && max != null) {
             if (b.getX() < min.getBlockX() || b.getX() > max.getBlockX() || b.getZ() < min.getBlockZ()

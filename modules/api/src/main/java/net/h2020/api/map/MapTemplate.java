@@ -25,6 +25,23 @@ public interface MapTemplate {
     default List<String> tags() { return java.util.Collections.emptyList(); }
     /** Build/void height limits and play bounds. */
     int buildLimitY();
+    /**
+     * The lowest Y a player may build at.
+     *
+     * <p>Hypixel enforces this separately from the build ceiling: a generator or a trap door under the island is inside
+     * the world but below the arena, and placing there is a way to reach places the map was not designed for. Returns -1
+     * for a map that has not been given one, which keeps every existing map behaving exactly as it did - the floor then
+     * falls back to the world's own 0, which is the old implicit answer.
+     */
+    default int buildFloorY() { return -1; }
+
+    /**
+     * When this map entered the rotation, as an ISO date, or empty.
+     *
+     * <p>Scraped from the wiki rather than authored, so it is a default: a map that has no entry reports empty and the
+     * lists show nothing rather than a guessed date.
+     */
+    default String addedDate() { return ""; }
     Vector boundsMin();
     Vector boundsMax();
     /** Copy the template world folder to a fresh instance folder and load it (void generator, no mobs, no weather). */

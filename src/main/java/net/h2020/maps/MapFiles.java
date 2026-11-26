@@ -71,6 +71,9 @@ public final class MapFiles {
         if (ps != null) readPoints(ps, "", points, yaws);
         if (teams.isEmpty()) teams.add(inferTeams(family, points));
         int buildLimit = y.getInt("build-limit", 255);
+        // -1 = "not set": the floor then behaves as it always did, at the world's own 0
+        int buildFloor = y.getInt("build-floor", -1);
+        String added = y.getString("added", "");
         Vector min = vec(y.getConfigurationSection("bounds/min"), new Vector(-512, 0, -512));
         Vector max = vec(y.getConfigurationSection("bounds/max"), new Vector(512, 255, 512));
         Vector bmin = Vector.getMinimum(min, max), bmax = Vector.getMaximum(min, max);
@@ -79,7 +82,7 @@ public final class MapFiles {
         boolean generated = y.getBoolean("generator/generated", false);
         int version = y.getInt("generator/version", 0);
         String theme = y.getString("generator/theme", "");
-        return new StoredMapTemplate(service, dir, name, family, teams, buildLimit, bmin, bmax, points, yaws, biome,
+        return new StoredMapTemplate(service, dir, name, family, teams, buildLimit, buildFloor, added, bmin, bmax, points, yaws, biome,
                 generated, version, theme, readTags(y));
     }
 
@@ -115,7 +118,8 @@ public final class MapFiles {
             int at = lines.size();
             for (int i = 0; i < lines.size(); i++) {
                 String l = lines.get(i);
-                if (l.startsWith("family:") || l.startsWith("teams:") || l.startsWith("build-limit:")) at = i + 1;
+                if (l.startsWith("family:") || l.startsWith("teams:") || l.startsWith("build-limit:")
+                        || l.startsWith("build-floor:") || l.startsWith("added:")) at = i + 1;
             }
             lines.add(at, tagLine.toString());
         }

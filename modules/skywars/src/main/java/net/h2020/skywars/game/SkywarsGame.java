@@ -470,6 +470,7 @@ public final class SkywarsGame implements SkywarsView {
 
     /** May a block be placed here (inside map bounds and below the build limit)? */
     public boolean canBuildAt(Location l) {
+        if (l.getBlockY() < (template.buildFloorY() >= 0 ? template.buildFloorY() : 0)) return true;
         if (l.getBlockY() >= template.buildLimitY()) return false;
         Vector min = template.boundsMin(), max = template.boundsMax();
         if (min == null || max == null) return true;

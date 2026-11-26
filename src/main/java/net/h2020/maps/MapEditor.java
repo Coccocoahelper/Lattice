@@ -141,8 +141,8 @@ public final class MapEditor {
         YamlConfiguration y = new YamlConfiguration();
         y.options().pathSeparator('/');
         try { y.load(f); } catch (Exception e) { return false; }
-        if (key.equals("build-limit")) {
-            try { y.set("build-limit", Integer.parseInt(value.trim())); } catch (NumberFormatException e) { return false; }
+        if (key.equals("build-limit") || key.equals("build-floor")) {
+            try { y.set(key, Integer.parseInt(value.trim())); } catch (NumberFormatException e) { return false; }
         } else if (key.startsWith("bounds.")) {
             return false;   // bounds are set as points; see setBounds
         } else {

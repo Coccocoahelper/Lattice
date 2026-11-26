@@ -33,6 +33,8 @@ public final class StoredMapTemplate implements MapTemplate {
     final GameFamily family;
     final List<Integer> teamCounts;
     final int buildLimitY;
+    final int buildFloorY;
+    final String addedDate;
     final Vector boundsMin, boundsMax;
     final Map<String, List<Vector>> points;
     final Map<String, List<Float>> yaws;
@@ -43,7 +45,7 @@ public final class StoredMapTemplate implements MapTemplate {
     final java.util.List<String> tags;
 
     StoredMapTemplate(MapServiceImpl service, File folder, String name, GameFamily family, List<Integer> teamCounts,
-                      int buildLimitY, Vector boundsMin, Vector boundsMax, Map<String, List<Vector>> points,
+                      int buildLimitY, int buildFloorY, String addedDate, Vector boundsMin, Vector boundsMax, Map<String, List<Vector>> points,
                       Map<String, List<Float>> yaws, Biome biome, boolean generated, int generatorVersion, String theme,
                       java.util.List<String> tags) {
         this.service = service;
@@ -52,6 +54,8 @@ public final class StoredMapTemplate implements MapTemplate {
         this.family = family;
         this.teamCounts = Collections.unmodifiableList(new ArrayList<Integer>(teamCounts));
         this.buildLimitY = buildLimitY;
+        this.buildFloorY = buildFloorY;
+        this.addedDate = addedDate;
         this.boundsMin = boundsMin;
         this.boundsMax = boundsMax;
         Map<String, List<Vector>> p = new LinkedHashMap<String, List<Vector>>();
@@ -104,6 +108,8 @@ public final class StoredMapTemplate implements MapTemplate {
     }
 
     @Override public int buildLimitY() { return buildLimitY; }
+    @Override public int buildFloorY() { return buildFloorY; }
+    @Override public String addedDate() { return addedDate; }
     @Override public Vector boundsMin() { return boundsMin.clone(); }
     @Override public Vector boundsMax() { return boundsMax.clone(); }
 
