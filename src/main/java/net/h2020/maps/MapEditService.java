@@ -303,7 +303,17 @@ public final class MapEditService implements Listener {
             inv.setItem(20, fast);
             act.put(20, "fastsetup");
             // the arena-wide wizard, next to the per-team one: the per-team button is for fixing one base, this one
-            // walks the whole map
+            // walks the whole map. It needs an ITEM, not just a handler - registering the action alone left a working
+            // click handler on an empty slot, so the button did not exist to click.
+            ItemStack fastAll = item(Material.BEACON, ChatColor.GOLD + "" + ChatColor.BOLD + "Arena setup",
+                    ChatColor.GRAY + "Walks EVERY team, then diamonds, emeralds,",
+                    ChatColor.GRAY + "waiting lobby, mid and spectator, then asks",
+                    ChatColor.GRAY + "for the minimum and maximum build heights.",
+                    "",
+                    ChatColor.GRAY + "Only asks for what is still missing.",
+                    ChatColor.YELLOW + "Click to start");
+            if (s.arenaWizard) fastAll = glow(fastAll);
+            inv.setItem(19, fastAll);
             act.put(19, "fastall");
             inv.setItem(22, item(Material.ARROW, ChatColor.GRAY + "Back"));
             act.put(22, "page:1");
@@ -394,9 +404,45 @@ public final class MapEditService implements Listener {
         } catch (Throwable e) {
             return "Selftest failed: " + e;
         }
-        sb.append("actions=").append(actions.isEmpty() ? 0 : actions.values().iterator().next().size());
+        // Cross-check actions against items. A handler with no item is an invisible button (this happened); an item
+        // with no handler is a dead button. Neither shows up when the two are only counted.
+        // build page 2 LAST so its action map is the one left in place (menu() replaces it every call)
+        Inventory inv2 = menu(s.player, s, 2, "red", "selftest");
+        Map<Integer, String> page2 = actions.get(s.player);
+        int orphanActions = 0, deadItems = 0;
+        if (page2 != null) {
+            Inventory inv = inv2;
+            for (java.util.Map.Entry<Integer, String> e : page2.entrySet()) {
+                int slot = e.getKey();
+                if (slot < inv.getSize() && inv.getItem(slot) == null) {
+                    orphanActions++;
+                    sb.append("NO-ITEM@").append(slot).append("(").append(e.getValue()).append(") ");
+                }
+            }
+            for (int i = 0; i < inv.getSize(); i++) {
+                // slot 4 is the team-colour header: a label with no action, which is correct and not a dead button
+                if (i == 4) continue;
+                if (inv.getItem(i) != null && !page2.containsKey(i)) {
+                    deadItems++;
+                    sb.append("DEAD@").append(i).append("(").append(inv.getItem(i).getType()).append(") ");
+                }
+            }
+        }
+        sb.append("actions=").append(page2 == null ? 0 : page2.size());
+        sb.append(" orphanActions=").append(orphanActions);
+        sb.append(" deadItems=").append(deadItems);
+        sb.append(" fastallAt=").append(slotOf(page2, "fastall"));
         actions.remove(s.player);
         return sb.toString();
+    }
+
+    /** The slot an action was registered on, or -1 - so the arena-setup button's presence is assertable. */
+    private static int slotOf(Map<Integer, String> page, String action) {
+        if (page == null) return -1;
+        for (java.util.Map.Entry<Integer, String> e : page.entrySet()) {
+            if (action.equals(e.getValue())) return e.getKey();
+        }
+        return -1;
     }
 
     // ===================================================================================== events
