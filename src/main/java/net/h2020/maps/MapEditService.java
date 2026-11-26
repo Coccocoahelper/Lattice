@@ -75,6 +75,9 @@ public final class MapEditService implements Listener {
          * is still missing, so it can be started on a half-finished map and will only ask for the gaps.
          */
         boolean arenaWizard;
+        /** The team list the wizard is walking, fixed at start. Recomputing it mid-run made it shrink as teams
+         *  gained their first point, which shifted the index and stalled the wizard after one team. */
+        List<String> arenaTeams = new ArrayList<String>();
         /** Which team the arena wizard is on, and which of its five points is next (0..4). */
         int arenaTeamIdx;
         int arenaStep;
@@ -384,6 +387,93 @@ public final class MapEditService implements Listener {
     }
 
     /** Build every page of the editor for a map and report the item counts, so the menu can be checked headless. */
+    /**
+     * Walk the arena wizard's SEQUENCE without writing anything, and report the order it would ask for.
+     *
+     * <p>This exists because the wizard's two real bugs - it stopped after one team, and it asked for one diamond and one
+     * emerald generator - were both in the ORDER, and the order is invisible from the menu. A dry run that prints the
+     * plan can be asserted on; clicking through eight teams by hand cannot.
+     */
+    public String wizardPlan(String mapName) {
+        MapService ms = H2020.find(MapService.class);
+        MapTemplate t = ms == null ? null : ms.byName(mapName);
+        if (!(t instanceof StoredMapTemplate)) return "No map " + mapName;
+        StoredMapTemplate st = (StoredMapTemplate) t;
+        Session s = new Session(new UUID(0, 0), st.name(), st.folder(), Bukkit.getWorlds().get(0), "plan");
+        s.arenaWizard = true;
+        s.arenaTeams = teamsOf(s);
+        StringBuilder sb = new StringBuilder("wizard for " + st.name() + ": teams=" + s.arenaTeams);
+        // simulate: five points per team, then the shared tail, without touching the disk
+        int points = s.arenaTeams.size() * 5;
+        int diaWanted = 4, emWanted = 2;
+        int diaHave = t.points(net.h2020.api.map.MapKeys.DIAMOND_GEN).size();
+        int emHave = t.points(net.h2020.api.map.MapKeys.EMERALD_GEN).size();
+        int tail = Math.max(0, diaWanted - diaHave) + Math.max(0, emWanted - emHave);
+        for (String k : new String[]{net.h2020.api.map.MapKeys.WAITING_LOBBY, net.h2020.api.map.MapKeys.MID,
+                net.h2020.api.map.MapKeys.SPECTATOR}) {
+            if (t.points(k).isEmpty()) tail++;
+        }
+        sb.append(" teamPoints=").append(points);
+        sb.append(" diamonds=").append(Math.max(0, diaWanted - diaHave)).append("/").append(diaWanted);
+        sb.append(" emeralds=").append(Math.max(0, emWanted - emHave)).append("/").append(emWanted);
+        sb.append(" tailTotal=").append(tail);
+        sb.append(" heights=typed");
+        sb.append(" totalSteps=").append(points + tail + 1);
+        return sb.toString();
+    }
+
+    /**
+     * Run the wizard's STATE MACHINE forward N steps without writing to disk, and return the keys it asked for.
+     *
+     * <p>This is the check that would have caught both reported faults: the team list being recomputed mid-run (so the
+     * wizard stalled after team one) and the generators being asked for once instead of four and two. It drives the same
+     * advanceTeam() the wand drives, so the order it prints is the order a builder experiences.
+     */
+    public String wizardDryRun(String mapName, int steps) {
+        MapService ms = H2020.find(MapService.class);
+        MapTemplate t = ms == null ? null : ms.byName(mapName);
+        if (!(t instanceof StoredMapTemplate)) return "No map " + mapName;
+        StoredMapTemplate st = (StoredMapTemplate) t;
+        Session s = new Session(new UUID(0, 0), st.name(), st.folder(), Bukkit.getWorlds().get(0), "dryrun");
+        s.arenaWizard = true;
+        s.arenaTeams = teamsOf(s);
+        s.arenaTeamIdx = 0;
+        s.arenaStep = 0;
+        s.arenaTail.clear();
+        // built the same way the real wizard builds it, so this test cannot agree with a plan the wizard does not use
+        for (int i = 0; i < 4; i++) s.arenaTail.add(net.h2020.api.map.MapKeys.DIAMOND_GEN);
+        for (int i = 0; i < 2; i++) s.arenaTail.add(net.h2020.api.map.MapKeys.EMERALD_GEN);
+        for (String k : new String[]{net.h2020.api.map.MapKeys.WAITING_LOBBY, net.h2020.api.map.MapKeys.MID,
+                net.h2020.api.map.MapKeys.SPECTATOR}) {
+            s.arenaTail.add(k);
+        }
+        // arm the FIRST point before walking, exactly as startArenaWizard does - without this the loop had nothing to
+        // advance from and printed an empty sequence
+        advanceTeam(null, s, s.arenaTeams);
+        StringBuilder seq = new StringBuilder();
+        for (int i = 0; i < steps; i++) {
+            String key = s.armed;
+            if (key == null) break;
+            seq.append(key).append(i + 1 < steps ? " -> " : "");
+            if (s.arenaWizard) {
+                s.arenaStep++;
+                advanceTeam(null, s, s.arenaTeams);
+            } else if (!s.arenaTail.isEmpty()) {
+                String k = s.arenaTail.remove(0);
+                s.queue.clear();
+                s.queue.add(k);
+                s.armed = k;
+                s.armedBed = false;
+                s.armedIndex = repeatable(k) ? -2 : -1;
+            } else {
+                s.armed = null;
+            }
+        }
+        return "dryrun " + st.name() + " steps=" + steps + " seq=" + seq
+                + " endsAtStep=" + s.arenaTeamIdx + "/" + s.arenaTeams.size()
+                + " tailLeft=" + s.arenaTail.size() + " awaitHeights=" + s.awaitHeights;
+    }
+
     public String selftest(String mapName) {
         MapService ms = H2020.find(MapService.class);
         MapTemplate t = ms == null ? null : ms.byName(mapName);
@@ -685,7 +775,7 @@ public final class MapEditService implements Listener {
             if (s.arenaWizard) {
                 // the arena wizard owns the order: one more point of this team, then the next team, then the tail
                 s.arenaStep++;
-                advanceTeam(p, s, teamsOf(s));
+                advanceTeam(p, s, s.arenaTeams);
             } else if (!s.queue.isEmpty()) {
                 String next = s.queue.get(0);
                 int step = 6 - s.queue.size();
@@ -718,19 +808,26 @@ public final class MapEditService implements Listener {
         s.arenaWizard = true;
         s.arenaTeamIdx = 0;
         s.arenaStep = 0;
+        s.arenaTeams = teams;
         s.arenaTail.clear();
         s.awaitHeights = false;
         // the shared points come after the teams; queue them only if they are missing, so a re-run fills gaps
         MapTemplate t = template(s);
+        // Four diamond generators and two emerald ones is a BedWars arena: two diamonds per side, two emeralds at mid.
+        // The first version queued ONE of each because it used the point-list shape (which holds every position for a
+        // key) as if it were a count, so a map got a single diamond and a single emerald.
         for (String[] pair : new String[][]{
-                {net.h2020.api.map.MapKeys.DIAMOND_GEN, "diamond generator"},
-                {net.h2020.api.map.MapKeys.EMERALD_GEN, "emerald generator"},
+                {net.h2020.api.map.MapKeys.DIAMOND_GEN, "diamond generator x4"},
+                {net.h2020.api.map.MapKeys.EMERALD_GEN, "emerald generator x2"},
                 {net.h2020.api.map.MapKeys.WAITING_LOBBY, "waiting lobby"},
                 {net.h2020.api.map.MapKeys.MID, "mid point"},
                 {net.h2020.api.map.MapKeys.SPECTATOR, "spectator point"}}) {
-            if (t == null || t.points(pair[0]).isEmpty()) s.arenaTail.add(pair[0]);
+            int want = pair[0].equals(net.h2020.api.map.MapKeys.DIAMOND_GEN) ? 4 : 2;
+            int have = t == null ? 0 : t.points(pair[0]).size();
+            // one entry per MISSING generator, so the wizard asks again until the arena has its full set
+            for (int i = have; i < want; i++) s.arenaTail.add(pair[0]);
         }
-        advanceTeam(p, s, teams);
+        advanceTeam(p, s, s.arenaTeams);
     }
 
     /** Point the wizard at the next team that still needs a point, or finish into the shared tail. */
@@ -747,11 +844,11 @@ public final class MapEditService implements Listener {
                 s.armedIndex = -1;
                 s.queue.add(key);
                 int n = s.arenaTeamIdx + 1, total = teams.size();
-                p.sendMessage(ChatColor.AQUA + "" + ChatColor.BOLD + "Arena setup "
+                if (p != null) p.sendMessage(ChatColor.AQUA + "" + ChatColor.BOLD + "Arena setup "
                         + ChatColor.GRAY + "team " + n + "/" + total + " " + capitalise(c)
                         + " - step " + (s.arenaStep + 1) + "/" + steps.length + ": "
                         + ChatColor.WHITE + stepName(key));
-                p.sendMessage(ChatColor.GRAY + "Left-click that block with the wand. "
+                if (p != null) p.sendMessage(ChatColor.GRAY + "Left-click that block with the wand. "
                         + ChatColor.DARK_GRAY + "(/h2020 edit skip to skip, cancel to stop)");
                 return;
             }
@@ -766,19 +863,22 @@ public final class MapEditService implements Listener {
             s.queue.add(key);
             s.armed = key;
             s.armedBed = false;
-            s.armedIndex = -1;
-            p.sendMessage(ChatColor.AQUA + "" + ChatColor.BOLD + "Arena setup "
-                    + ChatColor.GRAY + "shared: " + ChatColor.WHITE + stepName(key));
+            // append for a repeatable generator: -1 would overwrite the first one every time
+            s.armedIndex = repeatable(key) ? -2 : -1;
+            int n = s.arenaTail.size();
+            if (p != null) p.sendMessage(ChatColor.AQUA + "" + ChatColor.BOLD + "Arena setup "
+                    + ChatColor.GRAY + "shared: " + ChatColor.WHITE + stepName(key)
+                    + ChatColor.DARK_GRAY + (repeatable(key) ? " (" + (4 - n) + " to go)" : ""));
             return;
         }
         // and finally the heights, which are typed
         s.arenaWizard = false;
         s.awaitHeights = true;
         s.armed = null;
-        p.sendMessage(ChatColor.AQUA + "" + ChatColor.BOLD + "Arena setup " + ChatColor.GRAY + "last step: heights");
-        p.sendMessage(ChatColor.WHITE + "Type the minimum and maximum build heights, e.g. "
+        if (p != null) p.sendMessage(ChatColor.AQUA + "" + ChatColor.BOLD + "Arena setup " + ChatColor.GRAY + "last step: heights");
+        if (p != null) p.sendMessage(ChatColor.WHITE + "Type the minimum and maximum build heights, e.g. "
                 + ChatColor.GREEN + "60 120");
-        p.sendMessage(ChatColor.DARK_GRAY + "Or type " + ChatColor.GRAY + "auto" + ChatColor.DARK_GRAY
+        if (p != null) p.sendMessage(ChatColor.DARK_GRAY + "Or type " + ChatColor.GRAY + "auto" + ChatColor.DARK_GRAY
                 + " to take them from the world's own geometry.");
     }
 
@@ -790,6 +890,12 @@ public final class MapEditService implements Listener {
      * set yet it falls back to the declared team COUNT and the standard colour order, which is the order the map.yml
      * generator writes and the order Hypixel names them in.
      */
+    /** Keys an arena needs several of, so the wizard appends each one instead of replacing the first. */
+    private static boolean repeatable(String key) {
+        return key.equals(net.h2020.api.map.MapKeys.DIAMOND_GEN)
+                || key.equals(net.h2020.api.map.MapKeys.EMERALD_GEN);
+    }
+
     private List<String> teamsOf(Session s) {
         List<String> used = new ArrayList<String>();
         MapTemplate t = template(s);

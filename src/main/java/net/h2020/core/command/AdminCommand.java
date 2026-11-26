@@ -413,6 +413,17 @@ public final class AdminCommand implements TabExecutor {
                     s.sendMessage(net.h2020.api.core.Messages.get("core.admincommand.maps","p1",names));
                     return true;
                 }
+                if (a.length >= 3 && a[2].equalsIgnoreCase("wizard")) {
+                    s.sendMessage(org.bukkit.ChatColor.AQUA + "" + ChatColor.BOLD + "Arena wizard "
+                            + ChatColor.RESET + ed.wizardPlan(a[1]));
+                    if (a.length >= 4) {
+                        try {
+                            s.sendMessage(org.bukkit.ChatColor.GRAY + ed.wizardDryRun(a[1],
+                                    Integer.parseInt(a[3])));
+                        } catch (NumberFormatException ignored) { }
+                    }
+                    return true;
+                }
                 if (a.length >= 4 && a[2].equalsIgnoreCase("opentest")) {
                     // headless proof that the open/close path works: send a bot in, then take it out again
                     Player target = Bukkit.getPlayer(a[3]);
