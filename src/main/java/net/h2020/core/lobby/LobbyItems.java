@@ -11,7 +11,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 /** 2020 lobby hotbar. */
 public final class LobbyItems {
-    public enum Kind { GAME_MENU, PROFILE, SHOP, COLLECTIBLES, VISIBILITY, LOBBY_SELECTOR }
+    public enum Kind { GAME_MENU, MAP_SELECTOR, PROFILE, SHOP, COLLECTIBLES, VISIBILITY, LOBBY_SELECTOR }
 
     private static final String RC = ChatColor.GRAY + " (Right Click)";
     static final String GAME_MENU = ChatColor.GREEN + "Game Menu" + RC;
@@ -21,6 +21,7 @@ public final class LobbyItems {
     static final String VISIBLE = ChatColor.WHITE + "Players: " + ChatColor.GREEN + "Visible" + RC;
     static final String HIDDEN = ChatColor.WHITE + "Players: " + ChatColor.RED + "Hidden" + RC;
     static final String LOBBY_SELECTOR = ChatColor.GREEN + "Lobby Selector" + RC;
+    static final String MAP_SELECTOR = ChatColor.GREEN + "Map Selector" + RC;
 
     private LobbyItems() {}
 
@@ -36,6 +37,12 @@ public final class LobbyItems {
         if (family != null) {
             inv.setItem(2, new ItemBuilder(Material.EMERALD).name(SHOP)
                     .lore(ChatColor.GRAY + "Right-click to open the " + (family == GameFamily.BEDWARS ? "Bed Wars" : "SkyWars") + " Shop!").build());
+        }
+        if (family != null) {
+            inv.setItem(3, new ItemBuilder(Material.MAP).name(MAP_SELECTOR)
+                    .lore(ChatColor.GRAY + "Right-click to browse every " + (family == GameFamily.BEDWARS ? "Bed Wars" : "SkyWars")
+                            + " map,")
+                    .lore(ChatColor.GRAY + "pick one, and queue straight onto it.").build());
         }
         inv.setItem(4, new ItemBuilder(Material.CHEST).name(COLLECTIBLES)
                 .lore(ChatColor.GRAY + "Right-click to view and use your", ChatColor.GRAY + "Collectibles!").build());
@@ -57,6 +64,7 @@ public final class LobbyItems {
         if (!m.hasDisplayName()) return null;
         String n = m.getDisplayName();
         if (n.equals(GAME_MENU)) return Kind.GAME_MENU;
+        if (n.equals(MAP_SELECTOR)) return Kind.MAP_SELECTOR;
         if (n.equals(PROFILE)) return Kind.PROFILE;
         if (n.equals(SHOP)) return Kind.SHOP;
         if (n.equals(COLLECTIBLES)) return Kind.COLLECTIBLES;

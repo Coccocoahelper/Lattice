@@ -8,6 +8,9 @@ commands:
   play:
     description: Join a game, e.g. /play bedwars_eight_one
     usage: /play <game>
+  maps:
+    description: Browse and pick a map, the way Hypixel's map selector works
+    usage: /maps [mode]
   lobby:
     description: Return to lobby
     aliases: [l, hub]

@@ -13,6 +13,14 @@ import java.util.Collection;
 public interface GameManager {
     void registerProvider(GameProvider provider);
     Game queue(Player player, GameMode type);
+    /**
+     * Queue into a game on a SPECIFIC map.
+     *
+     * <p>The map selector needs this: without it, choosing Lighthouse and pressing Play drops the player into whichever
+     * map the queue opens, which is exactly what the selector exists to avoid. Falls back to the ordinary queue when the
+     * map cannot host the mode or cannot be copied, so a stale selector entry never strands a player.
+     */
+    Game queue(Player player, GameMode type, MapTemplate map);
     /** Create a game explicitly (used by /h2020 commands and the queue). */
     Game create(GameMode type, MapTemplate map);
     Game gameOf(Player player);

@@ -392,6 +392,12 @@ public final class LobbyManager implements LobbyHooks, Listener {
                     if (fam == null) menus.openGameMenu(p);
                     else menus.openModeSelect(p, fam);
                     break;
+                case MAP_SELECTOR:
+                    // the selector is only meaningful inside a game lobby: it lists that family's maps
+                    if (fam == net.h2020.api.game.GameFamily.BEDWARS) MapSelector.open(p, net.h2020.api.game.GameType.BEDWARS_SOLO);
+                    else if (fam == net.h2020.api.game.GameFamily.SKYWARS) MapSelector.open(p, net.h2020.api.game.GameType.SKYWARS_SOLO_NORMAL);
+                    else menus.openGameMenu(p);
+                    break;
                 case PROFILE: menus.openProfile(p); break;
                 case SHOP: if (fam != null) menus.openShop(p, fam); break;
                 case COLLECTIBLES: menus.openCollectibles(p); break;

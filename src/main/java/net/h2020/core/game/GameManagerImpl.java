@@ -231,14 +231,52 @@ public final class GameManagerImpl implements GameManager, Listener {
 
     @Override
     public Game queue(Player player, net.h2020.api.game.GameMode type) {
-        return queueAttempt(player, type, 0);
+        return queueAttempt(player, type, 0, null);
+    }
+
+    /**
+     * Queue onto a specific map.
+     *
+     * <p>An existing joinable game on that map is joined; otherwise one is created on it. When the map cannot host the
+     * mode - a stale selector entry, a map whose team count changed - this falls through to the ordinary queue rather
+     * than refusing, because a player who pressed Play wants a game more than they want an error message.
+     */
+    @Override
+    public Game queue(Player player, net.h2020.api.game.GameMode type, net.h2020.api.map.MapTemplate map) {
+        if (map == null) return queueAttempt(player, type, 0, null);
+        Game onMap = findJoinableOn(type, map.name());
+        if (onMap != null) {
+            onMap.addPlayer(player);
+            return onMap;
+        }
+        Game made = null;
+        try { made = create(type, map); } catch (Throwable t) { made = null; }
+        if (made != null) {
+            made.addPlayer(player);
+            return made;
+        }
+        return queueAttempt(player, type, 0, null);
+    }
+
+    /** A joinable game of this type already running on this map, or null. */
+    private Game findJoinableOn(net.h2020.api.game.GameMode type, String mapName) {
+        if (mapName == null) return null;
+        for (Game g : games.values()) {
+            if (g.type() != type) continue;
+            if (!joinable(g)) continue;
+            try {
+                if (mapName.equalsIgnoreCase(g.mapName())) return g;
+            } catch (Throwable ignored) { }
+        }
+        return null;
     }
 
     /**
      * One queue pass. A human whose game could not be created is retried a second later rather than told to come
      * back later: the usual cause is a map copy that is still being built, and it is ready almost at once.
      */
-    private Game queueAttempt(final Player player, final net.h2020.api.game.GameMode type, final int retries) {
+    private Game queueAttempt(final Player player, final net.h2020.api.game.GameMode type, final int retries,
+                              final net.h2020.api.map.MapTemplate preferredMap) {
         if (player == null || type == null || !player.isOnline()) return null;
         Game current = gameOf(player);
         if (current != null) {
@@ -262,7 +300,7 @@ public final class GameManagerImpl implements GameManager, Listener {
                 if (human && retries < 3) {
                     Bukkit.getScheduler().runTaskLater(plugin, new Runnable() {
                         @Override public void run() {
-                            if (player.isOnline() && gameOf(player) == null) queueAttempt(player, type, retries + 1);
+                            if (player.isOnline() && gameOf(player) == null) queueAttempt(player, type, retries + 1, null);
                         }
                     }, 20L);
                     return null;

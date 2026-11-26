@@ -94,6 +94,43 @@ public final class CoreModule implements Module {
 
         register(plugin, new net.h2020.core.command.HelpMenu());
         command(plugin, "play", new PlayCommand(core));
+        // Hypixel's map browser: /maps opens the selector, and a bare /maps is what players type.
+        command(plugin, "maps", new org.bukkit.command.CommandExecutor() {
+            @Override public boolean onCommand(org.bukkit.command.CommandSender sender, org.bukkit.command.Command cmd,
+                                                String label, String[] args) {
+                // "describe" answers the console too, on purpose: a chest GUI cannot be inspected from a terminal, so
+                // this is the only way to check the selector's contents on a live server without a second client.
+                if (!(sender instanceof Player)) {
+                    if (args.length >= 1 && args[0].equalsIgnoreCase("describe")) {
+                        net.h2020.api.game.GameType cm = args.length > 1
+                                ? net.h2020.api.game.GameType.byId(args[1].toLowerCase()) : null;
+                        for (String l : net.h2020.core.lobby.MapSelector.describe(null, cm, 0)) {
+                            sender.sendMessage(org.bukkit.ChatColor.GRAY + l);
+                        }
+                        return true;
+                    }
+                    sender.sendMessage(net.h2020.api.core.Messages.get("core.command.players-only"));
+                    return true;
+                }
+                Player p = (Player) sender;
+                if (args.length >= 1) {
+                    // /maps <mode id> opens straight onto that mode, which is what the lobby NPCs need
+                    if (args[0].equalsIgnoreCase("describe")) {
+                        // a chest GUI cannot be read from a terminal; this prints the same contents as text
+                        net.h2020.api.game.GameType m = args.length > 1
+                                ? net.h2020.api.game.GameType.byId(args[1].toLowerCase()) : null;
+                        for (String l : net.h2020.core.lobby.MapSelector.describe(p, m, 0)) {
+                            sender.sendMessage(org.bukkit.ChatColor.GRAY + l);
+                        }
+                        return true;
+                    }
+                    net.h2020.api.game.GameType t = net.h2020.api.game.GameType.byId(args[0].toLowerCase());
+                    if (t != null) { net.h2020.core.lobby.MapSelector.open(p, t); return true; }
+                }
+                net.h2020.core.lobby.MapSelector.open(p);
+                return true;
+            }
+        });
         command(plugin, "lobby", new LobbyCommand(core));
         command(plugin, "settings", new org.bukkit.command.CommandExecutor() {
             @Override public boolean onCommand(org.bukkit.command.CommandSender sender, org.bukkit.command.Command cmd,

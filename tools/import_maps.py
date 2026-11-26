@@ -210,7 +210,12 @@ def convert(zip_path, dry=False):
                 except OSError:
                     pass
         teams = teams_of(parts, family)
-        write_map_yml(dest, name, family_tag, teams, spawn, parts)
+        team_counts = [teams]
+        if family == "skywars" and "mega" not in "/".join(parts).lower():
+            # Solo and Teams both run on a Standard map; the cage count is per-queue. Declaring only 12 hides every
+            # standard map from the Teams queue.
+            team_counts = [12, 8]
+        write_map_yml(dest, name, family_tag, teams, spawn, parts, team_counts)
         return mid, "imported %s (%s, %d teams) spawn=%s" % (name, family, teams, spawn)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -303,7 +308,8 @@ def build_centre(world_dir):
     return (cx, y, cz)
 
 
-def write_map_yml(dest, name, family_tag, teams, spawn, parts):
+def write_map_yml(dest, name, family_tag, teams, spawn, parts, team_counts=None):
+    team_counts = team_counts or [teams]
     lines = []
     lines.append("# Imported from the Hypixel Map Archive (MEGA folder zigm2SIb).")
     lines.append("# The archive ships the WORLD only: it carries no arena config, so team spawns, bed")
@@ -312,7 +318,7 @@ def write_map_yml(dest, name, family_tag, teams, spawn, parts):
     lines.append("# source path: %s" % "/".join(parts))
     lines.append('name: "%s"' % name.replace('"', '\\"'))
     lines.append("family: %s" % family_tag)
-    lines.append("teams: [%d]" % teams)
+    lines.append("teams: [%s]" % ", ".join(str(x) for x in team_counts))
     lines.append("build-limit: 100")
     lines.append("points:")
     lines.append("  waiting_lobby:")
