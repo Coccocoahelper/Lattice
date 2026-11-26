@@ -405,7 +405,7 @@ public final class MapEditService implements Listener {
         StringBuilder sb = new StringBuilder("wizard for " + st.name() + ": teams=" + s.arenaTeams);
         // simulate: five points per team, then the shared tail, without touching the disk
         int points = s.arenaTeams.size() * 5;
-        int diaWanted = 4, emWanted = 2;
+        int diaWanted = 4, emWanted = 4;
         int diaHave = t.points(net.h2020.api.map.MapKeys.DIAMOND_GEN).size();
         int emHave = t.points(net.h2020.api.map.MapKeys.EMERALD_GEN).size();
         int tail = Math.max(0, diaWanted - diaHave) + Math.max(0, emWanted - emHave);
@@ -807,20 +807,7 @@ public final class MapEditService implements Listener {
         s.awaitHeights = false;
         // the shared points come after the teams; queue them only if they are missing, so a re-run fills gaps
         MapTemplate t = template(s);
-        // Four diamond generators and two emerald ones is a BedWars arena: two diamonds per side, two emeralds at mid.
-        // The first version queued ONE of each because it used the point-list shape (which holds every position for a
-        // key) as if it were a count, so a map got a single diamond and a single emerald.
-        for (String[] pair : new String[][]{
-                {net.h2020.api.map.MapKeys.DIAMOND_GEN, "diamond generator x4"},
-                {net.h2020.api.map.MapKeys.EMERALD_GEN, "emerald generator x2"},
-                {net.h2020.api.map.MapKeys.WAITING_LOBBY, "waiting lobby"},
-                {net.h2020.api.map.MapKeys.MID, "mid point"},
-                {net.h2020.api.map.MapKeys.SPECTATOR, "spectator point"}}) {
-            int want = pair[0].equals(net.h2020.api.map.MapKeys.DIAMOND_GEN) ? 4 : 2;
-            int have = t == null ? 0 : t.points(pair[0]).size();
-            // one entry per MISSING generator, so the wizard asks again until the arena has its full set
-            for (int i = have; i < want; i++) s.arenaTail.add(pair[0]);
-        }
+        s.arenaTail.addAll(missingShared(t));
         advanceTeam(p, s, s.arenaTeams);
     }
 
@@ -900,7 +887,7 @@ public final class MapEditService implements Listener {
         int dia = t == null ? 0 : t.points(net.h2020.api.map.MapKeys.DIAMOND_GEN).size();
         int em = t == null ? 0 : t.points(net.h2020.api.map.MapKeys.EMERALD_GEN).size();
         for (int i = dia; i < 4; i++) out.add(net.h2020.api.map.MapKeys.DIAMOND_GEN);
-        for (int i = em; i < 2; i++) out.add(net.h2020.api.map.MapKeys.EMERALD_GEN);
+        for (int i = em; i < 4; i++) out.add(net.h2020.api.map.MapKeys.EMERALD_GEN);
         for (String k : new String[]{net.h2020.api.map.MapKeys.WAITING_LOBBY, net.h2020.api.map.MapKeys.MID,
                 net.h2020.api.map.MapKeys.SPECTATOR}) {
             if (t == null || t.points(k).isEmpty()) out.add(k);
