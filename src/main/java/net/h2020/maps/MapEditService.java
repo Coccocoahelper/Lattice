@@ -440,13 +440,7 @@ public final class MapEditService implements Listener {
         s.arenaTeamIdx = 0;
         s.arenaStep = 0;
         s.arenaTail.clear();
-        // built the same way the real wizard builds it, so this test cannot agree with a plan the wizard does not use
-        for (int i = 0; i < 4; i++) s.arenaTail.add(net.h2020.api.map.MapKeys.DIAMOND_GEN);
-        for (int i = 0; i < 2; i++) s.arenaTail.add(net.h2020.api.map.MapKeys.EMERALD_GEN);
-        for (String k : new String[]{net.h2020.api.map.MapKeys.WAITING_LOBBY, net.h2020.api.map.MapKeys.MID,
-                net.h2020.api.map.MapKeys.SPECTATOR}) {
-            s.arenaTail.add(k);
-        }
+        s.arenaTail.addAll(missingShared(t));
         // arm the FIRST point before walking, exactly as startArenaWizard does - without this the loop had nothing to
         // advance from and printed an empty sequence
         advanceTeam(null, s, s.arenaTeams);
@@ -833,10 +827,15 @@ public final class MapEditService implements Listener {
     /** Point the wizard at the next team that still needs a point, or finish into the shared tail. */
     private void advanceTeam(Player p, Session s, List<String> teams) {
         String[] steps = {"spawn", "bed", "shop", "upgrades", "generator"};
+        MapTemplate t = template(s);
         while (s.arenaTeamIdx < teams.size()) {
             String c = teams.get(s.arenaTeamIdx);
             while (s.arenaStep < steps.length) {
                 String key = "team." + c + "." + steps[s.arenaStep];
+                // already set on this map: do not ask for it again. A builder who runs the wizard a second time should
+                // be walked through the GAPS, not the work they already did - Nebuc had all of red authored and the
+                // wizard re-asked for every point of it.
+                if (t != null && !t.points(key).isEmpty()) { s.arenaStep++; continue; }
                 s.queue.clear();
                 s.queueTeam = c;
                 s.armed = key;
@@ -890,6 +889,25 @@ public final class MapEditService implements Listener {
      * set yet it falls back to the declared team COUNT and the standard colour order, which is the order the map.yml
      * generator writes and the order Hypixel names them in.
      */
+    /**
+     * The shared points still missing from this map, one entry per position.
+     *
+     * <p>One place, used by the wizard AND by the dry run, because a dry run that builds its own plan can agree with a
+     * wizard that does something else - which is what happened twice.
+     */
+    private static List<String> missingShared(MapTemplate t) {
+        List<String> out = new ArrayList<String>();
+        int dia = t == null ? 0 : t.points(net.h2020.api.map.MapKeys.DIAMOND_GEN).size();
+        int em = t == null ? 0 : t.points(net.h2020.api.map.MapKeys.EMERALD_GEN).size();
+        for (int i = dia; i < 4; i++) out.add(net.h2020.api.map.MapKeys.DIAMOND_GEN);
+        for (int i = em; i < 2; i++) out.add(net.h2020.api.map.MapKeys.EMERALD_GEN);
+        for (String k : new String[]{net.h2020.api.map.MapKeys.WAITING_LOBBY, net.h2020.api.map.MapKeys.MID,
+                net.h2020.api.map.MapKeys.SPECTATOR}) {
+            if (t == null || t.points(k).isEmpty()) out.add(k);
+        }
+        return out;
+    }
+
     /** Keys an arena needs several of, so the wizard appends each one instead of replacing the first. */
     private static boolean repeatable(String key) {
         return key.equals(net.h2020.api.map.MapKeys.DIAMOND_GEN)
@@ -897,27 +915,30 @@ public final class MapEditService implements Listener {
     }
 
     private List<String> teamsOf(Session s) {
-        List<String> used = new ArrayList<String>();
-        MapTemplate t = template(s);
-        String[] steps = {"spawn", "bed", "shop", "upgrades", "generator"};
-        for (net.h2020.api.game.TeamColor c : net.h2020.api.game.TeamColor.values()) {
-            String id = c.name().toLowerCase(java.util.Locale.ROOT);
-            if (t == null) continue;
-            for (String step : steps) {
-                if (!t.points("team." + id + "." + step).isEmpty()) { used.add(id); break; }
-            }
-        }
-        if (!used.isEmpty()) return used;
+        // The map DECLARES how many teams it has (`teams: [8]`), and that is the answer. The first version asked which
+        // teams already had a point and returned those - so a map with only red set gave a wizard that walked red and
+        // nothing else. Report of that: "doesn't seem to work on Nebuc", which had red authored and seven teams empty.
+        //
+        // Points are used only to order nothing: the standard colour order is what map.yml and Hypixel both use, so the
+        // list is deterministic no matter what has been authored.
         int count = 8;
+        MapTemplate t = template(s);
         try {
             List<Integer> declared = t == null ? null : t.supportedTeamCounts();
-            if (declared != null && !declared.isEmpty()) count = declared.get(0);
+            if (declared != null && !declared.isEmpty()) {
+                // the SMALLEST declared count: a map that serves both Solo (8) and Teams (4) is set up once, on the
+                // layout with fewer bases - the larger queue reuses those bases.
+                int best = Integer.MAX_VALUE;
+                for (Integer c : declared) if (c != null && c > 0) best = Math.min(best, c);
+                if (best != Integer.MAX_VALUE) count = best;
+            }
         } catch (Throwable ignored) { }
+        List<String> out = new ArrayList<String>();
         for (net.h2020.api.game.TeamColor c : net.h2020.api.game.TeamColor.values()) {
-            if (used.size() >= count) break;
-            used.add(c.name().toLowerCase(java.util.Locale.ROOT));
+            if (out.size() >= count) break;
+            out.add(c.name().toLowerCase(java.util.Locale.ROOT));
         }
-        return used;
+        return out;
     }
 
     /** The wizard's five points are in: derive and write the team's base box, then announce the result. */
