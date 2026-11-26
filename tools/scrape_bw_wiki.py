@@ -66,22 +66,41 @@ def clean_date(s):
 
 
 def parse_index(page):
-    """{map name: {'date': iso, 'page': url}} from the Bed Wars Maps index."""
+    """{map name: {'date': iso, 'page': url}} from the Bed Wars Maps index.
+
+    <p>The date column uses `rowspan`, so a group of maps released on the same day has the date written once on the
+    FIRST row and omitted from the rest. Requiring three cells per row dropped every map in such a group - which is how
+    Nebuc, Arid and Casita all went missing from a 126-map scrape while the wiki has pages for them. The fix is to walk
+    the rows in order and carry the last date forward for exactly as many rows as the rowspan says.
+    """
     out = {}
+    carry = 0
+    last_date = None
     for row in re.findall(r"<tr[^>]*>(.*?)</tr>", page, re.S):
         cells = re.findall(r"<t[hd][^>]*>(.*?)</t[hd]>", row, re.S)
-        if len(cells) < 3:
+        if not cells:
             continue
-        link = re.search(r'href="(/w/[^"]+)"[^>]*title="([^"]+)"', cells[1])
+        # a header row resets nothing but is not a map
+        if text_of(cells[0]).lower() == "image":
+            continue
+        link = re.search(r'href="(/w/[^"]+)"[^>]*title="([^"]+)"', row)
         if not link:
             continue
         href, title = link.group(1), html.unescape(link.group(2))
-        # a title like "Atlas Prime (Bed Wars)" is the map's own page; the index also links other things
         if "(Bed Wars)" not in title:
             continue
-        date = clean_date(text_of(cells[2]))
-        # a rowspan'd date cell belongs to the first row only; later rows in the same group repeat it via rowspan, so
-        # a missing date here is "same as the previous map in the group", which the caller fills in
+        date = None
+        if len(cells) >= 3:
+            date = clean_date(text_of(cells[2]))
+            # a date cell with rowspan covers the following rows too
+            span = re.search(r'rowspan="(\d+)"', row)
+            carry = int(span.group(1)) - 1 if span else 0
+            if date:
+                last_date = date
+        elif carry > 0:
+            # this row's date lives in the group above
+            carry -= 1
+            date = last_date
         out[title] = {"date": date, "page": BASE + href}
     return out
 
@@ -125,23 +144,7 @@ def main():
     index = parse_index(page)
     print("%d map pages found in the index" % len(index), file=sys.stderr)
 
-    # rowspan: walk the index in order and carry the last date forward within a group
-    ordered = []
-    for row in re.findall(r"<tr[^>]*>(.*?)</tr>", page, re.S):
-        cells = re.findall(r"<t[hd][^>]*>(.*?)</t[hd]>", row, re.S)
-        if len(cells) < 3:
-            continue
-        link = re.search(r'href="(/w/[^"]+)"[^>]*title="([^"]+)"', cells[1])
-        if not link or "(Bed Wars)" not in html.unescape(link.group(2)):
-            continue
-        ordered.append((html.unescape(link.group(2)), BASE + link.group(1), clean_date(text_of(cells[2]))))
-
-    last_date = None
-    out = {}
-    for title, url, date in ordered:
-        if date:
-            last_date = date
-        out[title] = {"page": url, "date": date or last_date}
+    out = index
 
     results = {}
     names = [n for n in out if not only or only.lower() in n.lower()]
